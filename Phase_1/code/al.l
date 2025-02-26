@@ -63,7 +63,6 @@ operator    (\+|\-|\*|\/|=|%|\+\+|\-\-|==|!=|>|<|>=|<=)
 keyword     (function|while|for|if|else|continue|break|return|and|or|not|local|true|false|nil)
 
 %%
-/* Token Matching Rules */
 {keyword}    { insert_token(yylineno, yytext, "KEYWORD"); return 1; }
 {operator}   { insert_token(yylineno, yytext, "OPERATOR"); return 1; }
 {id}         { insert_token(yylineno, yytext, "IDENTIFIER"); return 1; }
