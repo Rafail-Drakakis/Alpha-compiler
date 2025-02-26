@@ -61,17 +61,20 @@ comment1    \/\/.*
 comment2    \/\*([^*]|\*+[^*/])*\*+\/
 operator    (\+|\-|\*|\/|=|%|\+\+|\-\-|==|!=|>|<|>=|<=)
 keyword     (function|while|for|if|else|continue|break|return|and|or|not|local|true|false|nil)
+/* Punctuation (parentheses, braces, semicolons, commas, etc.) */
+punctuation [(){};\[\],]
 
 %%
-{keyword}    { insert_token(yylineno, yytext, "KEYWORD"); return 1; }
-{operator}   { insert_token(yylineno, yytext, "OPERATOR"); return 1; }
-{id}         { insert_token(yylineno, yytext, "IDENTIFIER"); return 1; }
-{intconst}   { insert_token(yylineno, yytext, "INTCONST"); return 1; }
-{realconst}  { insert_token(yylineno, yytext, "REALCONST"); return 1; }
-{string}     { insert_token(yylineno, yytext, "STRING"); return 1; }
-{comment1}   {  }
-{comment2}   {  }
-{whitespace} {  }
+{keyword}     { insert_token(yylineno, yytext, "KEYWORD"); return 1; }
+{operator}    { insert_token(yylineno, yytext, "OPERATOR"); return 1; }
+{punctuation} { insert_token(yylineno, yytext, "PUNCTUATION"); return 1; }
+{id}          { insert_token(yylineno, yytext, "IDENTIFIER"); return 1; }
+{intconst}    { insert_token(yylineno, yytext, "INTCONST"); return 1; }
+{realconst}   { insert_token(yylineno, yytext, "REALCONST"); return 1; }
+{string}      { insert_token(yylineno, yytext, "STRING"); return 1; }
+{comment1}    {  }
+{comment2}    {  }
+{whitespace}  {  }
 .   { /* Ignore unrecognized characters */ }
 
 %%
