@@ -72,6 +72,7 @@ keyword     (function|while|for|if|else|continue|break|return|and|or|not|local|t
 {comment1}   {  }
 {comment2}   {  }
 {whitespace} {  }
+.   { /* Ignore unrecognized characters */ }
 
 %%
 /* Function to print tokens */
@@ -96,7 +97,7 @@ int main(int argc, char *argv[]) {
     }
     yyin = input_file;
 
-    alpha_yylex(NULL);
+    while (alpha_yylex(NULL));
     fclose(input_file);
 
     if (argc == 3) {
