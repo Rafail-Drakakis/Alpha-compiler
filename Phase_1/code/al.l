@@ -65,7 +65,25 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
 %%
 {keyword}     { insert_token(yylineno, yytext, "KEYWORD"); return 1; }
-{operator}    { insert_token(yylineno, yytext, "OPERATOR"); return 1; }
+
+{operator} {
+    if (!strcmp(yytext, "+"))        { insert_token(yylineno, yytext, "OPERATOR PLUS"); }
+    else if (!strcmp(yytext, "-"))   { insert_token(yylineno, yytext, "OPERATOR MINUS"); }
+    else if (!strcmp(yytext, "++"))  { insert_token(yylineno, yytext, "OPERATOR PLUS_PLUS"); }
+    else if (!strcmp(yytext, "--"))  { insert_token(yylineno, yytext, "OPERATOR MINUS_MINUS"); }
+    else if (!strcmp(yytext, "=="))  { insert_token(yylineno, yytext, "OPERATOR EQUAL_EQUAL"); }
+    else if (!strcmp(yytext, "!="))  { insert_token(yylineno, yytext, "OPERATOR NOT_EQUAL"); }
+    else if (!strcmp(yytext, ">"))   { insert_token(yylineno, yytext, "OPERATOR GREATER"); }
+    else if (!strcmp(yytext, "<"))   { insert_token(yylineno, yytext, "OPERATOR LESS"); }
+    else if (!strcmp(yytext, ">="))  { insert_token(yylineno, yytext, "OPERATOR GREATER_EQUAL"); }
+    else if (!strcmp(yytext, "<="))  { insert_token(yylineno, yytext, "OPERATOR LESS_EQUAL"); }
+    else {
+        /* If none of the above operators doesnt match then just store it as a general OPERATOR. */
+        insert_token(yylineno, yytext, "OPERATOR");
+    }
+    return 1;
+}
+
 {punctuation} { insert_token(yylineno, yytext, "PUNCTUATION"); return 1; }
 {id}          { insert_token(yylineno, yytext, "IDENTIFIER"); return 1; }
 {intconst}    { insert_token(yylineno, yytext, "INTCONST"); return 1; }
