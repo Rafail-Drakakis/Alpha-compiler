@@ -61,8 +61,7 @@ comment1    \/\/.*
 comment2    \/\*([^*]|\*+[^*/])*\*+\/
 operator    (\+|\-|\*|\/|=|%|\+\+|\-\-|==|!=|>|<|>=|<=)
 keyword     (function|while|for|if|else|continue|break|return|and|or|not|local|true|false|nil)
-/* Punctuation (parentheses, braces, semicolons, commas, etc.) */
-punctuation [(){};\[\],]
+punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
 %%
 {keyword}     { insert_token(yylineno, yytext, "KEYWORD"); return 1; }
