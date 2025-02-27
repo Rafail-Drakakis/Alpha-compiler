@@ -1,6 +1,0 @@
-1: #1 "23" INTCONST
-1: #2 "5.5" REALCONST
-2: #3 "myvariable" IDENTIFIER
-3: #4 "32" INTCONST
-3: #5 "s" IDENTIFIER
-4: #6 ""Hello\nExample"" STRING

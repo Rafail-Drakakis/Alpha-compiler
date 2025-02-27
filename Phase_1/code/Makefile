@@ -4,7 +4,7 @@ LEX_FILE = al.l
 OUTPUT = lexer
 
 all: $(OUTPUT)
-	./$(OUTPUT) test.txt output.txt
+	./$(OUTPUT) test2.txt output.txt
 
 $(OUTPUT): lex.yy.c
 	$(CC) -o $(OUTPUT) lex.yy.c -lfl
