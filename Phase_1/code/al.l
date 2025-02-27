@@ -21,6 +21,7 @@ typedef struct alpha_token_t {
     unsigned int token_number;
     char *content;
     char *token_type;
+    char *data_type;
     struct alpha_token_t *next_t;
 } alpha_token_t;
 
@@ -31,12 +32,13 @@ int comment_line_end = 0;
 
 
 /* Function to insert tokens into the list */
-void insert_token(int line, const char* text, const char* type) {
+void insert_token(int line, const char* text, const char* type, const char* type_of_data) {
     alpha_token_t* new_token = (alpha_token_t*)malloc(sizeof(alpha_token_t));
     new_token->line_number = line;
     new_token->token_number = ++counter_tk_number;
     new_token->content = strdup(text);
     new_token->token_type = strdup(type);
+    new_token->data_type = strdup(type_of_data);
     new_token->next_t = NULL;
 
     if (!list_head) {
@@ -70,69 +72,69 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
 %%
 {keyword} {
-    if (!strcmp(yytext, "if"))            { insert_token(yylineno, yytext, "KEYWORD IF"); }
-    else if (!strcmp(yytext, "else"))     { insert_token(yylineno, yytext, "KEYWORD ELSE"); }
-    else if (!strcmp(yytext, "while"))    { insert_token(yylineno, yytext, "KEYWORD WHILE"); }
-    else if (!strcmp(yytext, "for"))      { insert_token(yylineno, yytext, "KEYWORD FOR"); }
-    else if (!strcmp(yytext, "function")) { insert_token(yylineno, yytext, "KEYWORD FUNCTION"); }
-    else if (!strcmp(yytext, "return"))   { insert_token(yylineno, yytext, "KEYWORD RETURN"); }
-    else if (!strcmp(yytext, "break"))    { insert_token(yylineno, yytext, "KEYWORD BREAK"); }
-    else if (!strcmp(yytext, "continue")) { insert_token(yylineno, yytext, "KEYWORD CONTINUE"); }
-    else if (!strcmp(yytext, "and"))      { insert_token(yylineno, yytext, "KEYWORD AND"); }
-    else if (!strcmp(yytext, "not"))      { insert_token(yylineno, yytext, "KEYWORD NOT"); }
-    else if (!strcmp(yytext, "or"))       { insert_token(yylineno, yytext, "KEYWORD OR"); }
-    else if (!strcmp(yytext, "local"))    { insert_token(yylineno, yytext, "KEYWORD LOCAL"); }
-    else if (!strcmp(yytext, "true"))     { insert_token(yylineno, yytext, "KEYWORD TRUE"); }
-    else if (!strcmp(yytext, "false"))    { insert_token(yylineno, yytext, "KEYWORD FALSE"); }
-    else if (!strcmp(yytext, "nil"))      { insert_token(yylineno, yytext, "KEYWORD NIL"); }
+    if (!strcmp(yytext, "if"))            { insert_token(yylineno, yytext, "KEYWORD IF", "enumerated");}
+    else if (!strcmp(yytext, "else"))     { insert_token(yylineno, yytext, "KEYWORD ELSE", "enumerated"); }
+    else if (!strcmp(yytext, "while"))    { insert_token(yylineno, yytext, "KEYWORD WHILE", "enumerated"); }
+    else if (!strcmp(yytext, "for"))      { insert_token(yylineno, yytext, "KEYWORD FOR", "enumerated"); }
+    else if (!strcmp(yytext, "function")) { insert_token(yylineno, yytext, "KEYWORD FUNCTION", "enumerated"); }
+    else if (!strcmp(yytext, "return"))   { insert_token(yylineno, yytext, "KEYWORD RETURN", "enumerated"); }
+    else if (!strcmp(yytext, "break"))    { insert_token(yylineno, yytext, "KEYWORD BREAK", "enumerated"); }
+    else if (!strcmp(yytext, "continue")) { insert_token(yylineno, yytext, "KEYWORD CONTINUE", "enumerated"); }
+    else if (!strcmp(yytext, "and"))      { insert_token(yylineno, yytext, "KEYWORD AND", "enumerated"); }
+    else if (!strcmp(yytext, "not"))      { insert_token(yylineno, yytext, "KEYWORD NOT", "enumerated"); }
+    else if (!strcmp(yytext, "or"))       { insert_token(yylineno, yytext, "KEYWORD OR", "enumerated"); }
+    else if (!strcmp(yytext, "local"))    { insert_token(yylineno, yytext, "KEYWORD LOCAL", "enumerated"); }
+    else if (!strcmp(yytext, "true"))     { insert_token(yylineno, yytext, "KEYWORD TRUE", "enumerated"); }
+    else if (!strcmp(yytext, "false"))    { insert_token(yylineno, yytext, "KEYWORD FALSE", "enumerated"); }
+    else if (!strcmp(yytext, "nil"))      { insert_token(yylineno, yytext, "KEYWORD NIL", "enumerated"); }
     else {
-        insert_token(yylineno, yytext, "KEYWORD");
+        insert_token(yylineno, yytext, "KEYWORD", "enumerated");
     }
     return 1;
 }
 
 {operator} {
-    if (!strcmp(yytext, "+"))        { insert_token(yylineno, yytext, "OPERATOR PLUS"); }
-    else if (!strcmp(yytext, "-"))   { insert_token(yylineno, yytext, "OPERATOR MINUS"); }
-    else if (!strcmp(yytext, "++"))  { insert_token(yylineno, yytext, "OPERATOR PLUS_PLUS"); }
-    else if (!strcmp(yytext, "--"))  { insert_token(yylineno, yytext, "OPERATOR MINUS_MINUS"); }
-    else if (!strcmp(yytext, "=="))  { insert_token(yylineno, yytext, "OPERATOR EQUAL_EQUAL"); }
-    else if (!strcmp(yytext, "!="))  { insert_token(yylineno, yytext, "OPERATOR NOT_EQUAL"); }
-    else if (!strcmp(yytext, ">"))   { insert_token(yylineno, yytext, "OPERATOR GREATER"); }
-    else if (!strcmp(yytext, "<"))   { insert_token(yylineno, yytext, "OPERATOR LESS"); }
-    else if (!strcmp(yytext, ">="))  { insert_token(yylineno, yytext, "OPERATOR GREATER_EQUAL"); }
-    else if (!strcmp(yytext, "<="))  { insert_token(yylineno, yytext, "OPERATOR LESS_EQUAL"); }
+    if (!strcmp(yytext, "+"))        { insert_token(yylineno, yytext, "OPERATOR PLUS", "enumerated"); }
+    else if (!strcmp(yytext, "-"))   { insert_token(yylineno, yytext, "OPERATOR MINUS", "enumerated"); }
+    else if (!strcmp(yytext, "++"))  { insert_token(yylineno, yytext, "OPERATOR PLUS_PLUS", "enumerated"); }
+    else if (!strcmp(yytext, "--"))  { insert_token(yylineno, yytext, "OPERATOR MINUS_MINUS", "enumerated"); }
+    else if (!strcmp(yytext, "=="))  { insert_token(yylineno, yytext, "OPERATOR EQUAL_EQUAL", "enumerated"); }
+    else if (!strcmp(yytext, "!="))  { insert_token(yylineno, yytext, "OPERATOR NOT_EQUAL", "enumerated"); }
+    else if (!strcmp(yytext, ">"))   { insert_token(yylineno, yytext, "OPERATOR GREATER", "enumerated"); }
+    else if (!strcmp(yytext, "<"))   { insert_token(yylineno, yytext, "OPERATOR LESS", "enumerated"); }
+    else if (!strcmp(yytext, ">="))  { insert_token(yylineno, yytext, "OPERATOR GREATER_EQUAL", "enumerated"); }
+    else if (!strcmp(yytext, "<="))  { insert_token(yylineno, yytext, "OPERATOR LESS_EQUAL", "enumerated"); }
     else {
         /* If none of the above operators doesnt match then just store it as a general OPERATOR. */
-        insert_token(yylineno, yytext, "OPERATOR");
+        insert_token(yylineno, yytext, "OPERATOR", "enumerated");
     }
     return 1;
 }
 
 {punctuation} {
-    if (!strcmp(yytext, "("))       { insert_token(yylineno, yytext, "PUNCTUATION LEFT_PARENTHESIS"); }
-    else if (!strcmp(yytext, ")"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_PARENTHESIS"); }
-    else if (!strcmp(yytext, "["))  { insert_token(yylineno, yytext, "PUNCTUATION LEFT_BRACKET"); }
-    else if (!strcmp(yytext, "]"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_BRACKET"); }
-    else if (!strcmp(yytext, "{"))  { insert_token(yylineno, yytext, "PUNCTUATION LEFT_BRACE"); }
-    else if (!strcmp(yytext, "}"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_BRACE"); }
-    else if (!strcmp(yytext, ";"))  { insert_token(yylineno, yytext, "PUNCTUATION SEMICOLON"); }
-    else if (!strcmp(yytext, "."))  { insert_token(yylineno, yytext, "PUNCTUATION DOT"); }
-    else if (!strcmp(yytext, "..")) { insert_token(yylineno, yytext, "PUNCTUATION DOT_DOT"); }
-    else if (!strcmp(yytext, "::")) { insert_token(yylineno, yytext, "PUNCTUATION COLON_COLON"); }
-    else if (!strcmp(yytext, ":"))  { insert_token(yylineno, yytext, "PUNCTUATION COLON"); }
-    else if (!strcmp(yytext, ","))  { insert_token(yylineno, yytext, "PUNCTUATION COMMA"); }
+    if (!strcmp(yytext, "("))       { insert_token(yylineno, yytext, "PUNCTUATION LEFT_PARENTHESIS", "enumerated"); }
+    else if (!strcmp(yytext, ")"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_PARENTHESIS", "enumerated"); }
+    else if (!strcmp(yytext, "["))  { insert_token(yylineno, yytext, "PUNCTUATION LEFT_BRACKET", "enumerated"); }
+    else if (!strcmp(yytext, "]"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_BRACKET", "enumerated"); }
+    else if (!strcmp(yytext, "{"))  { insert_token(yylineno, yytext, "PUNCTUATION LEFT_BRACE", "enumerated"); }
+    else if (!strcmp(yytext, "}"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_BRACE", "enumerated"); }
+    else if (!strcmp(yytext, ";"))  { insert_token(yylineno, yytext, "PUNCTUATION SEMICOLON", "enumerated"); }
+    else if (!strcmp(yytext, "."))  { insert_token(yylineno, yytext, "PUNCTUATION DOT", "enumerated"); }
+    else if (!strcmp(yytext, "..")) { insert_token(yylineno, yytext, "PUNCTUATION DOT_DOT", "enumerated"); }
+    else if (!strcmp(yytext, "::")) { insert_token(yylineno, yytext, "PUNCTUATION COLON_COLON", "enumerated"); }
+    else if (!strcmp(yytext, ":"))  { insert_token(yylineno, yytext, "PUNCTUATION COLON", "enumerated"); }
+    else if (!strcmp(yytext, ","))  { insert_token(yylineno, yytext, "PUNCTUATION COMMA", "enumerated"); }
     else {
-        insert_token(yylineno, yytext, "PUNCTUATION");
+        insert_token(yylineno, yytext, "PUNCTUATION", "enumerated");
     }
     return 1;
 }
 
-{id}          { insert_token(yylineno, yytext, "IDENTIFIER"); return 1; }
-{intconst}    { insert_token(yylineno, yytext, "INTCONST"); return 1; }
-{realconst}   { insert_token(yylineno, yytext, "REALCONST"); return 1; }
-{string}      { insert_token(yylineno, yytext, "STRING"); return 1; }
-{comment1}    { insert_token(yylineno, yytext, "COMMENT LINE_COMMENT"); }
+{id}          { insert_token(yylineno, yytext, "IDENTIFIER", "char*"); return 1; }
+{intconst}    { insert_token(yylineno, yytext, "INTCONST", "integer"); return 1; }
+{realconst}   { insert_token(yylineno, yytext, "REALCONST", "float"); return 1; }
+{string}      { insert_token(yylineno, yytext, "STRING", "char*"); return 1; }
+{comment1}    { insert_token(yylineno, yytext, "COMMENT LINE_COMMENT", "enumerated"); }
 
 "/*" {	
 	comment_line_start = yylineno;
@@ -146,7 +148,7 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 	comment_line_end = yylineno; 		/* line eo cmnt */
 	char instead_of_content[30];
 	snprintf(instead_of_content, sizeof(instead_of_content), "%d - %d", comment_line_start, comment_line_end);
-	insert_token(comment_line_start, instead_of_content, "COMMENT BLOCK_COMMENT");
+	insert_token(comment_line_start, instead_of_content, "COMMENT BLOCK_COMMENT", "enumerated");
 	BEGIN(INITIAL); }
 <COMMENT>\n { 		/* to handle nls correctly */ }
 
@@ -158,8 +160,14 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 /* Function to print tokens */
 void print_output() {
     alpha_token_t* temp = list_head;
+    printf("---------------- Lexical Analysis ----------------\n");
     while (temp) {
-        printf("%d: #%d \"%s\" %s\n", temp->line_number, temp->token_number, temp->content, temp->token_type);
+        printf("%d: #%d \"%s\" %s <-%s\n", 
+		temp->line_number, 
+		temp->token_number, 
+		temp->content, 
+		temp->token_type,
+		temp->data_type);
         temp = temp->next_t;
     }
 }
@@ -192,3 +200,4 @@ int main(int argc, char *argv[]) {
     print_output();
     return EXIT_SUCCESS;
 }
+

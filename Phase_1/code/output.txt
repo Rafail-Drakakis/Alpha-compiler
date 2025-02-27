@@ -1,0 +1,8 @@
+---------------- Lexical Analysis ----------------
+1: #1 "0x1A" INTCONST <-integer
+1: #2 "123" INTCONST <-integer
+1: #3 "3.14e-2" REALCONST <-float
+2: #4 "if" KEYWORD IF <-enumerated
+2: #5 "while" KEYWORD WHILE <-enumerated
+2: #6 "function" KEYWORD FUNCTION <-enumerated
+5: #7 "5 - 14" COMMENT BLOCK_COMMENT <-enumerated
