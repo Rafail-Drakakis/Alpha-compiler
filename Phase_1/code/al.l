@@ -64,7 +64,27 @@ keyword     (function|while|for|if|else|continue|break|return|and|or|not|local|t
 punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
 %%
-{keyword}     { insert_token(yylineno, yytext, "KEYWORD"); return 1; }
+{keyword} {
+    if (!strcmp(yytext, "if"))            { insert_token(yylineno, yytext, "KEYWORD IF"); }
+    else if (!strcmp(yytext, "else"))     { insert_token(yylineno, yytext, "KEYWORD ELSE"); }
+    else if (!strcmp(yytext, "while"))    { insert_token(yylineno, yytext, "KEYWORD WHILE"); }
+    else if (!strcmp(yytext, "for"))      { insert_token(yylineno, yytext, "KEYWORD FOR"); }
+    else if (!strcmp(yytext, "function")) { insert_token(yylineno, yytext, "KEYWORD FUNCTION"); }
+    else if (!strcmp(yytext, "return"))   { insert_token(yylineno, yytext, "KEYWORD RETURN"); }
+    else if (!strcmp(yytext, "break"))    { insert_token(yylineno, yytext, "KEYWORD BREAK"); }
+    else if (!strcmp(yytext, "continue")) { insert_token(yylineno, yytext, "KEYWORD CONTINUE"); }
+    else if (!strcmp(yytext, "and"))      { insert_token(yylineno, yytext, "KEYWORD AND"); }
+    else if (!strcmp(yytext, "not"))      { insert_token(yylineno, yytext, "KEYWORD NOT"); }
+    else if (!strcmp(yytext, "or"))       { insert_token(yylineno, yytext, "KEYWORD OR"); }
+    else if (!strcmp(yytext, "local"))    { insert_token(yylineno, yytext, "KEYWORD LOCAL"); }
+    else if (!strcmp(yytext, "true"))     { insert_token(yylineno, yytext, "KEYWORD TRUE"); }
+    else if (!strcmp(yytext, "false"))    { insert_token(yylineno, yytext, "KEYWORD FALSE"); }
+    else if (!strcmp(yytext, "nil"))      { insert_token(yylineno, yytext, "KEYWORD NIL"); }
+    else {
+        insert_token(yylineno, yytext, "KEYWORD");
+    }
+    return 1;
+}
 
 {operator} {
     if (!strcmp(yytext, "+"))        { insert_token(yylineno, yytext, "OPERATOR PLUS"); }
