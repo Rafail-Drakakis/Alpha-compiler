@@ -51,6 +51,9 @@ void insert_token(int line, const char* text, const char* type) {
 %option yylineno
 %option noyywrap
 
+/* for block comments, before %% */
+%x COMMENT
+
 /* Regular Expressions */
 id          [a-zA-Z][a-zA-Z_0-9]*
 intconst    (0[xX][0-9A-Fa-f]+)|([0-9]+)
@@ -58,7 +61,6 @@ realconst   [0-9]+\.[0-9]+(e[+-]?[0-9]+)?
 string      \"([^\n"\\]|\\.)*\"
 whitespace  [ \t\r\n]+
 comment1    \/\/.*
-comment2    \/\*([^*]|\*+[^*/])*\*+\/
 operator    (\+|\-|\*|\/|=|%|\+\+|\-\-|==|!=|>|<|>=|<=)
 keyword     (function|while|for|if|else|continue|break|return|and|or|not|local|true|false|nil)
 punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
@@ -128,11 +130,19 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 {realconst}   { insert_token(yylineno, yytext, "REALCONST"); return 1; }
 {string}      { insert_token(yylineno, yytext, "STRING"); return 1; }
 {comment1}    { insert_token(yylineno, yytext, "COMMENT SINGLE_LINE"); }
-{comment2}    { insert_token(yylineno, yytext, "COMMENT BLOCK_COMMENT"); }
+
+"/*" {			 BEGIN(COMMENT); /* front 1 slide 18*/ }
+
+<COMMENT>[^*\n]* { 	/* eat anything that is not '*' or nl */ }
+<COMMENT>"*"+[^*/] {	/* eat up '*'s not followed by '/'s */ }
+<COMMENT>"*"+"/" {	BEGIN(INITIAL); }
+<COMMENT>\n { 		/* to handle nls correctly */ }
+
 {whitespace}  {  }
 .   { /* Ignore unrecognized characters */ }
 
 %%
+
 /* Function to print tokens */
 void print_output() {
     alpha_token_t* temp = list_head;
