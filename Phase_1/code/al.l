@@ -29,6 +29,7 @@ int counter_tk_number = 0;
 int comment_line_start = 0;
 int comment_line_end = 0;
 
+
 /* Function to insert tokens into the list */
 void insert_token(int line, const char* text, const char* type) {
     alpha_token_t* new_token = (alpha_token_t*)malloc(sizeof(alpha_token_t));
