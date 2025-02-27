@@ -84,13 +84,31 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
     return 1;
 }
 
-{punctuation} { insert_token(yylineno, yytext, "PUNCTUATION"); return 1; }
+{punctuation} {
+    if (!strcmp(yytext, "("))       { insert_token(yylineno, yytext, "PUNCTUATION LEFT_PARENTHESIS"); }
+    else if (!strcmp(yytext, ")"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_PARENTHESIS"); }
+    else if (!strcmp(yytext, "["))  { insert_token(yylineno, yytext, "PUNCTUATION LEFT_BRACKET"); }
+    else if (!strcmp(yytext, "]"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_BRACKET"); }
+    else if (!strcmp(yytext, "{"))  { insert_token(yylineno, yytext, "PUNCTUATION LEFT_BRACE"); }
+    else if (!strcmp(yytext, "}"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_BRACE"); }
+    else if (!strcmp(yytext, ";"))  { insert_token(yylineno, yytext, "PUNCTUATION SEMICOLON"); }
+    else if (!strcmp(yytext, "."))  { insert_token(yylineno, yytext, "PUNCTUATION DOT"); }
+    else if (!strcmp(yytext, "..")) { insert_token(yylineno, yytext, "PUNCTUATION DOT_DOT"); }
+    else if (!strcmp(yytext, "::")) { insert_token(yylineno, yytext, "PUNCTUATION COLON_COLON"); }
+    else if (!strcmp(yytext, ":"))  { insert_token(yylineno, yytext, "PUNCTUATION COLON"); }
+    else if (!strcmp(yytext, ","))  { insert_token(yylineno, yytext, "PUNCTUATION COMMA"); }
+    else {
+        insert_token(yylineno, yytext, "PUNCTUATION");
+    }
+    return 1;
+}
+
 {id}          { insert_token(yylineno, yytext, "IDENTIFIER"); return 1; }
 {intconst}    { insert_token(yylineno, yytext, "INTCONST"); return 1; }
 {realconst}   { insert_token(yylineno, yytext, "REALCONST"); return 1; }
 {string}      { insert_token(yylineno, yytext, "STRING"); return 1; }
-{comment1}    {  }
-{comment2}    {  }
+{comment1}    { insert_token(yylineno, yytext, "COMMENT SINGLE_LINE"); }
+{comment2}    { insert_token(yylineno, yytext, "COMMENT BLOCK_COMMENT"); }
 {whitespace}  {  }
 .   { /* Ignore unrecognized characters */ }
 
