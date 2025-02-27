@@ -1,6 +1,6 @@
-1: #1 "0x1A" INTCONST
-1: #2 "123" INTCONST
-1: #3 "3.14e-2" REALCONST
-2: #4 "if" KEYWORD IF
-2: #5 "while" KEYWORD WHILE
-2: #6 "function" KEYWORD FUNCTION
+1: #1 "23" INTCONST
+1: #2 "5.5" REALCONST
+2: #3 "myvariable" IDENTIFIER
+3: #4 "32" INTCONST
+3: #5 "s" IDENTIFIER
+4: #6 ""Hello\nExample"" STRING

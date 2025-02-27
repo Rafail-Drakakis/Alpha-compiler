@@ -373,8 +373,8 @@ static void yynoreturn yy_fatal_error ( const char* msg  );
 	(yy_hold_char) = *yy_cp; \
 	*yy_cp = '\0'; \
 	(yy_c_buf_p) = yy_cp;
-#define YY_NUM_RULES 16
-#define YY_END_OF_BUFFER 17
+#define YY_NUM_RULES 17
+#define YY_END_OF_BUFFER 18
 /* This struct is not used in this scanner,
    but its presence is necessary. */
 struct yy_trans_info
@@ -384,13 +384,13 @@ struct yy_trans_info
 	};
 static const flex_int16_t yy_accept[99] =
     {   0,
-        0,    0,   10,   10,   17,   15,   14,   14,   15,   15,
+        0,    0,   10,   10,   18,   16,   15,   15,   16,   16,
         2,    3,    2,    2,    3,    2,    5,    5,    3,    2,
         2,    2,    4,    4,    4,    4,    4,    4,    4,    4,
-        4,    4,    4,    4,    4,   10,   13,   16,   14,    2,
+        4,    4,    4,    4,    4,   10,   12,   17,   15,    2,
         0,    7,    0,    3,    9,    8,    0,    5,    0,    4,
         4,    4,    4,    4,    4,    4,    4,    1,    4,    4,
-        4,    4,    4,    4,   10,   11,    0,   12,    8,    6,
+        4,    4,    4,    4,   10,   11,    0,   13,    8,    6,
         5,    4,    4,    4,    4,    4,    4,    4,    4,    4,
         0,    4,    4,    4,    4,    4,    4,    4,    0,    6,
         4,    4,    4,    4,    4,    4,    4,    0
@@ -529,9 +529,9 @@ static const flex_int16_t yy_chk[223] =
     } ;
 
 /* Table of booleans, true if rule could match eol. */
-static const flex_int32_t yy_rule_can_match_eol[17] =
+static const flex_int32_t yy_rule_can_match_eol[18] =
     {   0,
-0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0,     };
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0,     };
 
 static yy_state_type yy_last_accepting_state;
 static char *yy_last_accepting_cpos;
@@ -575,6 +575,8 @@ typedef struct alpha_token_t {
 
 alpha_token_t* list_head = NULL;
 int counter_tk_number = 0;
+int comment_line_start = 0;
+int comment_line_end = 0;
 
 /* Function to insert tokens into the list */
 void insert_token(int line, const char* text, const char* type) {
@@ -595,11 +597,11 @@ void insert_token(int line, const char* text, const char* type) {
     }
 }
 
-#line 599 "lex.yy.c"
+#line 601 "lex.yy.c"
 /* for block comments, before %% */
 
 /* Regular Expressions */
-#line 603 "lex.yy.c"
+#line 605 "lex.yy.c"
 
 #define INITIAL 0
 #define COMMENT 1
@@ -817,9 +819,9 @@ YY_DECL
 		}
 
 	{
-#line 68 "al.l"
+#line 70 "al.l"
 
-#line 823 "lex.yy.c"
+#line 825 "lex.yy.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -888,7 +890,7 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 69 "al.l"
+#line 71 "al.l"
 {
     if (!strcmp(yytext, "if"))            { insert_token(yylineno, yytext, "KEYWORD IF"); }
     else if (!strcmp(yytext, "else"))     { insert_token(yylineno, yytext, "KEYWORD ELSE"); }
@@ -913,7 +915,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 91 "al.l"
+#line 93 "al.l"
 {
     if (!strcmp(yytext, "+"))        { insert_token(yylineno, yytext, "OPERATOR PLUS"); }
     else if (!strcmp(yytext, "-"))   { insert_token(yylineno, yytext, "OPERATOR MINUS"); }
@@ -934,7 +936,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 109 "al.l"
+#line 111 "al.l"
 {
     if (!strcmp(yytext, "("))       { insert_token(yylineno, yytext, "PUNCTUATION LEFT_PARENTHESIS"); }
     else if (!strcmp(yytext, ")"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_PARENTHESIS"); }
@@ -956,73 +958,87 @@ YY_RULE_SETUP
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 128 "al.l"
+#line 130 "al.l"
 { insert_token(yylineno, yytext, "IDENTIFIER"); return 1; }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 129 "al.l"
+#line 131 "al.l"
 { insert_token(yylineno, yytext, "INTCONST"); return 1; }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 130 "al.l"
+#line 132 "al.l"
 { insert_token(yylineno, yytext, "REALCONST"); return 1; }
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 131 "al.l"
+#line 133 "al.l"
 { insert_token(yylineno, yytext, "STRING"); return 1; }
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 132 "al.l"
+#line 134 "al.l"
 { insert_token(yylineno, yytext, "COMMENT SINGLE_LINE"); }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 134 "al.l"
-{			 BEGIN(COMMENT); /* front 1 slide 18*/ }
+#line 136 "al.l"
+{	
+	comment_line_start = yylineno;
+	BEGIN(COMMENT); 			/* front 1 slide 18*/ 
+}
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 136 "al.l"
-{ 	/* eat anything that is not '*' or nl */ }
+#line 141 "al.l"
+{ 				/* eat anything that is not '*' or nl */ }
 	YY_BREAK
 case 11:
 /* rule 11 can match eol */
 YY_RULE_SETUP
-#line 137 "al.l"
-{	/* eat up '*'s not followed by '/'s */ }
+#line 142 "al.l"
+{				/* eat up '*'s not followed by '/'s */ }
 	YY_BREAK
 case 12:
+/* rule 12 can match eol */
 YY_RULE_SETUP
-#line 138 "al.l"
-{	BEGIN(INITIAL); }
+#line 143 "al.l"
+{ comment_line_end = yylineno;  }
 	YY_BREAK
 case 13:
-/* rule 13 can match eol */
 YY_RULE_SETUP
-#line 139 "al.l"
-{ 		/* to handle nls correctly */ }
+#line 144 "al.l"
+{	
+	comment_line_end = yylineno; 		/* line eo cmnt */
+	char instead_of_content[30];
+	snprintf(instead_of_content, sizeof(instead_of_content), "%d - %d", comment_line_start, comment_line_end);
+	insert_token(comment_line_start, instead_of_content, "COMMENT BLOCK_COMMENT");
+	BEGIN(INITIAL); }
 	YY_BREAK
 case 14:
 /* rule 14 can match eol */
 YY_RULE_SETUP
-#line 141 "al.l"
-{  }
+#line 150 "al.l"
+{ 		/* to handle nls correctly */ }
 	YY_BREAK
 case 15:
+/* rule 15 can match eol */
 YY_RULE_SETUP
-#line 142 "al.l"
-{ /* Ignore unrecognized characters */ }
+#line 152 "al.l"
+{  }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 144 "al.l"
+#line 153 "al.l"
+{ /* Ignore unrecognized characters */ }
+	YY_BREAK
+case 17:
+YY_RULE_SETUP
+#line 155 "al.l"
 ECHO;
 	YY_BREAK
-#line 1026 "lex.yy.c"
+#line 1042 "lex.yy.c"
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(COMMENT):
 	yyterminate();
@@ -2040,7 +2056,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 144 "al.l"
+#line 155 "al.l"
 
 
 /* Function to print tokens */

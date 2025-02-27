@@ -26,6 +26,8 @@ typedef struct alpha_token_t {
 
 alpha_token_t* list_head = NULL;
 int counter_tk_number = 0;
+int comment_line_start = 0;
+int comment_line_end = 0;
 
 /* Function to insert tokens into the list */
 void insert_token(int line, const char* text, const char* type) {
@@ -131,11 +133,20 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 {string}      { insert_token(yylineno, yytext, "STRING"); return 1; }
 {comment1}    { insert_token(yylineno, yytext, "COMMENT SINGLE_LINE"); }
 
-"/*" {			 BEGIN(COMMENT); /* front 1 slide 18*/ }
+"/*" {	
+	comment_line_start = yylineno;
+	BEGIN(COMMENT); 			/* front 1 slide 18*/ 
+}
 
-<COMMENT>[^*\n]* { 	/* eat anything that is not '*' or nl */ }
-<COMMENT>"*"+[^*/] {	/* eat up '*'s not followed by '/'s */ }
-<COMMENT>"*"+"/" {	BEGIN(INITIAL); }
+<COMMENT>[^*\n]* { 				/* eat anything that is not '*' or nl */ }
+<COMMENT>"*"+[^*/] {				/* eat up '*'s not followed by '/'s */ }
+<COMMENT>\n { comment_line_end = yylineno;  }
+<COMMENT>"*"+"/" {	
+	comment_line_end = yylineno; 		/* line eo cmnt */
+	char instead_of_content[30];
+	snprintf(instead_of_content, sizeof(instead_of_content), "%d - %d", comment_line_start, comment_line_end);
+	insert_token(comment_line_start, instead_of_content, "COMMENT BLOCK_COMMENT");
+	BEGIN(INITIAL); }
 <COMMENT>\n { 		/* to handle nls correctly */ }
 
 {whitespace}  {  }
