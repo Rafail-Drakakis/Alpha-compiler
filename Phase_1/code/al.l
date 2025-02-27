@@ -132,7 +132,7 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 {intconst}    { insert_token(yylineno, yytext, "INTCONST"); return 1; }
 {realconst}   { insert_token(yylineno, yytext, "REALCONST"); return 1; }
 {string}      { insert_token(yylineno, yytext, "STRING"); return 1; }
-{comment1}    { insert_token(yylineno, yytext, "COMMENT SINGLE_LINE"); }
+{comment1}    { insert_token(yylineno, yytext, "COMMENT LINE_COMMENT"); }
 
 "/*" {	
 	comment_line_start = yylineno;
