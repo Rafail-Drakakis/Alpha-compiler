@@ -156,7 +156,6 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 	snprintf(instead_of_content, sizeof(instead_of_content), "%d - %d", comment_line_start, comment_line_end);
 	insert_token(comment_line_start, instead_of_content, "COMMENT BLOCK_COMMENT", "enumerated");
 	BEGIN(INITIAL); }
-<COMMENT>\n { 		/* to handle nls correctly */ }
 
 {whitespace}  {  }
 .   { /* Ignore unrecognized characters */ }
