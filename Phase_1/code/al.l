@@ -65,7 +65,7 @@ void insert_token(int line, const char* text, const char* type, const char* type
 id          [a-zA-Z][a-zA-Z_0-9]*
 intconst    (0[xX][0-9A-Fa-f]+)|([0-9]+)
 realconst   [0-9]+\.[0-9]+(e[+-]?[0-9]+)?
-string      \"([^\n"\\]|\\.)*\"
+string      \"([^\\n"\\]|\\t|\\n|\\\"|\\\\|\\.)*\"
 whitespace  [ \t\r\n]+
 comment1    \/\/.*
 operator    (\+|\-|\*|\/|=|%|\+\+|\-\-|==|!=|>|<|>=|<=)
@@ -139,7 +139,36 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 {id}          { insert_token(yylineno, yytext, "IDENTIFIER", "char*"); return 1; }
 {intconst}    { insert_token(yylineno, yytext, "INTCONST", "integer"); return 1; }
 {realconst}   { insert_token(yylineno, yytext, "REALCONST", "float"); return 1; }
-{string}      { insert_token(yylineno, yytext, "STRING", "char*"); return 1; }
+{string} {
+    char *processed_str = strdup(yytext);
+    
+    // Remove outer quotes
+    processed_str[strlen(processed_str) - 1] = '\0';
+    memmove(processed_str, processed_str + 1, strlen(processed_str));
+
+    // Replace escape sequences
+    for (int i = 0; processed_str[i]; i++) {
+        if (processed_str[i] == '\\' && processed_str[i + 1]) {
+            if (processed_str[i + 1] == 't') {
+                processed_str[i] = '\t';
+                memmove(&processed_str[i + 1], &processed_str[i + 2], strlen(&processed_str[i + 2]) + 1);
+            } else if (processed_str[i + 1] == 'n') {
+                processed_str[i] = '\n';
+                memmove(&processed_str[i + 1], &processed_str[i + 2], strlen(&processed_str[i + 2]) + 1);
+            } else if (processed_str[i + 1] == '"') {
+                processed_str[i] = '"';
+                memmove(&processed_str[i + 1], &processed_str[i + 2], strlen(&processed_str[i + 2]) + 1);
+            } else if (processed_str[i + 1] == '\\') {
+                processed_str[i] = '\\';
+                memmove(&processed_str[i + 1], &processed_str[i + 2], strlen(&processed_str[i + 2]) + 1);
+            }
+        }
+    }
+
+    insert_token(yylineno, processed_str, "STRING", "char*");
+    free(processed_str);
+    return 1;
+}
 {comment1}    { insert_token(yylineno, yytext, "COMMENT LINE_COMMENT", "enumerated"); }
 
 "/*" {	
@@ -205,4 +234,3 @@ int main(int argc, char *argv[]) {
     print_output();
     return EXIT_SUCCESS;
 }
-
