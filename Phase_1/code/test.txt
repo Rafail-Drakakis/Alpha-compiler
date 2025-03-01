@@ -19,3 +19,5 @@ if while function
 */
 
 if (a != b) { x::y .. z: . }
+
+"this is an incomplete comment
