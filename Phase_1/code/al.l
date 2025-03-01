@@ -149,19 +149,22 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
     // Replace escape sequences
     for (int i = 0; processed_str[i]; i++) {
         if (processed_str[i] == '\\' && processed_str[i + 1]) {
+            char replacement_regex;
             if (processed_str[i + 1] == 't') {
-                processed_str[i] = '\t';
-                memmove(&processed_str[i + 1], &processed_str[i + 2], strlen(&processed_str[i + 2]) + 1);
+                replacement_regex = '\t';
             } else if (processed_str[i + 1] == 'n') {
-                processed_str[i] = '\n';
-                memmove(&processed_str[i + 1], &processed_str[i + 2], strlen(&processed_str[i + 2]) + 1);
+                replacement_regex = '\n';
             } else if (processed_str[i + 1] == '"') {
-                processed_str[i] = '"';
-                memmove(&processed_str[i + 1], &processed_str[i + 2], strlen(&processed_str[i + 2]) + 1);
+                replacement_regex = '"';
             } else if (processed_str[i + 1] == '\\') {
-                processed_str[i] = '\\';
-                memmove(&processed_str[i + 1], &processed_str[i + 2], strlen(&processed_str[i + 2]) + 1);
+                replacement_regex = '\\';
+            } else {
+                // If the escape sequence is unrecognized, leave it as is.
+                continue;
             }
+            processed_str[i] = replacement_regex;
+            memmove(&processed_str[i + 1], &processed_str[i + 2],
+                    strlen(&processed_str[i + 2]) + 1);
         }
     }
 
