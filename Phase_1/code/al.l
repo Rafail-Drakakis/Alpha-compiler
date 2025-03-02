@@ -204,7 +204,6 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 %%
 
 /* Function to print tokens */
-/* Function to print tokens */
 void print_output() {
     alpha_token_t* temp = list_head;
     printf("---------------- Lexical Analysis ----------------\n");
@@ -217,7 +216,7 @@ void print_output() {
            Otherwise, do nothing extra. */
         if (!token_string_compare(temp->token_type, "INTCONST") || !token_string_compare(temp->token_type, "REALCONST")) {
             snprintf(extra_var, sizeof(extra_var), " %s", temp->content);
-        } else if (!token_string_compare(temp->token_type, "IDENTIFIER")) {
+        } else if (!token_string_compare(temp->token_type, "IDENTIFIER") || !token_string_compare(temp->token_type, "STRING")) {
             snprintf(extra_var, sizeof(extra_var), " \"%s\"", temp->content);
         }
 
