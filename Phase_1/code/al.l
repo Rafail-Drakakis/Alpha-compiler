@@ -199,7 +199,11 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 }
 
 {whitespace}  {  }
-.   { /* Ignore unrecognized characters */ }
+.   { 
+    char error_msg[64];
+    snprintf(error_msg, sizeof(error_msg), "ERROR UNDEFINED CHARACTER AT LINE %d", yylineno);
+    insert_token(yylineno, yytext, error_msg, "enumerated");
+}
 
 %%
 
