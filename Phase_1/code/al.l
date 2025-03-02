@@ -175,19 +175,28 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 {comment1}    { insert_token(yylineno, yytext, "COMMENT LINE_COMMENT", "enumerated"); }
 
 "/*" {	
-	comment_line_start = yylineno;
-	BEGIN(COMMENT); 			/* front 1 slide 18*/ 
+    comment_line_start = yylineno;
+    BEGIN(COMMENT);
 }
 
-<COMMENT>[^*\n]* { 				/* eat anything that is not '*' or nl */ }
-<COMMENT>"*"+[^*/] {				/* eat up '*'s not followed by '/'s */ }
-<COMMENT>\n { comment_line_end = yylineno;  }
+<COMMENT>[^*\n]* { /* eat anything that is not '*' or newline */ }
+<COMMENT>"*"+[^*/] { /* eat '*'s not followed by '/' */ }
+<COMMENT>\n { comment_line_end = yylineno; }
+
+<COMMENT><<EOF>> {
+    char error_msg[50];
+    snprintf(error_msg, sizeof(error_msg), "UNCLOSED COMMENT STARTED AT %d", comment_line_start);
+    insert_token(comment_line_start, error_msg, "ERROR", "enumerated");
+    BEGIN(INITIAL);
+}
+
 <COMMENT>"*"+"/" {	
-	comment_line_end = yylineno; 		/* line eo cmnt */
-	char instead_of_content[30];
-	snprintf(instead_of_content, sizeof(instead_of_content), "%d - %d", comment_line_start, comment_line_end);
-	insert_token(comment_line_start, instead_of_content, "COMMENT BLOCK_COMMENT", "enumerated");
-	BEGIN(INITIAL); }
+    comment_line_end = yylineno;
+    char instead_of_content[30];
+    snprintf(instead_of_content, sizeof(instead_of_content), "%d - %d", comment_line_start, comment_line_end);
+    insert_token(comment_line_start, instead_of_content, "COMMENT BLOCK_COMMENT", "enumerated");
+    BEGIN(INITIAL);
+}
 
 {whitespace}  {  }
 .   { /* Ignore unrecognized characters */ }
