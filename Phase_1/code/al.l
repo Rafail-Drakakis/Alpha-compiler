@@ -204,16 +204,33 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 %%
 
 /* Function to print tokens */
+/* Function to print tokens */
 void print_output() {
     alpha_token_t* temp = list_head;
     printf("---------------- Lexical Analysis ----------------\n");
     while (temp) {
-        printf("%d: #%d \"%s\" %s <-%s\n", 
-		temp->line_number, 
-		temp->token_number, 
-		temp->content, 
-		temp->token_type,
-		temp->data_type);
+        /* We will build an extra string to show after the token type. */
+        char extra_var[256] = "";
+
+        /* If the token is INTCONST or REALCONST, append the content without quotes.
+           If it's IDENTIFIER, append the content with quotes.
+           Otherwise, do nothing extra. */
+        if (!token_string_compare(temp->token_type, "INTCONST") || !token_string_compare(temp->token_type, "REALCONST")) {
+            snprintf(extra_var, sizeof(extra_var), " %s", temp->content);
+        } else if (!token_string_compare(temp->token_type, "IDENTIFIER")) {
+            snprintf(extra_var, sizeof(extra_var), " \"%s\"", temp->content);
+        }
+
+
+        /* Now print everything in one line, as before, but with the extra info for INTCONST, REALCONST and IDENTIFIER. */
+        printf("%d: #%d \"%s\" %s%s <-%s\n", 
+               temp->line_number, 
+               temp->token_number, 
+               temp->content, 
+               temp->token_type,
+               extra_var,
+               temp->data_type);
+
         temp = temp->next_t;
     }
 }
