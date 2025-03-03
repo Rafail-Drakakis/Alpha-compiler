@@ -31,6 +31,7 @@ alpha_token_t* list_head = NULL;
 int counter_tk_number = 0;
 int comment_line_start = 0;
 int comment_line_end = 0;
+int string_line_start = 0;
 
 
 /* Function to insert tokens into the list */
@@ -60,6 +61,9 @@ void insert_token(int line, const char* text, const char* type, const char* type
 
 /* for block comments, before %% */
 %x COMMENT
+
+/* for strings, before %% */
+%x STRING_MODE
 
 /* Regular Expressions */
 id          [a-zA-Z][a-zA-Z_0-9]*
@@ -172,11 +176,40 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
     free(processed_str);
     return 1;
 }
+
 {comment1}    { insert_token(yylineno, yytext, "COMMENT LINE_COMMENT", "enumerated"); }
 
 "/*" {	
     comment_line_start = yylineno;
     BEGIN(COMMENT);
+}
+
+
+\" {
+    string_line_start = yylineno;
+    BEGIN(STRING_MODE);
+}
+
+<STRING_MODE>[^"\\\n]+    { yymore(); }
+<STRING_MODE>\\.          { yymore(); }
+<STRING_MODE>\" {
+    yymore(); 
+    /* A closing double quote has been found.
+    So insert the token using the line where our string started. */
+    insert_token(string_line_start, yytext, "STRING", "char*");
+    BEGIN(INITIAL);
+}
+<STRING_MODE>\n {
+    char error_msg[64];
+    snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED STRING AT LINE %d", string_line_start);
+    insert_token(string_line_start, yytext, error_msg, "enumerated");
+    BEGIN(INITIAL);
+}
+<STRING_MODE><<EOF>> {
+    char error_msg[64];
+    snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED STRING AT LINE %d", string_line_start);
+    insert_token(string_line_start, yytext, error_msg, "enumerated");
+    BEGIN(INITIAL);
 }
 
 <COMMENT>[^*\n]* { /* eat anything that is not '*' or newline */ }
@@ -199,6 +232,7 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 }
 
 {whitespace}  {  }
+
 .   { 
     char error_msg[64];
     snprintf(error_msg, sizeof(error_msg), "ERROR UNDEFINED CHARACTER AT LINE %d", yylineno);
