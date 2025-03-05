@@ -31,6 +31,7 @@ alpha_token_t* list_head = NULL;
 int counter_tk_number = 0;
 int comment_line_start = 0;
 int comment_line_end = 0;
+int comment_nested = 0;
 int string_line_start = 0;
 
 
@@ -180,7 +181,10 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 {comment1}    { insert_token(yylineno, yytext, "COMMENT LINE_COMMENT", "enumerated"); }
 
 "/*" {	
-    comment_line_start = yylineno;
+    if (comment_nested == 0) {
+        comment_line_start = yylineno;
+    }
+    comment_nested++;
     BEGIN(COMMENT);
 }
 
@@ -193,42 +197,68 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 <STRING_MODE>[^"\\\n]+    { yymore(); }
 <STRING_MODE>\\.          { yymore(); }
 <STRING_MODE>\" {
-    yymore(); 
+    // yymore();
     /* A closing double quote has been found.
     So insert the token using the line where our string started. */
     insert_token(string_line_start, yytext, "STRING", "char*");
     BEGIN(INITIAL);
 }
+
 <STRING_MODE>\n {
+    printf("DEBUGPRINT: unclosed string detected at line %d\n", string_line_start);
     char error_msg[64];
     snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED STRING AT LINE %d", string_line_start);
     insert_token(string_line_start, yytext, error_msg, "enumerated");
     BEGIN(INITIAL);
+    yyterminate();  /* stop lexer from processing input any further */
 }
+
 <STRING_MODE><<EOF>> {
     char error_msg[64];
     snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED STRING AT LINE %d", string_line_start);
     insert_token(string_line_start, yytext, error_msg, "enumerated");
     BEGIN(INITIAL);
+    yyterminate();
 }
 
-<COMMENT>[^*\n]* { /* eat anything that is not '*' or newline */ }
-<COMMENT>"*"+[^*/] { /* eat '*'s not followed by '/' */ }
-<COMMENT>\n { comment_line_end = yylineno; }
+<COMMENT>"/*" {
+    comment_nested++;  /* found nested comment, increase counter */
+}
+
+<COMMENT>"*/" {
+    comment_nested--;  /* decrese counter */
+    if (comment_nested == 0) {
+        comment_line_end = yylineno;
+        char instead_of_content[30];
+        snprintf(instead_of_content, sizeof(instead_of_content), "%d - %d", comment_line_start, comment_line_end);
+        insert_token(comment_line_start, instead_of_content, "COMMENT BLOCK_COMMENT", "enumerated");
+        BEGIN(INITIAL);  // Exit comment mode only if depth reaches 0
+    }
+}
+
+<COMMENT>\n { 
+    comment_line_end = yylineno; 
+}
 
 <COMMENT><<EOF>> {
-    char error_msg[50];
-    snprintf(error_msg, sizeof(error_msg), "UNCLOSED COMMENT STARTED AT %d", comment_line_start);
-    insert_token(comment_line_start, error_msg, "ERROR", "enumerated");
-    BEGIN(INITIAL);
+    if (comment_nested > 0){
+        char error_msg[50];
+        snprintf(error_msg, sizeof(error_msg), "UNCLOSED COMMENT STARTED AT %d", comment_line_start);
+        insert_token(comment_line_start, error_msg, "ERROR", "enumerated");
+    }
+    // BEGIN(INITIAL);
+    yyterminate();
 }
 
 <COMMENT>"*"+"/" {	
-    comment_line_end = yylineno;
-    char instead_of_content[30];
-    snprintf(instead_of_content, sizeof(instead_of_content), "%d - %d", comment_line_start, comment_line_end);
-    insert_token(comment_line_start, instead_of_content, "COMMENT BLOCK_COMMENT", "enumerated");
-    BEGIN(INITIAL);
+    comment_nested--;
+    if (comment_nested == 0) { 		/* we exit if counter is 0 */
+        comment_line_end = yylineno;
+        char instead_of_content[30];
+        snprintf(instead_of_content, sizeof(instead_of_content), "%d - %d", comment_line_start, comment_line_end);
+        insert_token(comment_line_start, instead_of_content, "COMMENT BLOCK_COMMENT", "enumerated");
+        BEGIN(INITIAL);	/* now return to initial state */
+    }
 }
 
 {whitespace}  {  }
