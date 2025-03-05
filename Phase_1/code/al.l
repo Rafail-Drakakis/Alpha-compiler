@@ -55,6 +55,86 @@ void insert_token(int line, const char* text, const char* type, const char* type
     }
 }
 
+typedef struct StringStackNode {
+    int line;
+    struct StringStackNode* next;
+} StringStackNode;
+
+StringStackNode* stringStack = NULL;
+
+/* Push a new string start line onto the stack */
+void push_string(int line) {
+    StringStackNode* newNode = (StringStackNode*)malloc(sizeof(StringStackNode));
+    newNode->line = line;
+    newNode->next = stringStack;
+    stringStack = newNode;
+}
+
+/* Pop a string start line from the stack */
+int pop_string() {
+    if (!stringStack) return -1;  // Stack empty
+    StringStackNode* temp = stringStack;
+    int line = temp->line;
+    stringStack = stringStack->next;
+    free(temp);
+    return line;
+}
+
+/* Check if string stack is empty */
+int isStringStackEmpty() {
+    return stringStack == NULL;
+}
+
+/* Print error for unclosed string */
+void print_unclosed_string_error() {
+    while (!isStringStackEmpty()) {
+        int startLine = pop_string();
+        char error_msg[64];
+        snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED STRING AT LINE %d", startLine);
+        insert_token(startLine, error_msg, "ERROR", "enumerated");
+    }
+}
+
+typedef struct StackNode {
+    int line;
+    struct StackNode* next;
+} StackNode;
+
+StackNode* commentStack = NULL;
+
+/* Push a new line number onto the stack */
+void push(int line) {
+    StackNode* newNode = (StackNode*)malloc(sizeof(StackNode));
+    newNode->line = line;
+    newNode->next = commentStack;
+    commentStack = newNode;
+}
+
+/* Pop a line number from the stack */
+int pop() {
+    if (!commentStack) return -1;  // Stack empty
+    StackNode* temp = commentStack;
+    int line = temp->line;
+    commentStack = commentStack->next;
+    free(temp);
+    return line;
+}
+
+/* Check if stack is empty */
+int isStackEmpty() {
+    return commentStack == NULL;
+}
+
+/* Print error for unclosed nested comment */
+void print_unclosed_comment_error() {
+    while (!isStackEmpty()) {
+        int startLine = pop();
+        char error_msg[64];
+        snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED COMMENT STARTED AT %d", startLine);
+        insert_token(startLine, error_msg, "ERROR", "enumerated");
+    }
+}
+
 %}
 
 %option yylineno
@@ -181,58 +261,27 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 {comment1}    { insert_token(yylineno, yytext, "COMMENT LINE_COMMENT", "enumerated"); }
 
 "/*" {	
-    if (comment_nested == 0) {
-        comment_line_start = yylineno;
-    }
+    push(yylineno);
     comment_nested++;
     BEGIN(COMMENT);
 }
 
-
-\" {
-    string_line_start = yylineno;
-    BEGIN(STRING_MODE);
-}
-
-<STRING_MODE>[^"\\\n]+    { yymore(); }
-<STRING_MODE>\\.          { yymore(); }
-<STRING_MODE>\" {
-    // yymore();
-    /* A closing double quote has been found.
-    So insert the token using the line where our string started. */
-    insert_token(string_line_start, yytext, "STRING", "char*");
-    BEGIN(INITIAL);
-}
-
-<STRING_MODE>\n {
-    printf("DEBUGPRINT: unclosed string detected at line %d\n", string_line_start);
-    char error_msg[64];
-    snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED STRING AT LINE %d", string_line_start);
-    insert_token(string_line_start, yytext, error_msg, "enumerated");
-    BEGIN(INITIAL);
-    yyterminate();  /* stop lexer from processing input any further */
-}
-
-<STRING_MODE><<EOF>> {
-    char error_msg[64];
-    snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED STRING AT LINE %d", string_line_start);
-    insert_token(string_line_start, yytext, error_msg, "enumerated");
-    BEGIN(INITIAL);
-    yyterminate();
-}
-
 <COMMENT>"/*" {
-    comment_nested++;  /* found nested comment, increase counter */
+    push(yylineno);
+    comment_nested++;
 }
 
 <COMMENT>"*/" {
-    comment_nested--;  /* decrese counter */
-    if (comment_nested == 0) {
-        comment_line_end = yylineno;
-        char instead_of_content[30];
-        snprintf(instead_of_content, sizeof(instead_of_content), "%d - %d", comment_line_start, comment_line_end);
-        insert_token(comment_line_start, instead_of_content, "COMMENT BLOCK_COMMENT", "enumerated");
-        BEGIN(INITIAL);  // Exit comment mode only if depth reaches 0
+    if (comment_nested > 0) {
+        int startLine = pop();
+        comment_nested--;
+        if (isStackEmpty()) {
+            comment_line_end = yylineno;
+            char comment_msg[50];
+            snprintf(comment_msg, sizeof(comment_msg), "Nested Comment %d - %d", startLine, comment_line_end);
+            insert_token(startLine, comment_msg, "COMMENT BLOCK_COMMENT", "enumerated");
+            BEGIN(INITIAL);
+        }
     }
 }
 
@@ -241,24 +290,46 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 }
 
 <COMMENT><<EOF>> {
-    if (comment_nested > 0){
-        char error_msg[50];
-        snprintf(error_msg, sizeof(error_msg), "UNCLOSED COMMENT STARTED AT %d", comment_line_start);
-        insert_token(comment_line_start, error_msg, "ERROR", "enumerated");
-    }
-    // BEGIN(INITIAL);
+    print_unclosed_comment_error();
     yyterminate();
 }
 
-<COMMENT>"*"+"/" {	
-    comment_nested--;
-    if (comment_nested == 0) { 		/* we exit if counter is 0 */
-        comment_line_end = yylineno;
-        char instead_of_content[30];
-        snprintf(instead_of_content, sizeof(instead_of_content), "%d - %d", comment_line_start, comment_line_end);
-        insert_token(comment_line_start, instead_of_content, "COMMENT BLOCK_COMMENT", "enumerated");
-        BEGIN(INITIAL);	/* now return to initial state */
+\" {
+    push_string(yylineno);
+    BEGIN(STRING_MODE);
+}
+
+<STRING_MODE>[^"\\\n]+ { yymore(); }
+<STRING_MODE>\\.       { yymore(); }
+
+<STRING_MODE>\" {
+    int startLine = pop_string();
+    if (startLine != -1) {
+        insert_token(startLine, yytext, "STRING", "char*");
     }
+    BEGIN(INITIAL);
+}
+
+<STRING_MODE>\n {
+    int startLine = pop_string();
+    if (startLine != -1) {
+        char error_msg[64];
+        snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED STRING AT LINE %d", startLine);
+        insert_token(startLine, error_msg, "ERROR", "enumerated");
+    }
+    BEGIN(INITIAL);
+    
+    while (input() != '\n' && input() != EOF) {}  
+}
+
+<STRING_MODE><<EOF>> {
+    while (!isStringStackEmpty()) {
+        int startLine = pop_string();
+        char error_msg[64];
+        snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED STRING AT LINE %d", startLine);
+        insert_token(startLine, error_msg, "ERROR", "enumerated");
+    }
+    BEGIN(INITIAL);
 }
 
 {whitespace}  {  }
