@@ -271,6 +271,9 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
     comment_nested++;
 }
 
+<COMMENT>. {
+}
+
 <COMMENT>"*/" {
     if (comment_nested > 0) {
         int startLine = pop();
