@@ -10,12 +10,6 @@ if while function
 
 // This is a comment
 
-/* Expected output
-
-while
-function
-
-*/
 //kati edw/*kati allo
 
 pame katwme enter */
@@ -23,7 +17,7 @@ if (a != b) { x::y .. z: . }
 
 "complete string"
 
-"string with nl"
+"string with n
 
 /* This is a simple comment */
 
