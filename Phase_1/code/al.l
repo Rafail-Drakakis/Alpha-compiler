@@ -17,6 +17,24 @@
 
 #define token_string_compare(val1, val2) strcmp((val1), (val2))
 
+void print_unclosed_comment_error();
+void push_string(int line);
+int pop_string();
+int isStringStackEmpty();
+void print_unclosed_string_error();
+
+typedef struct StackNode {
+    int line;
+    struct StackNode* next;
+} StackNode;
+
+typedef struct Stack {
+    StackNode* top;
+} Stack;
+
+Stack commentStack;
+Stack stringStack;
+
 /* Token Structure */
 typedef struct alpha_token_t {
     unsigned int line_number;
@@ -33,7 +51,6 @@ int comment_line_start = 0;
 int comment_line_end = 0;
 int comment_nested = 0;
 int string_line_start = 0;
-
 
 /* Function to insert tokens into the list */
 void insert_token(int line, const char* text, const char* type, const char* type_of_data) {
@@ -55,83 +72,50 @@ void insert_token(int line, const char* text, const char* type, const char* type
     }
 }
 
-typedef struct StringStackNode {
-    int line;
-    struct StringStackNode* next;
-} StringStackNode;
-
-StringStackNode* stringStack = NULL;
-
-/* Push a new string start line onto the stack */
-void push_string(int line) {
-    StringStackNode* newNode = (StringStackNode*)malloc(sizeof(StringStackNode));
-    newNode->line = line;
-    newNode->next = stringStack;
-    stringStack = newNode;
+void initStack(Stack* stack) {
+    stack->top = NULL;
 }
 
-/* Pop a string start line from the stack */
-int pop_string() {
-    if (!stringStack) return -1;  // Stack empty
-    StringStackNode* temp = stringStack;
+void push(Stack* stack, int line) {
+    StackNode* newNode = (StackNode*)malloc(sizeof(StackNode));
+    if (!newNode) {
+        fprintf(stderr, "Memory allocation error in push()\n");
+        exit(EXIT_FAILURE);
+    }
+    newNode->line = line;
+    newNode->next = stack->top;
+    stack->top = newNode;
+}
+
+int pop(Stack* stack) {
+    if (!stack->top) return -1;  // Stack empty
+    StackNode* temp = stack->top;
     int line = temp->line;
-    stringStack = stringStack->next;
+    stack->top = stack->top->next;
     free(temp);
     return line;
 }
 
-/* Check if string stack is empty */
-int isStringStackEmpty() {
-    return stringStack == NULL;
+int isStackEmpty(Stack* stack) {
+    return stack->top == NULL;
 }
 
-/* Print error for unclosed string */
-void print_unclosed_string_error() {
-    while (!isStringStackEmpty()) {
-        int startLine = pop_string();
-        char error_msg[64];
-        snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED STRING AT LINE %d", startLine);
-        insert_token(startLine, error_msg, "ERROR", "enumerated");
+void freeStack(Stack* stack) {
+    while (!isStackEmpty(stack)) {
+        pop(stack);
     }
 }
 
-typedef struct StackNode {
-    int line;
-    struct StackNode* next;
-} StackNode;
-
-StackNode* commentStack = NULL;
-
-/* Push a new line number onto the stack */
-void push(int line) {
-    StackNode* newNode = (StackNode*)malloc(sizeof(StackNode));
-    newNode->line = line;
-    newNode->next = commentStack;
-    commentStack = newNode;
-}
-
-/* Pop a line number from the stack */
-int pop() {
-    if (!commentStack) return -1;  // Stack empty
-    StackNode* temp = commentStack;
-    int line = temp->line;
-    commentStack = commentStack->next;
-    free(temp);
-    return line;
-}
-
-/* Check if stack is empty */
-int isStackEmpty() {
-    return commentStack == NULL;
-}
-
-/* Print error for unclosed nested comment */
-void print_unclosed_comment_error() {
-    while (!isStackEmpty()) {
-        int startLine = pop();
-        char error_msg[64];
-        snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED COMMENT STARTED AT %d", startLine);
-        insert_token(startLine, error_msg, "ERROR", "enumerated");
+/* Free Token List */
+void free_token_list() {
+    alpha_token_t* temp;
+    while (list_head) {
+        temp = list_head;
+        list_head = list_head->next_t;
+        free(temp->content);
+        free(temp->token_type);
+        free(temp->data_type);
+        free(temp);
     }
 }
 
@@ -258,16 +242,16 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
     return 1;
 }
 
-{comment1}    { insert_token(yylineno, yytext, "COMMENT LINE_COMMENT", "enumerated"); }
+{comment1}    {insert_token(yylineno, yytext, "COMMENT LINE_COMMENT", "enumerated"); }
 
 "/*" {	
-    push(yylineno);
+    push(&commentStack, yylineno);
     comment_nested++;
     BEGIN(COMMENT);
 }
 
 <COMMENT>"/*" {
-    push(yylineno);
+    push(&commentStack, yylineno);
     comment_nested++;
 }
 
@@ -276,9 +260,9 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
 <COMMENT>"*/" {
     if (comment_nested > 0) {
-        int startLine = pop();
+        int startLine = pop(&commentStack);
         comment_nested--;
-        if (isStackEmpty()) {
+        if (isStackEmpty(&commentStack)) {
             comment_line_end = yylineno;
             char comment_msg[50];
             snprintf(comment_msg, sizeof(comment_msg), "Nested Comment %d - %d", startLine, comment_line_end);
@@ -345,6 +329,40 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
 %%
 
+/* Print error for unclosed nested comment */
+void print_unclosed_comment_error() {
+    while (!isStackEmpty(&commentStack)) {
+        int startLine = pop(&commentStack);
+        char error_msg[64];
+        snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED COMMENT STARTED AT %d", startLine);
+        insert_token(startLine, error_msg, "ERROR", "enumerated");
+    }
+}
+
+void push_string(int line) {
+    push(&stringStack, line);
+}
+
+int pop_string() {
+    return pop(&stringStack);
+}
+
+int isStringStackEmpty() {
+    return isStackEmpty(&stringStack);
+}
+
+
+/* Print error for unclosed string */
+void print_unclosed_string_error() {
+    while (!isStackEmpty(&stringStack)) {
+        int startLine = pop(&stringStack);
+        char error_msg[64];
+        snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED STRING AT LINE %d", startLine);
+        insert_token(startLine, error_msg, "ERROR", "enumerated");
+    }
+}
+
+
 /* Function to print tokens */
 void print_output() {
     alpha_token_t* temp = list_head;
@@ -377,6 +395,9 @@ void print_output() {
 }
 
 int main(int argc, char *argv[]) {
+    initStack(&commentStack);
+    initStack(&stringStack);
+
     if (argc < 2 || argc > 3) {
         fprintf(stderr, "Usage: %s <input file> [output file]\n", argv[0]);
         return EXIT_FAILURE;
@@ -402,5 +423,10 @@ int main(int argc, char *argv[]) {
     }
 
     print_output();
+
+    free_token_list();
+    freeStack(&commentStack);
+    freeStack(&stringStack);
+
     return EXIT_SUCCESS;
 }
