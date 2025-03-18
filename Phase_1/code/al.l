@@ -264,13 +264,17 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
         comment_nested--;
         if (isStackEmpty(&commentStack)) {
             comment_line_end = yylineno;
-            char comment_msg[50];
-            snprintf(comment_msg, sizeof(comment_msg), "Nested Comment %d - %d", startLine, comment_line_end);
-            insert_token(startLine, comment_msg, "COMMENT BLOCK_COMMENT", "enumerated");
+            int msg_size = snprintf(NULL, 0, "Nested Comment %d - %d", startLine, comment_line_end) + 1;
+            char *comment_msg = (char *)malloc(msg_size);
+            if (comment_msg) {
+                snprintf(comment_msg, msg_size, "Nested Comment %d - %d", startLine, comment_line_end);
+                insert_token(startLine, comment_msg, "COMMENT BLOCK_COMMENT", "enumerated");
+                free(comment_msg);
+            }
             BEGIN(INITIAL);
         }
     }
-}
+}           
 
 <COMMENT>\n { 
     comment_line_end = yylineno; 
@@ -292,7 +296,24 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 <STRING_MODE>\" {
     int startLine = pop_string();
     if (startLine != -1) {
-        insert_token(startLine, yytext, "STRING", "char*");
+
+        // Duplicate the current text (accumulated string content including quotes)
+        char *processed_str = strdup(yytext);
+        int len = strlen(processed_str);
+
+        // Remove the ending double quote if exists
+        if (len > 0 && processed_str[len - 1] == '"') {
+            processed_str[len - 1] = '\0';
+        }
+
+        // Remove the starting double quote if exists by shifting the string left
+        if (processed_str[0] == '"') {
+            memmove(processed_str, processed_str + 1, strlen(processed_str));
+        }
+
+        // Insert the processed token (with quotes removed) into the token list
+        insert_token(startLine, processed_str, "STRING", "char*");
+        free(processed_str);
     }
     BEGIN(INITIAL);
 }
@@ -300,21 +321,29 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 <STRING_MODE>\n {
     int startLine = pop_string();
     if (startLine != -1) {
-        char error_msg[64];
-        snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED STRING AT LINE %d", startLine);
-        insert_token(startLine, error_msg, "ERROR", "enumerated");
+        int msg_size = snprintf(NULL, 0, "ERROR UNCLOSED STRING AT LINE %d", startLine) + 1;
+        char *error_msg = (char *)malloc(msg_size);
+        if (error_msg) {
+            snprintf(error_msg, msg_size, "ERROR UNCLOSED STRING AT LINE %d", startLine);
+            insert_token(startLine, error_msg, "ERROR", "enumerated");
+            free(error_msg);
+        }
     }
     BEGIN(INITIAL);
-    
-    while (input() != '\n' && input() != EOF) {}  
+
+    while (input() != '\n' && input() != EOF) {}
 }
 
 <STRING_MODE><<EOF>> {
     while (!isStringStackEmpty()) {
         int startLine = pop_string();
-        char error_msg[64];
-        snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED STRING AT LINE %d", startLine);
-        insert_token(startLine, error_msg, "ERROR", "enumerated");
+        int msg_size = snprintf(NULL, 0, "ERROR UNCLOSED STRING AT LINE %d", startLine) + 1;
+        char *error_msg = (char *)malloc(msg_size);
+        if (error_msg) {
+            snprintf(error_msg, msg_size, "ERROR UNCLOSED STRING AT LINE %d", startLine);
+            insert_token(startLine, error_msg, "ERROR", "enumerated");
+            free(error_msg);
+        }
     }
     BEGIN(INITIAL);
 }
@@ -322,9 +351,13 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 {whitespace}  {  }
 
 .   { 
-    char error_msg[64];
-    snprintf(error_msg, sizeof(error_msg), "ERROR UNDEFINED CHARACTER AT LINE %d", yylineno);
-    insert_token(yylineno, yytext, error_msg, "enumerated");
+    int msg_size = snprintf(NULL, 0, "ERROR UNDEFINED CHARACTER AT LINE %d", yylineno) + 1;
+    char *error_msg = (char *)malloc(msg_size);
+    if (error_msg) {
+        snprintf(error_msg, msg_size, "ERROR UNDEFINED CHARACTER AT LINE %d", yylineno);
+        insert_token(yylineno, yytext, error_msg, "enumerated");
+        free(error_msg);
+    }
 }
 
 %%
@@ -333,9 +366,13 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 void print_unclosed_comment_error() {
     while (!isStackEmpty(&commentStack)) {
         int startLine = pop(&commentStack);
-        char error_msg[64];
-        snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED COMMENT STARTED AT %d", startLine);
-        insert_token(startLine, error_msg, "ERROR", "enumerated");
+        int msg_size = snprintf(NULL, 0, "ERROR UNCLOSED COMMENT STARTED AT %d", startLine) + 1;
+        char *error_msg = (char *)malloc(msg_size);
+        if (error_msg) {
+            snprintf(error_msg, msg_size, "ERROR UNCLOSED COMMENT STARTED AT %d", startLine);
+            insert_token(startLine, error_msg, "ERROR", "enumerated");
+            free(error_msg);
+        }
     }
 }
 
@@ -351,37 +388,51 @@ int isStringStackEmpty() {
     return isStackEmpty(&stringStack);
 }
 
-
 /* Print error for unclosed string */
 void print_unclosed_string_error() {
     while (!isStackEmpty(&stringStack)) {
         int startLine = pop(&stringStack);
-        char error_msg[64];
-        snprintf(error_msg, sizeof(error_msg), "ERROR UNCLOSED STRING AT LINE %d", startLine);
-        insert_token(startLine, error_msg, "ERROR", "enumerated");
+        int msg_size = snprintf(NULL, 0, "ERROR UNCLOSED STRING AT LINE %d", startLine) + 1;
+        char *error_msg = (char *)malloc(msg_size);
+        if (error_msg) {
+            snprintf(error_msg, msg_size, "ERROR UNCLOSED STRING AT LINE %d", startLine);
+            insert_token(startLine, error_msg, "ERROR", "enumerated");
+            free(error_msg);
+        }
     }
 }
-
 
 /* Function to print tokens */
 void print_output() {
     alpha_token_t* temp = list_head;
     printf("---------------- Lexical Analysis ----------------\n");
+    
     while (temp) {
-        /* We will build an extra string to show after the token type. */
-        char extra_var[256] = "";
-
-        /* If the token is INTCONST or REALCONST, append the content without quotes.
-           If it's IDENTIFIER, append the content with quotes.
-           Otherwise, do nothing extra. */
+        int extra_size = 0;
+        
         if (!token_string_compare(temp->token_type, "INTCONST") || !token_string_compare(temp->token_type, "REALCONST")) {
-            snprintf(extra_var, sizeof(extra_var), " %s", temp->content);
+            extra_size = snprintf(NULL, 0, " %s", temp->content) + 1;
         } else if (!token_string_compare(temp->token_type, "IDENTIFIER") || !token_string_compare(temp->token_type, "STRING")) {
-            snprintf(extra_var, sizeof(extra_var), " \"%s\"", temp->content);
+            extra_size = snprintf(NULL, 0, " \"%s\"", temp->content) + 1;
         }
 
-
-        /* Now print everything in one line, as before, but with the extra info for INTCONST, REALCONST and IDENTIFIER. */
+        char *extra_var = (char *)malloc(extra_size);
+        if (extra_var) {
+            if (extra_size > 1) {
+                if (!token_string_compare(temp->token_type, "INTCONST") || 
+                    !token_string_compare(temp->token_type, "REALCONST")) {
+                    snprintf(extra_var, extra_size, " %s", temp->content);
+                } else if (!token_string_compare(temp->token_type, "IDENTIFIER") || 
+                           !token_string_compare(temp->token_type, "STRING")) {
+                    snprintf(extra_var, extra_size, " \"%s\"", temp->content);
+                }
+            } else {
+                extra_var[0] = '\0';
+            }
+        } else {
+            extra_var = "";
+        }
+        
         printf("%d: #%d \"%s\" %s%s <-%s\n", 
                temp->line_number, 
                temp->token_number, 
@@ -389,6 +440,10 @@ void print_output() {
                temp->token_type,
                extra_var,
                temp->data_type);
+
+        if (extra_size > 1) {
+            free(extra_var);
+        }
 
         temp = temp->next_t;
     }
