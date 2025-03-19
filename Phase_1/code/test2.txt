@@ -1,0 +1,31 @@
+23   5.5
+myvariable
+32s
+"Hello\nExample"
+
+!asdasd  //asdasda
+
+0x1A 123 3.14e-2
+if while function
+
+// This is a comment
+
+//kati edw/*kati allo
+
+pame katwme enter */
+if (a != b) { x::y .. z: . }
+
+"complete string"
+
+"string with n
+
+/* This is a simple comment */
+
+/* Nested 
+	/* comment */ 
+still inside */
+
+/* Unclosed nested /* comment  error */ 
+
+/*
+"this is an incomplete comment

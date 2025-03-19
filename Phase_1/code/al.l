@@ -25,6 +25,7 @@ void print_unclosed_string_error();
 
 typedef struct StackNode {
     int line;
+    int has_nested;
     struct StackNode* next;
 } StackNode;
 
@@ -83,6 +84,7 @@ void push(Stack* stack, int line) {
         exit(EXIT_FAILURE);
     }
     newNode->line = line;
+    newNode->has_nested = 0;	// in the begining default is that these is no nested comment 
     newNode->next = stack->top;
     stack->top = newNode;
 }
@@ -251,6 +253,9 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 }
 
 <COMMENT>"/*" {
+    if (commentStack.top != NULL) {
+        commentStack.top->has_nested = 1;
+    }
     push(&commentStack, yylineno);
     comment_nested++;
 }
@@ -260,17 +265,21 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
 <COMMENT>"*/" {
     if (comment_nested > 0) {
-        int startLine = pop(&commentStack);
+        int startLine = commentStack.top->line;
+        int was_nested = commentStack.top->has_nested;
+        pop(&commentStack);
         comment_nested--;
-        if (isStackEmpty(&commentStack)) {
-            comment_line_end = yylineno;
-            int msg_size = snprintf(NULL, 0, "Nested Comment %d - %d", startLine, comment_line_end) + 1;
-            char *comment_msg = (char *)malloc(msg_size);
-            if (comment_msg) {
-                snprintf(comment_msg, msg_size, "Nested Comment %d - %d", startLine, comment_line_end);
-                insert_token(startLine, comment_msg, "COMMENT BLOCK_COMMENT", "enumerated");
-                free(comment_msg);
-            }
+
+        comment_line_end = yylineno;
+        const char* label = was_nested ? "Nested Comment" : "Comment";
+        int msg_size = snprintf(NULL, 0, "%s %d - %d", label, startLine, comment_line_end) + 1;
+        char *comment_msg = (char *)malloc(msg_size);
+        if (comment_msg) {
+            snprintf(comment_msg, msg_size, "%s %d - %d", label, startLine, comment_line_end);
+            insert_token(startLine, comment_msg, "COMMENT BLOCK_COMMENT", "enumerated");
+            free(comment_msg);
+        }
+        if (isStackEmpty(&commentStack)){
             BEGIN(INITIAL);
         }
     }
