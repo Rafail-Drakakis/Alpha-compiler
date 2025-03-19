@@ -271,7 +271,7 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
         comment_nested--;
 
         comment_line_end = yylineno;
-        const char* label = was_nested ? "Nested Comment" : "Comment";
+        const char* label = (commentStack.top != NULL) ? "Nested Comment" : "Comment";
         int msg_size = snprintf(NULL, 0, "%s %d - %d", label, startLine, comment_line_end) + 1;
         char *comment_msg = (char *)malloc(msg_size);
         if (comment_msg) {
