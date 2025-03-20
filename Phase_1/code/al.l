@@ -305,22 +305,38 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 <STRING_MODE>\" {
     int startLine = pop_string();
     if (startLine != -1) {
-
-        // Duplicate the current text (accumulated string content including quotes)
         char *processed_str = strdup(yytext);
         int len = strlen(processed_str);
 
-        // Remove the ending double quote if exists
         if (len > 0 && processed_str[len - 1] == '"') {
             processed_str[len - 1] = '\0';
         }
 
-        // Remove the starting double quote if exists by shifting the string left
         if (processed_str[0] == '"') {
             memmove(processed_str, processed_str + 1, strlen(processed_str));
         }
 
-        // Insert the processed token (with quotes removed) into the token list
+        for (int i = 0; processed_str[i]; i++) {
+            if (processed_str[i] == '\\' && processed_str[i + 1]) {
+                char replacement_char;
+                if (processed_str[i + 1] == 't') {
+                    replacement_char = '\t';
+                } else if (processed_str[i + 1] == 'n') {
+                    replacement_char = '\n';
+                } else if (processed_str[i + 1] == '"') {
+                    replacement_char = '"';
+                } else if (processed_str[i + 1] == '\\') {
+                    replacement_char = '\\';
+                } else {
+                    continue;
+                }
+                processed_str[i] = replacement_char;
+                memmove(&processed_str[i + 1],
+                        &processed_str[i + 2],
+                        strlen(&processed_str[i + 2]) + 1);
+            }
+        }
+
         insert_token(startLine, processed_str, "STRING", "char*");
         free(processed_str);
     }
