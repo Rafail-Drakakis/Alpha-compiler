@@ -354,9 +354,9 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
             free(error_msg);
         }
     }
+    int c;
+    while ((c = input()) != '\n' && c != EOF) {}
     BEGIN(INITIAL);
-
-    while (input() != '\n' && input() != EOF) {}
 }
 
 <STRING_MODE><<EOF>> {
