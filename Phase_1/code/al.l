@@ -362,15 +362,26 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 <STRING_MODE><<EOF>> {
     while (!isStringStackEmpty()) {
         int startLine = pop_string();
-        int msg_size = snprintf(NULL, 0, "ERROR UNCLOSED STRING AT LINE %d", startLine) + 1;
-        char *error_msg = (char *)malloc(msg_size);
-        if (error_msg) {
-            snprintf(error_msg, msg_size, "ERROR UNCLOSED STRING AT LINE %d", startLine);
-            insert_token(startLine, error_msg, "ERROR", "enumerated");
-            free(error_msg);
+        if (yyleng > 0 && yytext[yyleng - 1] == '\\') {
+            int msg_size = snprintf(NULL, 0, "ERROR UNCLOSED STRING AT LINE %d (trailing backslash)", startLine) + 1;
+            char *error_msg = (char *)malloc(msg_size);
+            if (error_msg) {
+                snprintf(error_msg, msg_size, "ERROR UNCLOSED STRING AT LINE %d (trailing backslash)", startLine);
+                insert_token(startLine, error_msg, "ERROR", "enumerated");
+                free(error_msg);
+            }
+        } else {
+            int msg_size = snprintf(NULL, 0, "ERROR UNCLOSED STRING AT LINE %d", startLine) + 1;
+            char *error_msg = (char *)malloc(msg_size);
+            if (error_msg) {
+                snprintf(error_msg, msg_size, "ERROR UNCLOSED STRING AT LINE %d", startLine);
+                insert_token(startLine, error_msg, "ERROR", "enumerated");
+                free(error_msg);
+            }
         }
     }
     BEGIN(INITIAL);
+    yyterminate();
 }
 
 {whitespace}  {  }
