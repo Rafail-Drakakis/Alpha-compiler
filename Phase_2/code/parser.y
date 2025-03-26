@@ -10,13 +10,13 @@
 %{
 #include <stdio.h>
 #include <stdlib.h>
+#include "sym_table.h"
 
-/* from al.l */
-extern int yylex(void);
+int yyerror (char* yaccProvidedMessage);
+extern int yylineno;
+extern char* yytext;
+extern FILE* yyin;
 
-void yyerror(const char* msg) {
-    fprintf(stderr, "Parse Error: %s\n", msg);
-}
 %}
 
 %token SEMICOLON
@@ -28,9 +28,14 @@ void yyerror(const char* msg) {
 %start program
 
 %%
-/* Define the non-terminated 'program' */
 program
     : /* empty */
     ;
 
 %%
+
+int yyerror (char* yaccProvidedMessage) {
+    fprintf(stderr, "%s: at line %d, before token: %s\n",yaccProvidedMessage,yylineno,yytext);
+    fprintf(stderr,"INPUT NOT VALID\n");
+    return 1;
+}
