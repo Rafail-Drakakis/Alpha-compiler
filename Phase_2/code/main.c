@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "symbol_table.h"
+#include "parser.tab.h"
+
+extern FILE *yyin;
+SymbolTable *symbol_table;
 
 int main(int argc, char *argv[]) {
     if (argc < 2 || argc > 3) {

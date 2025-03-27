@@ -1,3 +1,4 @@
+
 /**
  * HY-340 Project Phase 2 2024-2025
  *
@@ -8,46 +9,70 @@
  */
 
 %{
-#include <stdio.h>
-#include <stdlib.h>
-#include "sym_table.h"
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include "symbol_table.h"
+    #include "parser.tab.h"  // Include Bison-generated header
+    extern int yylineno;
+    extern char* yytext;
+    extern int yylex();
 
-/* global reference to the symbol table. */
-extern symbol_table* symbol_table;
-
-int yyerror (char* yaccProvidedMessage);
-extern int yylineno;
-extern char* yytext;
-extern FILE* yyin;
-
+    void print_rule(const char* rule) {
+        printf("Reduced by rule: %s\n", rule);
+    }
 %}
 
-%union{
+%union {
     int intValue;
-    char* stringValue;
     double realValue;
-    char charValue;
-    float floatValue;
+    char* stringValue;
 }
 
-%token SEMICOLON
-%token IDENTIFIER
-%token IF
-%token ELSE
-/* ... etc., we will add more based on al.l after */
+%token IF ELSE WHILE FOR RETURN BREAK CONTINUE LOCAL TRUE FALSE NIL
+%token PLUS MINUS MULTIPLY DIVIDE ASSIGN EQUAL NOT_EQUAL GREATER_THAN GREATER_EQUAL LESS_THAN LESS_EQUAL
+%token LEFT_PARENTHESIS RIGHT_PARENTHESIS
+%token LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
+%token SEMICOLON COMMA COLON
+%token IDENTIFIER INTCONST REALCONST STRING
+%token FUNCTION AND OR NOT MODULO PLUS_PLUS MINUS_MINUS EQUAL_EQUAL LESS GREATER
+%token DOT DOT_DOT COLON_COLON PUNCTUATION OPERATOR
 
 %start program
 
 %%
+
 program
-    : /* empty */
+    : stmt_list { print_rule("program -> stmt_list"); }
     ;
 
+stmt_list
+    : stmt stmt_list { print_rule("stmt_list -> stmt stmt_list"); }
+    | /* empty */ { print_rule("stmt_list -> epsilon"); }
+    ;
+
+stmt
+    : expr ';' { print_rule("stmt -> expr ;"); }
+    | ifstmt { print_rule("stmt -> ifstmt"); }
+    | whilestmt { print_rule("stmt -> whilestmt"); }
+    | forstmt { print_rule("stmt -> forstmt"); }
+    | returnstmt { print_rule("stmt -> returnstmt"); }
+    | break_stmt { print_rule("stmt -> break ;"); }
+    | continue_stmt { print_rule("stmt -> continue ;"); }
+    | block { print_rule("stmt -> block"); }
+    ;
+
+expr
+    : IDENTIFIER ASSIGN expr { print_rule("expr -> IDENTIFIER ASSIGN expr"); }
+    | INTCONST { print_rule("expr -> INTCONST"); }
+    | REALCONST { print_rule("expr -> REALCONST"); }
+    | STRING { print_rule("expr -> STRING"); }
+    | '(' expr ')' { print_rule("expr -> ( expr )"); }
+    ;
 
 %%
 
-int yyerror (char* yaccProvidedMessage) {
-    fprintf(stderr, "%s: at line %d, before token: %s\n",yaccProvidedMessage,yylineno,yytext);
-    fprintf(stderr,"INPUT NOT VALID\n");
+int yyerror(char* yaccProvidedMessage) {
+    fprintf(stderr, "%s: at line %d, before token: %s\n", yaccProvidedMessage, yylineno, yytext);
+    fprintf(stderr, "INPUT NOT VALID\n");
     return 1;
 }

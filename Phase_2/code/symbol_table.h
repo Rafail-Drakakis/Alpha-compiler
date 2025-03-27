@@ -7,7 +7,7 @@
 
 typedef enum {
     GLOBAL,
-    LOCAL,
+    LOCAL_VAR,  // Renamed to avoid conflict with YACC token
     ARGUMENT,
     LIBRARY_FUNCTION,
     USER_FUNCTION
