@@ -57,7 +57,7 @@ void print_symbol_table(SymbolTable *table) {
         const char *type_str;
         switch (current->type) {
             case GLOBAL: type_str = "GLOBAL"; break;
-            case LOCAL: type_str = "LOCAL"; break;
+            case LOCAL_VAR: type_str = "LOCAL"; break;
             case ARGUMENT: type_str = "ARGUMENT"; break;
             case LIBRARY_FUNCTION: type_str = "LIB_FUNC"; break;
             case USER_FUNCTION: type_str = "USER_FUNC"; break;
