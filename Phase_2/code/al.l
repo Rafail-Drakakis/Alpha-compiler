@@ -12,7 +12,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
-#include "parser.tab.h"
+#include "parser.h"
 extern int yylineno;
 
 #define YY_DECL int alpha_yylex(void* yylval)
