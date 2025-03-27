@@ -12,12 +12,23 @@
 #include <stdlib.h>
 #include "sym_table.h"
 
+/* global reference to the symbol table. */
+extern symbol_table* symbol_table;
+
 int yyerror (char* yaccProvidedMessage);
 extern int yylineno;
 extern char* yytext;
 extern FILE* yyin;
 
 %}
+
+%union{
+    int intValue;
+    char* stringValue;
+    double realValue;
+    char charValue;
+    float floatValue;
+}
 
 %token SEMICOLON
 %token IDENTIFIER
@@ -31,6 +42,7 @@ extern FILE* yyin;
 program
     : /* empty */
     ;
+
 
 %%
 
