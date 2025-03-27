@@ -12,7 +12,7 @@
     #include <stdio.h>
     #include <stdlib.h>
     #include "symbol_table.h"
-    #include "parser.tab.h"  // Include Bison-generated header
+    #include "parser.h"  // Include Bison-generated header
     extern int yylineno;
     extern char* yytext;
     extern int yylex();
