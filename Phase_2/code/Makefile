@@ -1,5 +1,4 @@
 LEX = flex
-CFLAGS = -Wall -g
 
 LEX_FILE = al.l
 LEX_C = lex.yy.c
@@ -12,19 +11,19 @@ EXE = parser
 all: $(EXE)
 
 $(EXE): $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $(OBJS)
+	$(CC) -o $@ $(OBJS)
 
 lex.yy.c: $(LEX_FILE)
 	$(LEX) $(LEX_FILE)
 
 lex.yy.o: lex.yy.c
-	$(CC) $(CFLAGS) -c lex.yy.c
+	$(CC) -c lex.yy.c
 
 main.o: main.c $(SYMBOL_TABLE_H)
-	$(CC) $(CFLAGS) -c main.c
+	$(CC) -c main.c
 
 symbol_table.o: symbol_table.c $(SYMBOL_TABLE_H)
-	$(CC) $(CFLAGS) -c symbol_table.c
+	$(CC) -c symbol_table.c
 
 clean:
 	rm -f $(OBJS) $(LEX_C) $(EXE)
