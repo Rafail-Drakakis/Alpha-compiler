@@ -29,7 +29,7 @@
 }
 
 %token <stringValue> IF ELSE WHILE FOR RETURN BREAK CONTINUE LOCAL TRUE FALSE NIL
-%token <stringValue> PLUS MINUS MULTIPLY DIVIDE ASSIGN EQUAL NOT_EQUAL GREATER_THAN GREATER_EQUAL LESS_THAN LESS_EQUAL
+%token <stringValue> PLUS MINUS MULTIPLY DIVIDE ASSIGNMENT EQUAL NOT_EQUAL GREATER_THAN GREATER_EQUAL LESS_THAN LESS_EQUAL
 %token <stringValue> LEFT_PARENTHESIS RIGHT_PARENTHESIS
 %token <stringValue> LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %token <stringValue> SEMICOLON COMMA COLON
@@ -62,11 +62,11 @@ stmt
     ;
 
 expr
-    : IDENTIFIER ASSIGN expr { print_rule("expr -> IDENTIFIER ASSIGN expr"); }
+    : IDENTIFIER ASSIGNMENT expr { print_rule("expr -> IDENTIFIER ASSIGNMENT expr"); }
     | INTCONST { print_rule("expr -> INTCONST"); }
     | REALCONST { print_rule("expr -> REALCONST"); }
     | STRING { print_rule("expr -> STRING"); }
-    | '(' expr ')' { print_rule("expr -> ( expr )"); }
+    | LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { print_rule("expr -> ( expr )"); }
     ;
 
 %%
