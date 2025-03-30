@@ -8,6 +8,7 @@
  */
 
 %{
+#include "../../Phase_2/code/parser.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -195,7 +196,7 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
     else if (!token_string_compare(yytext, "]"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_BRACKET", "enumerated"); }
     else if (!token_string_compare(yytext, "{"))  { insert_token(yylineno, yytext, "PUNCTUATION LEFT_BRACE", "enumerated"); }
     else if (!token_string_compare(yytext, "}"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_BRACE", "enumerated"); }
-    else if (!token_string_compare(yytext, ";"))  { insert_token(yylineno, yytext, "PUNCTUATION SEMICOLON", "enumerated"); }
+    else if (!token_string_compare(yytext, ";"))  { insert_token(yylineno, yytext, "PUNCTUATION SEMICOLON", "enumerated"); return SEMICOLON;}
     else if (!token_string_compare(yytext, "."))  { insert_token(yylineno, yytext, "PUNCTUATION DOT", "enumerated"); }
     else if (!token_string_compare(yytext, "..")) { insert_token(yylineno, yytext, "PUNCTUATION DOT_DOT", "enumerated"); }
     else if (!token_string_compare(yytext, "::")) { insert_token(yylineno, yytext, "PUNCTUATION COLON_COLON", "enumerated"); }
@@ -207,7 +208,7 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
     return 1;
 }
 
-{id}          { insert_token(yylineno, yytext, "IDENTIFIER", "char*"); return 1; }
+{id}          { insert_token(yylineno, yytext, "IDENTIFIER", "char*"); return IDENTIFIER; }
 {intconst}    { insert_token(yylineno, yytext, "INTCONST", "integer"); return 1; }
 {realconst}   { insert_token(yylineno, yytext, "REALCONST", "float"); return 1; }
 {string} {

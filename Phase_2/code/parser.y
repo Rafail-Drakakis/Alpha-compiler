@@ -53,11 +53,12 @@ program
 
 stmt_list
     : stmt stmt_list { print_rule("stmt_list -> stmt stmt_list"); }
+    | stmt { print_rule("stmt_list -> stmt"); } //single statement allowed for testng cause "x;" might not reduce properly
     | /* empty */ { print_rule("stmt_list -> epsilon"); }
     ;
 
 stmt
-    : expr ';' { print_rule("stmt -> expr ;"); }
+    : expr SEMICOLON { printf("DEBUG: stmt -> expr ;\n"); print_rule("stmt -> expr ;"); }
     | ifstmt { print_rule("stmt -> ifstmt"); }
     | whilestmt { print_rule("stmt -> whilestmt"); }
     | forstmt { print_rule("stmt -> forstmt"); }
@@ -65,6 +66,7 @@ stmt
     | break_stmt { print_rule("stmt -> break ;"); }
     | continue_stmt { print_rule("stmt -> continue ;"); }
     | block { print_rule("stmt -> block"); }
+    | error ';' { print_rule("stmt -> error ;"); yyerrok; }
     ;
 
 expr
@@ -112,6 +114,7 @@ block
 
 int yyerror(char* yaccProvidedMessage) {
     fprintf(stderr, "%s: at line %d, before token: %s\n", yaccProvidedMessage, yylineno, yytext);
+    fprintf(stderr, "unexpected token: %s with ascii: %d\n", yytext, yytext[0]);
     fprintf(stderr, "INPUT NOT VALID\n");
     return 1;
 }

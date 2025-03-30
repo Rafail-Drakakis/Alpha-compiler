@@ -1,0 +1,7 @@
+---------------- Lexical Analysis ----------------
+1: #1 "Comment 1 - 1" COMMENT BLOCK_COMMENT <-enumerated
+4: #2 "Nested Comment 4 - 4" COMMENT BLOCK_COMMENT <-enumerated
+3: #3 "Comment 3 - 5" COMMENT BLOCK_COMMENT <-enumerated
+7: #4 "Nested Comment 7 - 7" COMMENT BLOCK_COMMENT <-enumerated
+9: #5 "ERROR UNCLOSED COMMENT STARTED AT 9" ERROR <-enumerated
+7: #6 "ERROR UNCLOSED COMMENT STARTED AT 7" ERROR <-enumerated
