@@ -13,7 +13,7 @@
     #include <stdlib.h>
     #include "symbol_table.h"
     #include "parser.h"  // Include Bison-generated header
-    
+
     extern int yylineno;
     extern char* yytext;
     extern int yylex();
@@ -38,6 +38,10 @@
 %token <stringValue> IDENTIFIER INTCONST REALCONST STRING
 %token <stringValue> FUNCTION AND OR NOT MODULO PLUS_PLUS MINUS_MINUS EQUAL_EQUAL LESS GREATER
 %token <stringValue> DOT DOT_DOT COLON_COLON PUNCTUATION OPERATOR
+
+
+%nonassoc LOWER_THAN_ELSE
+%nonassoc ELSE
 
 %start program
 
@@ -64,7 +68,8 @@ stmt
     ;
 
 expr
-    : IDENTIFIER ASSIGNMENT expr { print_rule("expr -> IDENTIFIER ASSIGNMENT expr"); }
+    : IDENTIFIER { print_rule("expr -> IDENTIFIER"); }
+    | IDENTIFIER ASSIGNMENT expr { print_rule("expr -> IDENTIFIER ASSIGNMENT expr"); }
     | INTCONST { print_rule("expr -> INTCONST"); }
     | REALCONST { print_rule("expr -> REALCONST"); }
     | STRING { print_rule("expr -> STRING"); }
@@ -72,7 +77,7 @@ expr
     ;
 
 ifstmt
-    : IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS stmt { print_rule("ifstmt -> if ( expr ) stmt"); }
+    : IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS stmt %prec LOWER_THAN_ELSE { print_rule("ifstmt -> if ( expr ) stmt"); }
     | IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS stmt ELSE stmt { print_rule("ifstmt -> if ( expr ) stmt else stmt"); }
     ;
 
