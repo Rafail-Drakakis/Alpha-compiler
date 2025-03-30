@@ -69,6 +69,38 @@ expr
     | LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { print_rule("expr -> ( expr )"); }
     ;
 
+ifstmt
+    : IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS stmt { print_rule("ifstmt -> if ( expr ) stmt"); }
+    | IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS stmt ELSE stmt { print_rule("ifstmt -> if ( expr ) stmt else stmt"); }
+    ;
+
+
+whilestmt
+    : WHILE LEFT_PARENTHESIS expr RIGHT_PARENTHESIS stmt { print_rule("whilestmt -> while ( expr ) stmt"); }
+    ;
+
+forstmt
+    : FOR LEFT_PARENTHESIS /* elist */ SEMICOLON expr SEMICOLON /* elist */ RIGHT_PARENTHESIS stmt { print_rule("forstmt -> for ( ... ) stmt"); }
+    ;
+
+returnstmt
+    : RETURN SEMICOLON { print_rule("returnstmt -> return ;"); }
+    | RETURN expr SEMICOLON { print_rule("returnstmt -> return expr ;"); }
+    ;
+
+break_stmt
+    : BREAK SEMICOLON { print_rule("break_stmt -> break ;"); }
+    ;
+
+continue_stmt
+    : CONTINUE SEMICOLON { print_rule("continue_stmt -> continue ;"); }
+    ;
+
+block
+    : LEFT_BRACE stmt_list RIGHT_BRACE { print_rule("block -> { stmt_list }"); }
+    | LEFT_BRACE RIGHT_BRACE { print_rule("block -> { }"); }
+    ;
+
 %%
 
 int yyerror(char* yaccProvidedMessage) {
