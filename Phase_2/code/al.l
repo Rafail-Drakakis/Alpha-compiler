@@ -146,8 +146,6 @@ keyword     (function|while|for|if|else|continue|break|return|and|or|not|local|t
 punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
 %%
-{keyword} {
-    
 
 {keyword} {
     if (!strcmp(yytext, "if"))            { return IF; }
