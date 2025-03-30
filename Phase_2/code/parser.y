@@ -13,9 +13,11 @@
     #include <stdlib.h>
     #include "symbol_table.h"
     #include "parser.h"  // Include Bison-generated header
+    
     extern int yylineno;
     extern char* yytext;
     extern int yylex();
+    int yyerror (char* yaccProvidedMessage);
 
     void print_rule(const char* rule) {
         printf("Reduced by rule: %s\n", rule);

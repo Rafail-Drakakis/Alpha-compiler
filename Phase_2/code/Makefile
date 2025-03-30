@@ -1,30 +1,46 @@
+CC = gcc
+CFLAGS =
+
 LEX = flex
+BISON = bison
 
 LEX_FILE = al.l
+BISON_FILE = parser.y
+
+BISON_C = parser.c
+BISON_H = parser.h
+
 LEX_C = lex.yy.c
+
 MAIN_C = main.c
 SYMBOL_TABLE_C = symbol_table.c
 SYMBOL_TABLE_H = symbol_table.h
-OBJS = lex.yy.o main.o symbol_table.o
+
+OBJS = parser.o lex.yy.o main.o symbol_table.o
 EXE = parser
 
 all: $(EXE)
 
 $(EXE): $(OBJS)
-	$(CC) -o $@ $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS)
 
-lex.yy.c: $(LEX_FILE)
-	$(LEX) $(LEX_FILE)
+$(BISON_C) $(BISON_H): $(BISON_FILE)
+	$(BISON) -d $(BISON_FILE) -o $(BISON_C) --defines=$(BISON_H)
 
-lex.yy.o: lex.yy.c
-	$(CC) -c lex.yy.c
+$(LEX_C): $(LEX_FILE) $(BISON_H)
+	$(LEX) -o $(LEX_C) $(LEX_FILE)
 
-main.o: main.c $(SYMBOL_TABLE_H)
-	$(CC) -c main.c
+parser.o: $(BISON_C)
+	$(CC) $(CFLAGS) -c $(BISON_C) -o parser.o
 
-symbol_table.o: symbol_table.c $(SYMBOL_TABLE_H)
-	$(CC) -c symbol_table.c
+lex.yy.o: $(LEX_C)
+	$(CC) $(CFLAGS) -c $(LEX_C) -o lex.yy.o
+
+main.o: $(MAIN_C) $(SYMBOL_TABLE_H)
+	$(CC) $(CFLAGS) -c $(MAIN_C)
+
+symbol_table.o: $(SYMBOL_TABLE_C) $(SYMBOL_TABLE_H)
+	$(CC) $(CFLAGS) -c $(SYMBOL_TABLE_C)
 
 clean:
-	rm -f $(OBJS) $(LEX_C) $(EXE)
-
+	rm -f $(OBJS) $(LEX_C) $(BISON_C) $(BISON_H) $(EXE)

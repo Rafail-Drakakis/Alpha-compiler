@@ -7,6 +7,15 @@
  *      csd5082 Theologos Kokkinellis
  */
 
+/**
+ * HY-340 Project Phase 1 2024-2025
+ *
+ * Members:
+ *      csd5171 Fytaki Maria
+ *      csd5310 Rafail Drakakis
+ *      csd5082 Theologos Kokkinellis
+ */
+
 %{
 #include <stdio.h>
 #include <string.h>
@@ -15,7 +24,9 @@
 #include "parser.h"
 extern int yylineno;
 
-#define YY_DECL int alpha_yylex(void* yylval)
+//#define YY_DECL int alpha_yylex(void* yylval)
+
+extern YYSTYPE yylval;
 
 #define token_string_compare(val1, val2) strcmp((val1), (val2))
 
@@ -86,7 +97,7 @@ void push(Stack* stack, int line) {
         exit(EXIT_FAILURE);
     }
     newNode->line = line;
-    newNode->has_nested = 0;	// in the begining default is that these is no nested comment 
+    newNode->has_nested = 0;    // in the begining default is that these is no nested comment 
     newNode->next = stack->top;
     stack->top = newNode;
 }
@@ -248,7 +259,7 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
 {comment1}    {insert_token(yylineno, yytext, "COMMENT LINE_COMMENT", "enumerated"); }
 
-"/*" {	
+"/*" {
     push(&commentStack, yylineno);
     comment_nested++;
     BEGIN(COMMENT);
@@ -487,6 +498,7 @@ void print_output() {
     }
 }
 
+/*
 int main(int argc, char *argv[]) {
     initStack(&commentStack);
     initStack(&stringStack);
@@ -523,3 +535,4 @@ int main(int argc, char *argv[]) {
 
     return EXIT_SUCCESS;
 }
+*/
