@@ -1,0 +1,4 @@
+function foo(a, b) { return a + b; }
+x = foo(3, 4);
+
+if (foo(2, 3) == 5) y = 10;

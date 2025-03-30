@@ -8,6 +8,11 @@
  *      csd5082 Theologos Kokkinellis
  */
 
+/**
+ * note: thema me ta comparison operators
+ * so some of the tests don't work
+ */
+
 %{
     #include <stdio.h>
     #include <stdlib.h>
@@ -58,7 +63,7 @@ stmt_list
     ;
 
 stmt
-    : expr SEMICOLON { printf("DEBUG: stmt -> expr ;\n"); print_rule("stmt -> expr ;"); }
+    : expr SEMICOLON { print_rule("stmt -> expr ;"); }
     | ifstmt { print_rule("stmt -> ifstmt"); }
     | whilestmt { print_rule("stmt -> whilestmt"); }
     | forstmt { print_rule("stmt -> forstmt"); }
@@ -70,12 +75,123 @@ stmt
     ;
 
 expr
-    : IDENTIFIER { print_rule("expr -> IDENTIFIER"); }
-    | IDENTIFIER ASSIGNMENT expr { print_rule("expr -> IDENTIFIER ASSIGNMENT expr"); }
-    | INTCONST { print_rule("expr -> INTCONST"); }
-    | REALCONST { print_rule("expr -> REALCONST"); }
-    | STRING { print_rule("expr -> STRING"); }
-    | LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { print_rule("expr -> ( expr )"); }
+    : assignexpr { print_rule("expr -> assignexpr"); }
+    | expr op expr { print_rule("expr -> expr op expr"); }
+    | term { print_rule("expr -> term"); }  // Now ensures `term` is used
+    ;
+
+assignexpr
+    : lvalue ASSIGNMENT expr { print_rule("assignexpr -> lvalue = expr"); }
+    ;
+
+op
+    : PLUS        { print_rule("op -> +"); }
+    | MINUS       { print_rule("op -> -"); }
+    | MULTIPLY    { print_rule("op -> *"); }
+    | DIVIDE      { print_rule("op -> /"); }
+    | MODULO      { print_rule("op -> %"); }
+    | GREATER_THAN { print_rule("op -> >"); }
+    | GREATER_EQUAL { print_rule("op -> >="); }
+    | LESS_THAN    { print_rule("op -> <"); }
+    | LESS_EQUAL   { print_rule("op -> <="); }
+    | EQUAL_EQUAL  { print_rule("op -> =="); }
+    | NOT_EQUAL    { print_rule("op -> !="); }
+    | AND          { print_rule("op -> and"); }
+    | OR           { print_rule("op -> or"); }
+    ;
+
+term
+    : LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { print_rule("term -> ( expr )"); }
+    | MINUS expr { print_rule("term -> - expr"); }
+    | NOT expr { print_rule("term -> not expr"); }
+    | PLUS_PLUS lvalue { print_rule("term -> ++ lvalue"); }
+    | lvalue PLUS_PLUS { print_rule("term -> lvalue ++"); }
+    | MINUS_MINUS lvalue { print_rule("term -> -- lvalue"); }
+    | lvalue MINUS_MINUS { print_rule("term -> lvalue --"); }
+    | primary { print_rule("term -> primary"); }
+    ;
+
+primary
+    : lvalue { print_rule("primary -> lvalue"); }
+    | call { print_rule("primary -> call"); }
+    | objectdef { print_rule("primary -> objectdef"); }
+    | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS { print_rule("primary -> ( funcdef )"); }
+    | const { print_rule("primary -> const"); }
+    ;
+
+lvalue
+    : IDENTIFIER { print_rule("lvalue -> IDENTIFIER"); }
+    | LOCAL IDENTIFIER { print_rule("lvalue -> LOCAL IDENTIFIER"); }
+    | COLON_COLON IDENTIFIER { print_rule("lvalue -> :: IDENTIFIER"); }
+    | member { print_rule("lvalue -> member"); }
+    ;
+
+const
+    : INTCONST { print_rule("const -> INTCONST"); }
+    | REALCONST { print_rule("const -> REALCONST"); }
+    | STRING { print_rule("const -> STRING"); }
+    | NIL { print_rule("const -> NIL"); }
+    | TRUE { print_rule("const -> TRUE"); }
+    | FALSE { print_rule("const -> FALSE"); }
+    ;
+
+member
+    : lvalue DOT IDENTIFIER { print_rule("member -> lvalue . IDENTIFIER"); }
+    | lvalue LEFT_BRACKET expr RIGHT_BRACKET { print_rule("member -> lvalue [ expr ]"); }
+    | call DOT IDENTIFIER { print_rule("member -> call . IDENTIFIER"); }
+    | call LEFT_BRACKET expr RIGHT_BRACKET { print_rule("member -> call [ expr ]"); }
+    ;
+
+call
+    : call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("call -> call ( elist )"); }
+    | lvalue callsuffix { print_rule("call -> lvalue callsuffix"); }
+    | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("call -> ( funcdef ) ( elist )"); }
+    ;
+
+callsuffix
+    : normcall { print_rule("callsuffix -> normcall"); }
+    | methodcall { print_rule("callsuffix -> methodcall"); }
+    ;
+
+normcall
+    : LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("normcall -> ( elist )"); }
+    ;
+
+methodcall
+    : lvalue DOT IDENTIFIER LEFT_PARENTHESIS lvalue elist RIGHT_PARENTHESIS { print_rule("methodcall -> lvalue . IDENTIFIER ( lvalue , elist )"); }
+    ;
+
+    | expr COMMA elist { print_rule("elist -> expr , elist"); }
+    | /* empty */ { print_rule("elist -> epsilon"); }  // Allows empty argument lists
+    ;
+
+elist
+    : expr { print_rule("elist -> expr"); }
+    | expr COMMA elist { print_rule("elist -> expr , elist"); }
+    | /* empty */ { print_rule("elist -> epsilon"); }  // Allows empty argument lists
+    ;
+
+objectdef
+    : LEFT_BRACKET LEFT_BRACKET elist RIGHT_BRACKET RIGHT_BRACKET { print_rule("objectdef -> [ [ elist ] ]"); }
+    | LEFT_BRACKET LEFT_BRACKET indexed RIGHT_BRACKET RIGHT_BRACKET { print_rule("objectdef -> [ [ indexed ] ]"); }
+    ;
+
+indexed
+    : LEFT_BRACKET indexedelem { print_rule("indexed -> [ indexedelem ]"); }
+    | LEFT_BRACKET indexedelem COMMA indexed { print_rule("indexed -> [ indexedelem , indexed ]"); }
+    ;
+
+indexedelem
+    : LEFT_BRACE expr COLON expr RIGHT_BRACE { print_rule("indexedelem -> { expr : expr }"); }
+    ;
+
+funcdef
+    : FUNCTION LEFT_PARENTHESIS idlist RIGHT_PARENTHESIS block { print_rule("funcdef -> function [ IDENTIFIER ] ( idlist ) block"); }
+    ;
+
+idlist
+    : IDENTIFIER { print_rule("idlist -> IDENTIFIER"); }
+    | IDENTIFIER COMMA idlist { print_rule("idlist -> IDENTIFIER , idlist"); }
     ;
 
 ifstmt
