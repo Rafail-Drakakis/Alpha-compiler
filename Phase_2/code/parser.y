@@ -193,10 +193,6 @@ methodcall
     : lvalue DOT IDENTIFIER LEFT_PARENTHESIS lvalue elist RIGHT_PARENTHESIS { print_rule("methodcall -> lvalue . IDENTIFIER ( lvalue , elist )"); }
     ;
 
-    | expr COMMA elist { print_rule("elist -> expr , elist"); }
-    | /* empty */ { print_rule("elist -> epsilon"); }  // Allows empty argument lists
-    ;
-
 elist
     : expr { print_rule("elist -> expr"); }
     | expr COMMA elist { print_rule("elist -> expr , elist"); }
