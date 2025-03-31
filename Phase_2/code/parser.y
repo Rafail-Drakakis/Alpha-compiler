@@ -244,7 +244,7 @@ whilestmt
     ;
 
 forstmt
-    : FOR LEFT_PARENTHESIS /* elist */ SEMICOLON expr SEMICOLON /* elist */ RIGHT_PARENTHESIS stmt { print_rule("forstmt -> for ( ... ) stmt"); }
+    : FOR LEFT_PARENTHESIS elist SEMICOLON expr SEMICOLON elist RIGHT_PARENTHESIS stmt { print_rule("forstmt -> for ( elist ; expr ; elist ) stmt"); }
     ;
 
 returnstmt
