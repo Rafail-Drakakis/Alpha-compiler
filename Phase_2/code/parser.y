@@ -45,6 +45,18 @@
 %token <stringValue> DOT DOT_DOT COLON_COLON PUNCTUATION OPERATOR
 
 
+%right ASSIGNMENT   /* = has less priority in compare with all the other */
+%left OR
+%left AND
+%nonassoc EQUAL_EQUAL NOT_EQUAL
+%nonassoc GREATER_THAN GREATER_EQUAL LESS_THAN LESS_EQUAL
+%left  PLUS 
+%right MINUS /* x - y - z is referenced as x-(y-z). We are gonna think if we will need UMINUS for (x-y)-z*/
+%left MULTIPLY DIVIDE MODULO
+%right NOT
+%right PLUS_PLUS
+%right MINUS_MINUS
+
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
 
