@@ -29,7 +29,7 @@
         printf("Reduced by rule: %s\n", rule);
     }
 
-    unsigned int check_scope = 0; // 0 for global, 1 for local
+    unsigned int checkScope = 0; // 0 for global, 1 for local
 %}
 
 %union {
@@ -137,26 +137,26 @@ primary
 lvalue
     : IDENTIFIER { 
         print_rule("lvalue -> IDENTIFIER"); 
-        SymbolTableInfo *found_identifier = lookup_symbol(symbol_table, $1, check_scope);
+        SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $1, checkScope);
         if (!found_identifier) {
-            SymbolType st = (check_scope == 0) ? GLOBAL : LOCAL_VAR;
-            insert_symbol(symbol_table, $1, st, yylineno, check_scope);
+            SymbolType st = (checkScope == 0) ? GLOBAL : LOCAL_VAR;
+            insert_symbol(symbol_table, $1, st, yylineno, checkScope);
         }
     }
     | LOCAL IDENTIFIER { 
         print_rule("lvalue -> LOCAL IDENTIFIER"); 
-        SymbolTableInfo *found_identifier = lookup_symbol(symbol_table, $2, check_scope);
+        SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, checkScope);
         if (!found_identifier) {
-            SymbolType st = (check_scope == 0) ? GLOBAL : LOCAL_VAR;
-            insert_symbol(symbol_table, $2, st, yylineno, check_scope);
+            SymbolType st = (checkScope == 0) ? GLOBAL : LOCAL_VAR;
+            insert_symbol(symbol_table, $2, st, yylineno, checkScope);
         }
     }
     | COLON_COLON IDENTIFIER { 
         print_rule("lvalue -> :: IDENTIFIER"); 
-        SymbolTableInfo *found_identifier = lookup_symbol(symbol_table, $2, check_scope);
+        SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, checkScope);
         if (!found_identifier) {
-            SymbolType st = (check_scope == 0) ? GLOBAL : LOCAL_VAR;
-            insert_symbol(symbol_table, $2, st, yylineno, check_scope);
+            SymbolType st = (checkScope == 0) ? GLOBAL : LOCAL_VAR;
+            insert_symbol(symbol_table, $2, st, yylineno, checkScope);
         }
     }
     | member { print_rule("lvalue -> member"); }
@@ -258,8 +258,8 @@ continue_stmt
     ;
 
 block
-    : LEFT_BRACE stmt_list RIGHT_BRACE { print_rule("block -> { stmt_list }"); }
-    | LEFT_BRACE RIGHT_BRACE { print_rule("block -> { }"); }
+    : LEFT_BRACE { checkScope++; } stmt_list RIGHT_BRACE { checkScope--; print_rule("block -> { stmt_list }"); }
+    | LEFT_BRACE RIGHT_BRACE { checkScope++; checkScope--; print_rule("block -> { }"); }
     ;
 
 %%
