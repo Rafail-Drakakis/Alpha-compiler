@@ -141,7 +141,7 @@ realconst   [0-9]+\.[0-9]+(e[+-]?[0-9]+)?
 string      \"([^\\n"\\]|\\t|\\n|\\\"|\\\\|\\.)*\"
 whitespace  [ \t\r\n]+
 comment1    \/\/.*
-operator    (\+|\-|\*|\/|=|%|\+\+|\-\-|==|!=|>|<|>=|<=)
+operator    (\+|\-|\*|\/|=|%|\+\+|\-\-|==|!=|>|<|>=|<=|&&|\|\|)
 keyword     (function|while|for|if|else|continue|break|return|and|or|not|local|true|false|nil)
 punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
@@ -183,6 +183,8 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
     else if (!token_string_compare(yytext, "<"))   { insert_token(yylineno, yytext, "OPERATOR LESS_THAN", "enumerated"); return LESS_THAN; }
     else if (!token_string_compare(yytext, ">="))  { insert_token(yylineno, yytext, "OPERATOR GREATER_EQUAL", "enumerated"); return GREATER_EQUAL; }
     else if (!token_string_compare(yytext, "<="))  { insert_token(yylineno, yytext, "OPERATOR LESS_EQUAL", "enumerated"); return LESS_EQUAL; }
+    else if (!token_string_compare(yytext, "&&"))  { insert_token(yylineno, yytext, "OPERATOR AND", "enumerated"); return AND; }
+    else if (!token_string_compare(yytext, "||"))  { insert_token(yylineno, yytext, "OPERATOR OR", "enumerated"); return OR; }
     else {
         /* If none of the above operators doesnt match then just store it as a general OPERATOR. */
         insert_token(yylineno, yytext, "OPERATOR", "enumerated");

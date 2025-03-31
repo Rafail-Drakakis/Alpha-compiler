@@ -8,11 +8,6 @@
  *      csd5082 Theologos Kokkinellis
  */
 
-/**
- * note: thema me ta comparison operators
- * so some of the tests don't work
- */
-
 %{
     #include <stdio.h>
     #include <stdlib.h>

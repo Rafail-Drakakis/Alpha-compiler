@@ -49,9 +49,9 @@ SymbolTableEntry *lookup_symbol(SymbolTable *table, const char *name, unsigned i
 
 void print_symbol_table(SymbolTable *table) {
     SymbolTableEntry *current = table->head;
-    printf("------------- Symbol Table -------------\n");
+    printf("------------------ Symbol Table ----------------\n");
     printf("| Name          | Type         | Line  | Scope |\n");
-    printf("-----------------------------------------\n");
+    printf("------------------------------------------------\n");
 
     while (current) {
         const char *type_str;
@@ -66,7 +66,7 @@ void print_symbol_table(SymbolTable *table) {
         printf("| %-12s | %-11s | %-5u | %-5u |\n", current->name, type_str, current->line_number, current->scope);
         current = current->next;
     }
-    printf("-----------------------------------------\n");
+    printf("------------------------------------------------\n");
 }
 
 void free_symbol_table(SymbolTable *table) {
