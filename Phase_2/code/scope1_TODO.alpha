@@ -1,0 +1,3 @@
+function g(x) { 
+	function h(x) { return g(x); }
+}

@@ -89,6 +89,7 @@ expr
     : assignexpr { print_rule("expr -> assignexpr"); }
     | expr op expr { print_rule("expr -> expr op expr"); }
     | term { print_rule("expr -> term"); }  // Now ensures `term` is used
+    | call { print_rule("expr -> call"); }
     ;
 
 assignexpr
@@ -175,10 +176,9 @@ member
     ;
 
 call
-    : call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("call -> call ( elist )"); }
+    : call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("call -> call (elist)"); }
     | lvalue callsuffix { print_rule("call -> lvalue callsuffix"); }
-    | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("call -> ( funcdef ) ( elist )"); }
-    ;
+    | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("call -> ( funcdef ) ( elist )"); }     ;
 
 callsuffix
     : normcall { print_rule("callsuffix -> normcall"); }
@@ -231,6 +231,7 @@ funcdef
 idlist
     : IDENTIFIER { print_rule("idlist -> IDENTIFIER"); }
     | IDENTIFIER COMMA idlist { print_rule("idlist -> IDENTIFIER , idlist"); }
+    | /* empty */ { print_rule("idlist -> epsilon"); }
     ;
 
 ifstmt
@@ -249,6 +250,7 @@ forstmt
 
 returnstmt
     : RETURN SEMICOLON { print_rule("returnstmt -> return ;"); }
+    | RETURN call SEMICOLON { print_rule("returnstmt -> return call ;"); }
     | RETURN expr SEMICOLON { print_rule("returnstmt -> return expr ;"); }
     ;
 
