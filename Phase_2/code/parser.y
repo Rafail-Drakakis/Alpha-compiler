@@ -86,6 +86,7 @@ stmt
     | break_stmt { print_rule("stmt -> break ;"); }
     | continue_stmt { print_rule("stmt -> continue ;"); }
     | block { print_rule("stmt -> block"); }
+    | funcdef { print_rule("stmt -> funcdef"); }
     | error ';' { print_rule("stmt -> error ;"); yyerrok; }
     ;
 
@@ -222,7 +223,14 @@ indexedelem
     ;
 
 funcdef
-    : FUNCTION LEFT_PARENTHESIS idlist RIGHT_PARENTHESIS block { print_rule("funcdef -> function [ IDENTIFIER ] ( idlist ) block"); }
+    : FUNCTION IDENTIFIER LEFT_PARENTHESIS idlist RIGHT_PARENTHESIS {
+        SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, checkScope);
+        if (!found_identifier) {
+            SymbolType st = (checkScope == 0) ? GLOBAL : LOCAL_VAR;
+            insert_symbol(symbol_table, $2, st, yylineno, checkScope);
+        }
+        checkScope++; 
+    } block { checkScope--; print_rule("funcdef -> function [ IDENTIFIER ] ( idlist ) block"); }
     ;
 
 idlist
