@@ -1,14 +1,5 @@
 /**
- * HY-340 Project Phase 1 2024-2025
- *
- * Members:
- *      csd5171 Fytaki Maria
- *      csd5310 Rafail Drakakis
- *      csd5082 Theologos Kokkinellis
- */
-
-/**
- * HY-340 Project Phase 1 2024-2025
+ * HY-340 Project Phase 2 2024-2025
  *
  * Members:
  *      csd5171 Fytaki Maria
@@ -17,16 +8,13 @@
  */
 
 %{
+#include "parser.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
-#include "parser.h"
-extern int yylineno;
 
 //#define YY_DECL int alpha_yylex(void* yylval)
-
-extern YYSTYPE yylval;
 
 #define token_string_compare(val1, val2) strcmp((val1), (val2))
 
@@ -97,7 +85,7 @@ void push(Stack* stack, int line) {
         exit(EXIT_FAILURE);
     }
     newNode->line = line;
-    newNode->has_nested = 0;    // in the begining default is that these is no nested comment 
+    newNode->has_nested = 0;	// in the begining default is that these is no nested comment 
     newNode->next = stack->top;
     stack->top = newNode;
 }
@@ -157,72 +145,72 @@ keyword     (function|while|for|if|else|continue|break|return|and|or|not|local|t
 punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
 %%
-
 {keyword} {
-    if (!strcmp(yytext, "if"))            { return IF; }
-    else if (!strcmp(yytext, "else"))     { return ELSE; }
-    else if (!strcmp(yytext, "while"))    { return WHILE; }
-    else if (!strcmp(yytext, "for"))      { return FOR; }
-    else if (!strcmp(yytext, "function")) { return FUNCTION; }
-    else if (!strcmp(yytext, "return"))   { return RETURN; }
-    else if (!strcmp(yytext, "break"))    { return BREAK; }
-    else if (!strcmp(yytext, "continue")) { return CONTINUE; }
-    else if (!strcmp(yytext, "and"))      { return AND; }
-    else if (!strcmp(yytext, "not"))      { return NOT; }
-    else if (!strcmp(yytext, "or"))       { return OR; }
-    else if (!strcmp(yytext, "local"))    { return LOCAL; }
-    else if (!strcmp(yytext, "true"))     { return TRUE; }
-    else if (!strcmp(yytext, "false"))    { return FALSE; }
-    else if (!strcmp(yytext, "nil"))      { return NIL; }
+    if (!token_string_compare(yytext, "if"))            { insert_token(yylineno, yytext, "KEYWORD IF", "enumerated"); return IF; }
+    else if (!token_string_compare(yytext, "else"))     { insert_token(yylineno, yytext, "KEYWORD ELSE", "enumerated"); return ELSE; }
+    else if (!token_string_compare(yytext, "while"))    { insert_token(yylineno, yytext, "KEYWORD WHILE", "enumerated"); return WHILE; }
+    else if (!token_string_compare(yytext, "for"))      { insert_token(yylineno, yytext, "KEYWORD FOR", "enumerated"); return FOR; }
+    else if (!token_string_compare(yytext, "function")) { insert_token(yylineno, yytext, "KEYWORD FUNCTION", "enumerated"); return FUNCTION; }
+    else if (!token_string_compare(yytext, "return"))   { insert_token(yylineno, yytext, "KEYWORD RETURN", "enumerated"); return RETURN; }
+    else if (!token_string_compare(yytext, "break"))    { insert_token(yylineno, yytext, "KEYWORD BREAK", "enumerated"); return BREAK; }
+    else if (!token_string_compare(yytext, "continue")) { insert_token(yylineno, yytext, "KEYWORD CONTINUE", "enumerated"); return CONTINUE; }
+    else if (!token_string_compare(yytext, "and"))      { insert_token(yylineno, yytext, "KEYWORD AND", "enumerated"); return AND; }
+    else if (!token_string_compare(yytext, "not"))      { insert_token(yylineno, yytext, "KEYWORD NOT", "enumerated"); return NOT; }
+    else if (!token_string_compare(yytext, "or"))       { insert_token(yylineno, yytext, "KEYWORD OR", "enumerated"); return OR; }
+    else if (!token_string_compare(yytext, "local"))    { insert_token(yylineno, yytext, "KEYWORD LOCAL", "enumerated"); return LOCAL; }
+    else if (!token_string_compare(yytext, "true"))     { insert_token(yylineno, yytext, "KEYWORD TRUE", "enumerated"); return TRUE; }
+    else if (!token_string_compare(yytext, "false"))    { insert_token(yylineno, yytext, "KEYWORD FALSE", "enumerated"); return FALSE; }
+    else if (!token_string_compare(yytext, "nil"))      { insert_token(yylineno, yytext, "KEYWORD NIL", "enumerated"); return NIL; }
     else {
-        return IDENTIFIER;
+        insert_token(yylineno, yytext, "KEYWORD", "enumerated");
     }
+    return 1;
 }
 
 {operator} {
-    if (!token_string_compare(yytext, "+"))        { return PLUS; }
-    else if (!token_string_compare(yytext, "-"))   { return MINUS; }
-    else if (!token_string_compare(yytext, "*"))   { return MULTIPLY; }
-    else if (!token_string_compare(yytext, "/"))   { return DIVIDE; }
-    else if (!token_string_compare(yytext, "%"))   { return MODULO; }
-    else if (!token_string_compare(yytext, "++"))  { return PLUS_PLUS; }
-    else if (!token_string_compare(yytext, "--"))  { return MINUS_MINUS; }
-    else if (!token_string_compare(yytext, "="))   { return ASSIGNMENT; }
-    else if (!token_string_compare(yytext, "=="))  { return EQUAL_EQUAL; }
-    else if (!token_string_compare(yytext, "!="))  { return NOT_EQUAL; }
-    else if (!token_string_compare(yytext, ">"))   { return GREATER; }
-    else if (!token_string_compare(yytext, "<"))   { return LESS; }
-    else if (!token_string_compare(yytext, ">="))  { return GREATER_EQUAL; }
-    else if (!token_string_compare(yytext, "<="))  { return LESS_EQUAL; }
+    if (!token_string_compare(yytext, "+"))        { insert_token(yylineno, yytext, "OPERATOR PLUS", "enumerated"); return PLUS; }
+    else if (!token_string_compare(yytext, "-"))   { insert_token(yylineno, yytext, "OPERATOR MINUS", "enumerated"); return MINUS; }
+    else if (!token_string_compare(yytext, "*"))   { insert_token(yylineno, yytext, "OPERATOR MULT", "enumerated"); return MULTIPLY; }
+    else if (!token_string_compare(yytext, "/"))   { insert_token(yylineno, yytext, "OPERATOR DIVIDE", "enumerated"); return DIVIDE; }
+    else if (!token_string_compare(yytext, "%"))   { insert_token(yylineno, yytext, "OPERATOR MODULO", "enumerated"); return MODULO; }
+    else if (!token_string_compare(yytext, "++"))  { insert_token(yylineno, yytext, "OPERATOR PLUS_PLUS", "enumerated"); return PLUS_PLUS; }
+    else if (!token_string_compare(yytext, "--"))  { insert_token(yylineno, yytext, "OPERATOR MINUS_MINUS", "enumerated"); return MINUS_MINUS; }
+    else if (!token_string_compare(yytext, "="))   { insert_token(yylineno, yytext, "OPERATOR ASSIGNMENT", "enumerated"); return ASSIGNMENT; }
+    else if (!token_string_compare(yytext, "=="))  { insert_token(yylineno, yytext, "OPERATOR EQUAL_EQUAL", "enumerated"); return EQUAL_EQUAL; }
+    else if (!token_string_compare(yytext, "!="))  { insert_token(yylineno, yytext, "OPERATOR NOT_EQUAL", "enumerated"); return NOT_EQUAL; }
+    else if (!token_string_compare(yytext, ">"))   { insert_token(yylineno, yytext, "OPERATOR GREATER_THAN", "enumerated"); return GREATER_THAN;}
+    else if (!token_string_compare(yytext, "<"))   { insert_token(yylineno, yytext, "OPERATOR LESS_THAN", "enumerated"); return LESS_THAN; }
+    else if (!token_string_compare(yytext, ">="))  { insert_token(yylineno, yytext, "OPERATOR GREATER_EQUAL", "enumerated"); return GREATER_EQUAL; }
+    else if (!token_string_compare(yytext, "<="))  { insert_token(yylineno, yytext, "OPERATOR LESS_EQUAL", "enumerated"); return LESS_EQUAL; }
     else {
-        /* Return a generic operator token if no specific match is found */
-        return OPERATOR;
+        /* If none of the above operators doesnt match then just store it as a general OPERATOR. */
+        insert_token(yylineno, yytext, "OPERATOR", "enumerated");
     }
+    return 1;
 }
 
 {punctuation} {
-    if (!token_string_compare(yytext, "("))       { return LEFT_PARENTHESIS; }
-    else if (!token_string_compare(yytext, ")"))  { return RIGHT_PARENTHESIS; }
-    else if (!token_string_compare(yytext, "["))  { return LEFT_BRACKET; }
-    else if (!token_string_compare(yytext, "]"))  { return RIGHT_BRACKET; }
-    else if (!token_string_compare(yytext, "{"))  { return LEFT_BRACE; }
-    else if (!token_string_compare(yytext, "}"))  { return RIGHT_BRACE; }
-    else if (!token_string_compare(yytext, ";"))  { return SEMICOLON; }
-    else if (!token_string_compare(yytext, "."))  { return DOT; }
-    else if (!token_string_compare(yytext, "..")) { return DOT_DOT; }
-    else if (!token_string_compare(yytext, "::")) { return COLON_COLON; }
-    else if (!token_string_compare(yytext, ":"))  { return COLON; }
-    else if (!token_string_compare(yytext, ","))  { return COMMA; }
+    if (!token_string_compare(yytext, "("))       { insert_token(yylineno, yytext, "PUNCTUATION LEFT_PARENTHESIS", "enumerated"); return LEFT_PARENTHESIS; }
+    else if (!token_string_compare(yytext, ")"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_PARENTHESIS", "enumerated"); return RIGHT_PARENTHESIS;  }
+    else if (!token_string_compare(yytext, "["))  { insert_token(yylineno, yytext, "PUNCTUATION LEFT_BRACKET", "enumerated"); return LEFT_BRACKET; }
+    else if (!token_string_compare(yytext, "]"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_BRACKET", "enumerated"); return RIGHT_BRACKET; }
+    else if (!token_string_compare(yytext, "{"))  { insert_token(yylineno, yytext, "PUNCTUATION LEFT_BRACE", "enumerated"); return LEFT_BRACE; }
+    else if (!token_string_compare(yytext, "}"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_BRACE", "enumerated"); return RIGHT_BRACE; }
+    else if (!token_string_compare(yytext, ";"))  { insert_token(yylineno, yytext, "PUNCTUATION SEMICOLON", "enumerated"); return SEMICOLON;}
+    else if (!token_string_compare(yytext, "."))  { insert_token(yylineno, yytext, "PUNCTUATION DOT", "enumerated"); return DOT; }
+    else if (!token_string_compare(yytext, "..")) { insert_token(yylineno, yytext, "PUNCTUATION DOT_DOT", "enumerated"); return DOT_DOT; }
+    else if (!token_string_compare(yytext, "::")) { insert_token(yylineno, yytext, "PUNCTUATION COLON_COLON", "enumerated"); return COLON_COLON; }
+    else if (!token_string_compare(yytext, ":"))  { insert_token(yylineno, yytext, "PUNCTUATION COLON", "enumerated"); return COLON; }
+    else if (!token_string_compare(yytext, ","))  { insert_token(yylineno, yytext, "PUNCTUATION COMMA", "enumerated"); return COMMA; }
     else {
-        /* Return a generic punctuation token if no specific match is found */
-        return PUNCTUATION;
+        insert_token(yylineno, yytext, "PUNCTUATION", "enumerated");
     }
+    return 1;
 }
 
-{id}          { yylval.stringValue = strdup(yytext); return IDENTIFIER; }
-{intconst}    { yylval.intValue = atoi(yytext); return INTCONST; }
-{realconst}   { yylval.realValue = atof(yytext); return REALCONST; }
-
+{id}          { insert_token(yylineno, yytext, "IDENTIFIER", "char*"); return IDENTIFIER; }
+{intconst}    { insert_token(yylineno, yytext, "INTCONST", "integer"); return INTCONST; }
+{realconst}   { insert_token(yylineno, yytext, "REALCONST", "float"); return REALCONST; }
 {string} {
     char *processed_str = strdup(yytext);
     
@@ -259,7 +247,7 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
 {comment1}    {insert_token(yylineno, yytext, "COMMENT LINE_COMMENT", "enumerated"); }
 
-"/*" {
+"/*" {	
     push(&commentStack, yylineno);
     comment_nested++;
     BEGIN(COMMENT);
