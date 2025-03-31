@@ -1,0 +1,7 @@
+if(x) x; else x;
+
+if (x) y = 10;
+
+if (x) if (y) z = 1; else z = 2;
+
+if (x) {}
