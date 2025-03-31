@@ -13,6 +13,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+extern int yylineno;
 
 //#define YY_DECL int alpha_yylex(void* yylval)
 
@@ -208,9 +209,10 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
     return 1;
 }
 
-{id}          { insert_token(yylineno, yytext, "IDENTIFIER", "char*"); return IDENTIFIER; }
-{intconst}    { insert_token(yylineno, yytext, "INTCONST", "integer"); return INTCONST; }
-{realconst}   { insert_token(yylineno, yytext, "REALCONST", "float"); return REALCONST; }
+{id}          { yylval.stringValue = strdup(yytext); return IDENTIFIER; }
+{intconst}    { yylval.intValue = atoi(yytext); return INTCONST; }
+{realconst}   { yylval.realValue = atof(yytext); return REALCONST; }
+
 {string} {
     char *processed_str = strdup(yytext);
     

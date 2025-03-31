@@ -21,12 +21,15 @@
 
     extern int yylineno;
     extern char* yytext;
+    extern SymbolTable *symbol_table;
     extern int yylex();
     int yyerror (char* yaccProvidedMessage);
 
     void print_rule(const char* rule) {
         printf("Reduced by rule: %s\n", rule);
     }
+
+    unsigned int check_scope = 0; // 0 for global, 1 for local
 %}
 
 %union {
@@ -132,9 +135,30 @@ primary
     ;
 
 lvalue
-    : IDENTIFIER { print_rule("lvalue -> IDENTIFIER"); }
-    | LOCAL IDENTIFIER { print_rule("lvalue -> LOCAL IDENTIFIER"); }
-    | COLON_COLON IDENTIFIER { print_rule("lvalue -> :: IDENTIFIER"); }
+    : IDENTIFIER { 
+        print_rule("lvalue -> IDENTIFIER"); 
+        SymbolTableInfo *found_identifier = lookup_symbol(symbol_table, $1, check_scope);
+        if (!found_identifier) {
+            SymbolType st = (check_scope == 0) ? GLOBAL : LOCAL_VAR;
+            insert_symbol(symbol_table, $1, st, yylineno, check_scope);
+        }
+    }
+    | LOCAL IDENTIFIER { 
+        print_rule("lvalue -> LOCAL IDENTIFIER"); 
+        SymbolTableInfo *found_identifier = lookup_symbol(symbol_table, $2, check_scope);
+        if (!found_identifier) {
+            SymbolType st = (check_scope == 0) ? GLOBAL : LOCAL_VAR;
+            insert_symbol(symbol_table, $2, st, yylineno, check_scope);
+        }
+    }
+    | COLON_COLON IDENTIFIER { 
+        print_rule("lvalue -> :: IDENTIFIER"); 
+        SymbolTableInfo *found_identifier = lookup_symbol(symbol_table, $2, check_scope);
+        if (!found_identifier) {
+            SymbolType st = (check_scope == 0) ? GLOBAL : LOCAL_VAR;
+            insert_symbol(symbol_table, $2, st, yylineno, check_scope);
+        }
+    }
     | member { print_rule("lvalue -> member"); }
     ;
 
