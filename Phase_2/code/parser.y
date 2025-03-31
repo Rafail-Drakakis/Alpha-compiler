@@ -229,8 +229,15 @@ funcdef
     ;
 
 idlist
-    : IDENTIFIER { print_rule("idlist -> IDENTIFIER"); }
-    | IDENTIFIER COMMA idlist { print_rule("idlist -> IDENTIFIER , idlist"); }
+    : IDENTIFIER { 
+        print_rule("idlist -> IDENTIFIER"); 
+        /* Pass to symbol table as ARGUMENT */
+        insert_symbol(symbol_table, $1, ARGUMENT, yylineno, checkScope);
+    }
+    | IDENTIFIER COMMA idlist { 
+        print_rule("idlist -> IDENTIFIER , idlist"); 
+        insert_symbol(symbol_table, $1, ARGUMENT, yylineno, checkScope);
+    }
     | /* empty */ { print_rule("idlist -> epsilon"); }
     ;
 
