@@ -49,7 +49,7 @@
 %nonassoc EQUAL_EQUAL NOT_EQUAL
 %nonassoc GREATER_THAN GREATER_EQUAL LESS_THAN LESS_EQUAL
 %left  PLUS 
-%right MINUS /* x - y - z is referenced as x-(y-z). We are gonna think if we will need UMINUS for (x-y)-z*/
+%left MINUS /* changed to UMINUS for (x-y) - z */
 %left MULTIPLY DIVIDE MODULO
 %right NOT
 %right PLUS_PLUS
@@ -89,7 +89,7 @@ expr
     : assignexpr { print_rule("expr -> assignexpr"); }
     | expr op expr { print_rule("expr -> expr op expr"); }
     | term { print_rule("expr -> term"); }  // Now ensures `term` is used
-    | call { print_rule("expr -> call"); }
+    //| call { print_rule("expr -> call"); } We will remove it to avoid conflict and also we dont need that as we can follow this path: [expr -> term -> primary -> call]
     ;
 
 assignexpr
@@ -253,7 +253,7 @@ forstmt
 
 returnstmt
     : RETURN SEMICOLON { print_rule("returnstmt -> return ;"); }
-    | RETURN call SEMICOLON { print_rule("returnstmt -> return call ;"); }
+    //| RETURN call SEMICOLON { print_rule("returnstmt -> return call ;"); } // We will remove it to avoid conflict and because RETURN expr SEMICOLON covers all the cases.
     | RETURN expr SEMICOLON { print_rule("returnstmt -> return expr ;"); }
     ;
 
