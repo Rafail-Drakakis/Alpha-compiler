@@ -86,8 +86,20 @@ stmt
     ;
 
 expr
-    : assignexpr { print_rule("expr -> assignexpr"); }
-    | expr op expr { print_rule("expr -> expr op expr"); }
+    : expr PLUS expr         { print_rule("op -> +"); }
+    | expr MINUS expr        { print_rule("op -> -"); }
+    | expr MULTIPLY expr     { print_rule("op -> *"); }
+    | expr DIVIDE expr       { print_rule("op -> /"); }
+    | expr MODULO expr       { print_rule("op -> %"); }
+    | expr GREATER_THAN expr { print_rule("op -> >"); }
+    | expr GREATER_EQUAL expr{ print_rule("op -> >="); }
+    | expr LESS_THAN expr    { print_rule("op -> <"); }
+    | expr LESS_EQUAL expr   { print_rule("op -> <="); }
+    | expr EQUAL_EQUAL expr  { print_rule("op -> =="); }
+    | expr NOT_EQUAL expr    { print_rule("op -> !="); }
+    | expr AND expr          { print_rule("op -> and"); }
+    | expr OR expr           { print_rule("op -> or"); }
+    | assignexpr { print_rule("expr -> assignexpr"); }
     | term { print_rule("expr -> term"); }  // Now ensures `term` is used
     //| call { print_rule("expr -> call"); } We will remove it to avoid conflict and also we dont need that as we can follow this path: [expr -> term -> primary -> call]
     ;
@@ -96,6 +108,7 @@ assignexpr
     : lvalue ASSIGNMENT expr { print_rule("assignexpr -> lvalue = expr"); }
     ;
 
+/* It was causing conflicts
 op
     : PLUS        { print_rule("op -> +"); }
     | MINUS       { print_rule("op -> -"); }
@@ -111,6 +124,7 @@ op
     | AND          { print_rule("op -> and"); }
     | OR           { print_rule("op -> or"); }
     ;
+*/
 
 term
     : LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { print_rule("term -> ( expr )"); }
