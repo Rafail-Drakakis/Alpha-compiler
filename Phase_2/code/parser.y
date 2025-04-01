@@ -68,7 +68,7 @@ program
 
 stmt_list
     : stmt stmt_list { print_rule("stmt_list -> stmt stmt_list"); }
-    | stmt { print_rule("stmt_list -> stmt"); } //single statement allowed for testng cause "x;" might not reduce properly
+    //| stmt { print_rule("stmt_list -> stmt"); } //single statement allowed for testng cause "x;" might not reduce properly
     | /* empty */ { print_rule("stmt_list -> epsilon"); }
     ;
 
@@ -185,8 +185,13 @@ const
 member
     : lvalue DOT IDENTIFIER { print_rule("member -> lvalue . IDENTIFIER"); }
     | lvalue LEFT_BRACKET expr RIGHT_BRACKET { print_rule("member -> lvalue [ expr ]"); }
-    | call DOT IDENTIFIER { print_rule("member -> call . IDENTIFIER"); }
-    | call LEFT_BRACKET expr RIGHT_BRACKET { print_rule("member -> call [ expr ]"); }
+    | call_member { print_rule("member -> call_member"); }
+    ;
+
+/* Helpful for member */
+call_member
+    : call DOT IDENTIFIER { print_rule("call_member -> call . IDENTIFIER"); }
+    | call LEFT_BRACKET expr RIGHT_BRACKET { print_rule("call_member -> call [ expr ]"); }
     ;
 
 call
