@@ -86,19 +86,7 @@ stmt
     ;
 
 expr
-    : expr PLUS expr         { print_rule("op -> +"); }
-    | expr MINUS expr        { print_rule("op -> -"); }
-    | expr MULTIPLY expr     { print_rule("op -> *"); }
-    | expr DIVIDE expr       { print_rule("op -> /"); }
-    | expr MODULO expr       { print_rule("op -> %"); }
-    | expr GREATER_THAN expr { print_rule("op -> >"); }
-    | expr GREATER_EQUAL expr{ print_rule("op -> >="); }
-    | expr LESS_THAN expr    { print_rule("op -> <"); }
-    | expr LESS_EQUAL expr   { print_rule("op -> <="); }
-    | expr EQUAL_EQUAL expr  { print_rule("op -> =="); }
-    | expr NOT_EQUAL expr    { print_rule("op -> !="); }
-    | expr AND expr          { print_rule("op -> and"); }
-    | expr OR expr           { print_rule("op -> or"); }
+    : expr op { print_rule("expr -> expr op expr"); }
     | assignexpr { print_rule("expr -> assignexpr"); }
     | term { print_rule("expr -> term"); }  // Now ensures `term` is used
     //| call { print_rule("expr -> call"); } We will remove it to avoid conflict and also we dont need that as we can follow this path: [expr -> term -> primary -> call]
@@ -108,23 +96,35 @@ assignexpr
     : lvalue ASSIGNMENT expr { print_rule("assignexpr -> lvalue = expr"); }
     ;
 
-/* It was causing conflicts
 op
-    : PLUS        { print_rule("op -> +"); }
-    | MINUS       { print_rule("op -> -"); }
-    | MULTIPLY    { print_rule("op -> *"); }
-    | DIVIDE      { print_rule("op -> /"); }
-    | MODULO      { print_rule("op -> %"); }
-    | GREATER_THAN { print_rule("op -> >"); }
-    | GREATER_EQUAL { print_rule("op -> >="); }
-    | LESS_THAN    { print_rule("op -> <"); }
-    | LESS_EQUAL   { print_rule("op -> <="); }
-    | EQUAL_EQUAL  { print_rule("op -> =="); }
-    | NOT_EQUAL    { print_rule("op -> !="); }
-    | AND          { print_rule("op -> and"); }
-    | OR           { print_rule("op -> or"); }
-    ;
-*/
+  : plus_op expr       %prec PLUS
+  | minus_op expr      %prec MINUS
+  | mult_op expr       %prec MULTIPLY
+  | div_op expr        %prec DIVIDE
+  | mod_op expr        %prec MODULO
+  | greaterthan_op expr %prec GREATER_THAN
+  | greaterequal_op expr %prec GREATER_EQUAL
+  | lessthan_op expr     %prec LESS_THAN
+  | lessequal_op expr    %prec LESS_EQUAL
+  | eqeq_op expr       %prec EQUAL_EQUAL
+  | noteq_op expr      %prec NOT_EQUAL
+  | and_op expr        %prec AND
+  | or_op expr         %prec OR
+  ;
+
+plus_op: PLUS { print_rule("op -> +"); };
+minus_op: MINUS { print_rule("op -> -"); };
+mult_op: MULTIPLY { print_rule("op -> *"); };
+div_op: DIVIDE { print_rule("op -> /"); };
+mod_op: MODULO { print_rule("op -> %"); };
+greaterthan_op: GREATER_THAN { print_rule("op -> >"); };
+greaterequal_op: GREATER_EQUAL { print_rule("op -> >="); };
+lessthan_op: LESS_THAN { print_rule("op -> <"); };
+lessequal_op: LESS_EQUAL { print_rule("op -> <="); };
+eqeq_op: EQUAL_EQUAL { print_rule("op -> =="); };
+noteq_op: NOT_EQUAL { print_rule("op -> !="); };
+and_op: AND { print_rule("op -> and"); };
+or_op: OR { print_rule("op -> or"); };
 
 term
     : LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { print_rule("term -> ( expr )"); }
