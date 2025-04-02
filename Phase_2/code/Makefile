@@ -36,9 +36,9 @@ parser.o: $(BISON_C)
 lex.yy.o: $(LEX_C)
 	$(CC) $(CFLAGS) -c $(LEX_C) -o lex.yy.o
 
-main.o: $(MAIN_C) $(SYMBOL_TABLE_H)
+main.o: $(MAIN_C) $(SYMBOL_TABLE_H) $(BISON_H)
 	$(CC) $(CFLAGS) -c $(MAIN_C)
-
+	
 symbol_table.o: $(SYMBOL_TABLE_C) $(SYMBOL_TABLE_H)
 	$(CC) $(CFLAGS) -c $(SYMBOL_TABLE_C)
 
