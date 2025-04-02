@@ -6,6 +6,21 @@
 extern FILE *yyin;
 SymbolTable *symbol_table;
 
+static const char *library_functions[] = {
+    "print",
+    "input",
+    "objectmemberkeys",
+    "objecttotalmembers",
+    "objectcopy",
+    "totalarguments",
+    "argument",
+    "typeof",
+    "strtonum",
+    "sqrt",
+    "cos",
+    "sin"
+};
+
 int main(int argc, char *argv[]) {
     if (argc < 2 || argc > 3) {
         printf("Usage: %s <input_file> [output_file]\n", argv[0]);
@@ -23,6 +38,10 @@ int main(int argc, char *argv[]) {
     }
 
     symbol_table = create_symbol_table();
+
+    for (int i = 0; library_functions[i] != NULL; i++) {
+        insert_symbol(symbol_table, library_functions[i], LIBRARY_FUNCTION, 0, 0);
+    }
 
     printf("Starting syntax analysis...\n");
     if (yyparse() == 0) {
