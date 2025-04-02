@@ -21,7 +21,8 @@
     int yyerror (char* yaccProvidedMessage);
 
     void print_rule(const char* rule) {
-        printf("Reduced by rule: %s\n", rule);
+        //printf("Reduced by rule: %s\n", rule);
+        (void)0;
     }
 
     unsigned int checkScope = 0; // 0 for global, 1 for local
