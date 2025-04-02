@@ -286,7 +286,8 @@ continue_stmt
 
 block
     : LEFT_BRACE { checkScope++; } stmt_list RIGHT_BRACE { checkScope--; print_rule("block -> { stmt_list }"); }
-    | LEFT_BRACE RIGHT_BRACE { checkScope++; checkScope--; print_rule("block -> { }"); }
+    //Block without any value inside can be generated my stmt_list, so we dont need the following:
+    //| LEFT_BRACE RIGHT_BRACE { checkScope++; checkScope--; print_rule("block -> { }"); }
     ;
 
 %%
