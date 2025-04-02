@@ -38,7 +38,7 @@ lex.yy.o: $(LEX_C)
 
 main.o: $(MAIN_C) $(SYMBOL_TABLE_H) $(BISON_H)
 	$(CC) $(CFLAGS) -c $(MAIN_C)
-	
+		
 symbol_table.o: $(SYMBOL_TABLE_C) $(SYMBOL_TABLE_H)
 	$(CC) $(CFLAGS) -c $(SYMBOL_TABLE_C)
 
