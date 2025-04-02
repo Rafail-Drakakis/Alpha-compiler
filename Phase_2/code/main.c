@@ -39,9 +39,10 @@ int main(int argc, char *argv[]) {
 
     symbol_table = create_symbol_table();
 
-    for (int i = 0; library_functions[i] != NULL; i++) {
-        insert_symbol(symbol_table, library_functions[i], LIBRARY_FUNCTION, 0, 0);
-    }
+    /* sizeof(library_functions) / sizeof(library_functions[0]) is used to get the number of elements in the array */
+    for (int k = 0; k < (sizeof(library_functions) / sizeof(library_functions[0])); k++) {
+        insert_symbol(symbol_table, library_functions[k], LIBRARY_FUNCTION, 0, 0);
+    }    
 
     printf("Starting syntax analysis...\n");
     if (yyparse() == 0) {
