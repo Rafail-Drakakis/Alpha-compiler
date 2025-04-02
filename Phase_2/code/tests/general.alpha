@@ -1,0 +1,67 @@
+a = 5 - 3;
+b = 5 + 3 * 2;
+x = 1;
+if (x > 5 && y < 10) x = y;
+y = (x = 10) + 5;
+
+function foo(a, b) { return a + b; }
+x = foo(3, 4);
+
+if (foo(2, 3) == 5) y = 10;
+
+if(x) x; else x;
+
+if (x) y = 10;
+
+if (x) if (y) z = 1; else z = 2;
+
+if (x) {}
+
+if (x > 0) y = 10;
+
+if (x > 0) { 
+    y = 10; 
+} else { 
+    y = 20; 
+}
+
+
+if (x > 0) {
+    if (y > 5) {
+        z = 1;
+    } else {
+        z = 2;
+    }
+} else {
+    z = 3;
+}
+
+
+
+if (x > 0 && y < 10) {
+    z = 100;
+} else if (x == 0 || y == 10) {
+    z = 200;
+} else {
+    z = 300;
+}
+
+
+while (x < 10) x++;
+
+for(x = 0; x < 5; x++)
+        --y;
+        x--;
+        a = y + 5;
+
+arr = [[1, 2, 3]];
+obj.x = 5;
+obj.y = obj.x + 10;
+
+function g() { 
+	function h() { return g(); }
+}
+
+function g() {
+	function h() { return g(); } 
+}
