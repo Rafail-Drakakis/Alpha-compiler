@@ -18,7 +18,7 @@ SymbolTableEntry *create_entry(const char *name, SymbolType type, unsigned int l
     }
     entry->name = strdup(name);
     entry->type = type;
-    entry->line_number = line;
+    entry->line_number = line;  
     entry->scope = scope;
     entry->next = NULL;
     return entry;
@@ -49,24 +49,52 @@ SymbolTableEntry *lookup_symbol(SymbolTable *table, const char *name, unsigned i
 
 void print_symbol_table(SymbolTable *table) {
     SymbolTableEntry *current = table->head;
-    printf("------------------ Symbol Table ----------------\n");
-    printf("| Name          | Type         | Line  | Scope |\n");
-    printf("------------------------------------------------\n");
-
-    while (current) {
-        const char *type_str;
-        switch (current->type) {
-            case GLOBAL: type_str = "GLOBAL"; break;
-            case LOCAL_VAR: type_str = "LOCAL"; break;
-            case ARGUMENT: type_str = "ARGUMENT"; break;
-            case LIBRARY_FUNCTION: type_str = "LIB_FUNC"; break;
-            case USER_FUNCTION: type_str = "USER_FUNC"; break;
-            default: type_str = "UNKNOWN"; break;
-        }
-        printf("| %-12s | %-11s | %-5u | %-5u |\n", current->name, type_str, current->line_number, current->scope);
-        current = current->next;
+    
+    unsigned int max_scope = 0;
+    SymbolTableEntry *tmp = current;
+    while (tmp) {
+        if (tmp->scope > max_scope)
+            max_scope = tmp->scope;
+        tmp = tmp->next;
     }
-    printf("------------------------------------------------\n");
+
+    for (unsigned int scope = 0; scope <= max_scope; scope++) {
+        int scope_has_entries = 0;
+
+        tmp = table->head;
+        while (tmp) {
+            if (tmp->scope == scope) {
+                scope_has_entries = 1;
+                break;
+            }
+            tmp = tmp->next;
+        }
+
+        if (!scope_has_entries) continue;
+
+        printf("----------   Scope #%u   ----------\n", scope);
+
+        tmp = table->head;
+        while (tmp) {
+            if (tmp->scope == scope) {
+                const char *type_str;
+                switch (tmp->type) {
+                    case GLOBAL: type_str = "global variable"; break;
+                    case LOCAL_VAR: type_str = "local variable"; break;
+                    case ARGUMENT: type_str = "formal argument"; break;
+                    case LIBRARY_FUNCTION: type_str = "library function"; break;
+                    case USER_FUNCTION: type_str = "user function"; break;
+                    default: type_str = "unknown"; break;
+                }
+
+                printf("\"%s\"\t[%s] (line %u) (scope %u)\n",
+                       tmp->name, type_str, tmp->line_number, tmp->scope);
+            }
+            tmp = tmp->next;
+        }
+
+        printf("\n");
+    }
 }
 
 void free_symbol_table(SymbolTable *table) {
