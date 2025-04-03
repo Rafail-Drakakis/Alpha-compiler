@@ -56,8 +56,11 @@
 %right PLUS_PLUS
 %right MINUS_MINUS
 
+
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
+
+%expect 2 // Expect 2 conflicts to be resolved
 
 %start program
 
