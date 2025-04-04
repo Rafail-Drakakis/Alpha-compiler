@@ -168,7 +168,7 @@ lvalue
     }
     | COLON_COLON IDENTIFIER { 
         print_rule("lvalue -> :: IDENTIFIER"); 
-        SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, checkScope);
+        SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, 0); // Check global scope only
         if (!found_identifier) {
             SymbolType st = (checkScope == 0) ? GLOBAL : LOCAL_VAR;
             insert_symbol(symbol_table, $2, st, yylineno, checkScope);
@@ -238,13 +238,12 @@ indexedelem
 
 funcdef
     : FUNCTION IDENTIFIER LEFT_PARENTHESIS idlist RIGHT_PARENTHESIS {
-        SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, checkScope);
-        if (!found_identifier) {
-            SymbolType st = (checkScope == 0) ? GLOBAL : LOCAL_VAR;
-            insert_symbol(symbol_table, $2, st, yylineno, checkScope);
-        }
-        checkScope++; 
-    } block { checkScope--; print_rule("funcdef -> function [ IDENTIFIER ] ( idlist ) block"); }
+          SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, checkScope);
+          if (!found_identifier) {
+              insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
+          }
+          checkScope++; 
+      } block { checkScope--; print_rule("funcdef -> function [ IDENTIFIER ] ( idlist ) block"); }
     ;
 
 idlist

@@ -27,13 +27,19 @@ SymbolTableEntry *create_entry(const char *name, SymbolType type, unsigned int l
 void insert_symbol(SymbolTable *table, const char *name, SymbolType type, unsigned int line, unsigned int scope) {
     SymbolTableEntry *existing = lookup_symbol(table, name, scope);
     if (existing) {
-        fprintf(stderr, "Warning: Symbol '%s' already defined in scope %d at line %d.\n", name, scope, line);
+        fprintf(stderr, "Warning: Symbol '%s' already defined in scope %u at line %u.\n", name, scope, line);
         return;
     }
-
     SymbolTableEntry *entry = create_entry(name, type, line, scope);
-    entry->next = table->head;
-    table->head = entry;
+    if (table->head == NULL) {
+        table->head = entry;
+    } else {
+        SymbolTableEntry *current = table->head;
+        while (current->next != NULL) {
+            current = current->next;
+        }
+        current->next = entry;
+    }
 }
 
 SymbolTableEntry *lookup_symbol(SymbolTable *table, const char *name, unsigned int scope) {
