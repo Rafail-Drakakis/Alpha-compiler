@@ -60,6 +60,8 @@
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
 
+%nonassoc UMINUS /* unary minus operator */
+
 %expect 2 // Expect 2 conflicts to be resolved
 
 %start program
@@ -132,7 +134,7 @@ or_op: OR { print_rule("op -> or"); };
 
 term
     : LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { print_rule("term -> ( expr )"); }
-    | MINUS expr { print_rule("term -> - expr"); }
+    | MINUS expr %prec UMINUS { print_rule("term -> - expr"); }
     | NOT expr { print_rule("term -> not expr"); }
     | PLUS_PLUS lvalue { print_rule("term -> ++ lvalue"); }
     | lvalue PLUS_PLUS { print_rule("term -> lvalue ++"); }
