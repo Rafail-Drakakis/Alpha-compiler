@@ -242,8 +242,11 @@ funcdef
           if (!found_identifier) {
               insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
           }
-          checkScope++; 
-      } block { checkScope--; print_rule("funcdef -> function [ IDENTIFIER ] ( idlist ) block"); }
+          // checkScope++; 
+      } block { 
+	 // checkScope--; // these will be handeled by block rule
+	 print_rule("funcdef -> function [ IDENTIFIER ] ( idlist ) block"); 
+      }
     ;
 
 idlist
