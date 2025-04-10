@@ -203,7 +203,8 @@ call_member
 call
     : call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("call -> call (elist)"); }
     | lvalue callsuffix { print_rule("call -> lvalue callsuffix"); }
-    | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("call -> ( funcdef ) ( elist )"); }     ;
+    | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("call -> ( funcdef ) ( elist )"); }     
+    ;
 
 callsuffix
     : normcall { print_rule("callsuffix -> normcall"); }
@@ -218,17 +219,22 @@ methodcall
     : lvalue DOT IDENTIFIER LEFT_PARENTHESIS lvalue elist RIGHT_PARENTHESIS { print_rule("methodcall -> lvalue . IDENTIFIER ( lvalue , elist )"); }
     ;
 
+// olo proeretiko --> mporei kai na mhn yparxei
 elist
     : expr { print_rule("elist -> expr"); }
     | expr COMMA elist { print_rule("elist -> expr , elist"); }
     | /* empty */ { print_rule("elist -> epsilon"); }  // Allows empty argument lists
     ;
 
+// empty objec
+// [1,2]
+// [{}, {}] indexed
 objectdef
     : LEFT_BRACKET LEFT_BRACKET elist RIGHT_BRACKET RIGHT_BRACKET { print_rule("objectdef -> [ [ elist ] ]"); }
     | LEFT_BRACKET LEFT_BRACKET indexed RIGHT_BRACKET RIGHT_BRACKET { print_rule("objectdef -> [ [ indexed ] ]"); }
     ;
 
+// olo proeretiko --> mporei kai na mhn yparxei
 indexed
     : LEFT_BRACKET indexedelem { print_rule("indexed -> [ indexedelem ]"); }
     | LEFT_BRACKET indexedelem COMMA indexed { print_rule("indexed -> [ indexedelem , indexed ]"); }
@@ -238,6 +244,7 @@ indexedelem
     : LEFT_BRACE expr COLON expr RIGHT_BRACE { print_rule("indexedelem -> { expr : expr }"); }
     ;
 
+// func_args -> (++) -- etc
 funcdef
     : FUNCTION IDENTIFIER LEFT_PARENTHESIS idlist RIGHT_PARENTHESIS {
           SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, checkScope);
@@ -249,8 +256,20 @@ funcdef
 	 // checkScope--; // these will be handeled by block rule
 	 print_rule("funcdef -> function [ IDENTIFIER ] ( idlist ) block"); 
       }
+    | FUNCTION LEFT_PARENTHESIS idlist RIGHT_PARENTHESIS {
+          char *anonymus_name = malloc(32);
+	  if(!anonymus_name){
+	  	fprintf(stderr, "Memory Allocation failed\n");
+		exit(EXIT_FAILURE);
+	  }
+          sprintf(anonymus_name, "_anonymus_func_%d", yylineno); // debug print
+	  insert_symbol(symbol_table, anonymus_name, USER_FUNCTION, yylineno, checkScope);
+      } block {
+          print_rule("funcdef -> function ( idlist ) block");
+      }
     ;
 
+// olo proeretiko --> mporei kai na mhn yparxei
 idlist
     : IDENTIFIER { 
         print_rule("idlist -> IDENTIFIER"); 
@@ -292,10 +311,11 @@ continue_stmt
     : CONTINUE SEMICOLON { print_rule("continue_stmt -> continue ;"); }
     ;
 
+// {} is possoble
 block
     : LEFT_BRACE { checkScope++; } stmt_list RIGHT_BRACE { checkScope--; print_rule("block -> { stmt_list }"); }
-    //Block without any value inside can be generated my stmt_list, so we dont need the following:
-    //| LEFT_BRACE RIGHT_BRACE { checkScope++; checkScope--; print_rule("block -> { }"); }
+    // Block without any value inside can be generated my stmt_list, so we dont need the following:
+    // | LEFT_BRACE RIGHT_BRACE { checkScope++; checkScope--; print_rule("block -> { }"); }
     ;
 
 %%
