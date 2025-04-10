@@ -7,3 +7,4 @@ lex.yy.o
 parser.c
 parser.h
 .DS_Store
+*.swp
