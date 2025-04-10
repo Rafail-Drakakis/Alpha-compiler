@@ -21,7 +21,7 @@
     int yyerror (char* yaccProvidedMessage);
 
     void print_rule(const char* rule) {
-        //printf("Reduced by rule: %s\n", rule);
+        printf("Reduced by rule: %s\n", rule);
         (void)0;
     }
 
@@ -220,25 +220,35 @@ methodcall
     : lvalue DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("methodcall -> lvalue .. IDENTIFIER ( elist )"); }
     ;
 
-// olo proeretiko --> mporei kai na mhn yparxei
+/*
+empty list
+expr
+expr, expr
+expr, expr, expr
+*/
+
 elist
     : expr { print_rule("elist -> expr"); }
     | expr COMMA elist { print_rule("elist -> expr , elist"); }
     | /* empty */ { print_rule("elist -> epsilon"); }  // Allows empty argument lists
     ;
 
-// empty objec
-// [1,2]
-// [{}, {}] indexed
+/* 
+   indexed [{:}, {:}] is not working
+   elist [, , ,]      is not working when element is string
+*/
+
 objectdef
-    : LEFT_BRACKET LEFT_BRACKET elist RIGHT_BRACKET RIGHT_BRACKET { print_rule("objectdef -> [ [ elist ] ]"); }
-    | LEFT_BRACKET LEFT_BRACKET indexed RIGHT_BRACKET RIGHT_BRACKET { print_rule("objectdef -> [ [ indexed ] ]"); }
+    //: LEFT_BRACKET RIGHT_BRACKET { print_rule("objectdef -> [ ]"); }
+    : LEFT_BRACKET elist RIGHT_BRACKET { print_rule("objectdef -> [ elist ]"); }
+    | LEFT_BRACKET indexed RIGHT_BRACKET { print_rule("objectdef -> [ indexed ]"); }
     ;
 
-// olo proeretiko --> mporei kai na mhn yparxei
+// can be empty but due to shift reduce to ebgala 
 indexed
-    : LEFT_BRACKET indexedelem { print_rule("indexed -> [ indexedelem ]"); }
-    | LEFT_BRACKET indexedelem COMMA indexed { print_rule("indexed -> [ indexedelem , indexed ]"); }
+    : indexedelem { print_rule("indexed -> indexedelem"); }
+    | indexedelem COMMA indexed { print_rule("indexed -> indexedelem, indexed"); }
+    // | /* empty */ { print_rule("indexed -> epsilon"); }
     ;
 
 indexedelem
