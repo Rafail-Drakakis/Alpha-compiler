@@ -41,7 +41,7 @@
 %token <stringValue> SEMICOLON COMMA COLON
 %token <stringValue> IDENTIFIER INTCONST REALCONST STRING
 %token <stringValue> FUNCTION AND OR NOT MODULO PLUS_PLUS MINUS_MINUS EQUAL_EQUAL LESS GREATER
-%token <stringValue> DOT DOT_DOT COLON_COLON PUNCTUATION OPERATOR
+%token <stringValue> DOT_DOT DOT COLON_COLON PUNCTUATION OPERATOR
 
 
 %right ASSIGNMENT   /* = has less priority in compare with all the other */
@@ -62,7 +62,8 @@
 
 %nonassoc UMINUS /* unary minus operator */
 
-%expect 2 // Expect 2 conflicts to be resolved
+// %expect 2 // Expect 2 conflicts to be resolved
+// changed this gt efaga error: shift/reduce conflicts: 0 found, 2
 
 %start program
 
@@ -216,7 +217,7 @@ normcall
     ;
 
 methodcall
-    : lvalue DOT IDENTIFIER LEFT_PARENTHESIS lvalue elist RIGHT_PARENTHESIS { print_rule("methodcall -> lvalue . IDENTIFIER ( lvalue , elist )"); }
+    : lvalue DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("methodcall -> lvalue .. IDENTIFIER ( elist )"); }
     ;
 
 // olo proeretiko --> mporei kai na mhn yparxei
