@@ -26,6 +26,7 @@
     }
 
     unsigned int checkScope = 0; // 0 for global, 1 for local
+    int checkLoopDepth = 0;
 %}
 
 %union {
@@ -173,8 +174,9 @@ lvalue
         print_rule("lvalue -> :: IDENTIFIER"); 
         SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, 0); // Check global scope only
         if (!found_identifier) {
-            SymbolType st = (checkScope == 0) ? GLOBAL : LOCAL_VAR;
-            insert_symbol(symbol_table, $2, st, yylineno, checkScope);
+            // SymbolType st = (checkScope == 0) ? GLOBAL : LOCAL_VAR;
+            // insert_symbol(symbol_table, $2, st, yylineno, checkScope);
+            fprintf(stderr, "Error: Symbol '%s' not found in global scope at line %d\n", $2, yylineno);
         }
     }
     | member { print_rule("lvalue -> member"); }
@@ -301,11 +303,11 @@ ifstmt
 
 
 whilestmt
-    : WHILE LEFT_PARENTHESIS expr RIGHT_PARENTHESIS stmt { print_rule("whilestmt -> while ( expr ) stmt"); }
+    : WHILE LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { checkLoopDepth++; } stmt { checkLoopDepth--; print_rule("whilestmt -> while ( expr ) stmt"); }
     ;
 
 forstmt
-    : FOR LEFT_PARENTHESIS elist SEMICOLON expr SEMICOLON elist RIGHT_PARENTHESIS stmt { print_rule("forstmt -> for ( elist ; expr ; elist ) stmt"); }
+    : FOR LEFT_PARENTHESIS elist SEMICOLON expr SEMICOLON elist RIGHT_PARENTHESIS { checkLoopDepth++; } stmt { checkLoopDepth--; print_rule("forstmt -> for ( elist ; expr ; elist ) stmt"); }
     ;
 
 returnstmt
@@ -315,11 +317,11 @@ returnstmt
     ;
 
 break_stmt
-    : BREAK SEMICOLON { print_rule("break_stmt -> break ;"); }
+    : BREAK SEMICOLON { if(checkLoopDepth < 1){ fprintf(stderr, "Error: 'break' used outside of any loop (line %d)\n", yylineno); } print_rule("break_stmt -> break ;"); }
     ;
 
 continue_stmt
-    : CONTINUE SEMICOLON { print_rule("continue_stmt -> continue ;"); }
+    : CONTINUE SEMICOLON { if(checkLoopDepth < 1){ fprintf(stderr, "Error: 'continue' used outside of any loop (line %d)\n", yylineno); } print_rule("continue_stmt -> continue ;"); }
     ;
 
 // {} is possoble
