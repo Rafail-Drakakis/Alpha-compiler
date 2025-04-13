@@ -25,10 +25,19 @@ SymbolTableEntry *create_entry(const char *name, SymbolType type, unsigned int l
 }
 
 void insert_symbol(SymbolTable *table, const char *name, SymbolType type, unsigned int line, unsigned int scope) {
-    SymbolTableEntry *existing = lookup_symbol(table, name, scope);
-    if (existing) {
+    // First, check for a definition in the current scope
+    SymbolTableEntry *existing_local = lookup_symbol(table, name, scope);
+    if (existing_local) {
         fprintf(stderr, "Error: Symbol '%s' already defined in scope %u at line %u.\n", name, scope, line);
         return;
+    }
+    // For any insertion into a non-global scope, verify that we're not shadowing a library function.
+    if (scope != 0) {
+        SymbolTableEntry *global_entry = lookup_symbol_global(table, name);
+        if (global_entry && global_entry->type == LIBRARY_FUNCTION) {
+            fprintf(stderr, "Error: Cannot redeclare library function '%s' in a local scope (line %u).\n", name, line);
+            return;
+        }
     }
     SymbolTableEntry *entry = create_entry(name, type, line, scope);
     if (table->head == NULL) {
@@ -42,10 +51,23 @@ void insert_symbol(SymbolTable *table, const char *name, SymbolType type, unsign
     }
 }
 
+// This function looks up a symbol in the given scope.
 SymbolTableEntry *lookup_symbol(SymbolTable *table, const char *name, unsigned int scope) {
     SymbolTableEntry *current = table->head;
     while (current) {
         if (strcmp(current->name, name) == 0 && current->scope == scope) {
+            return current;
+        }
+        current = current->next;
+    }
+    return NULL;
+}
+
+// This function looks up a symbol in the global scope (scope == 0).
+SymbolTableEntry *lookup_symbol_global(SymbolTable *table, const char *name) {
+    SymbolTableEntry *current = table->head;
+    while (current) {
+        if (strcmp(current->name, name) == 0 && current->scope == 0) {
             return current;
         }
         current = current->next;
@@ -102,6 +124,7 @@ void print_symbol_table(SymbolTable *table) {
         printf("\n");
     }
 }
+
 
 void free_symbol_table(SymbolTable *table) {
     SymbolTableEntry *current = table->head;

@@ -29,6 +29,7 @@ SymbolTable *create_symbol_table();
 SymbolTableEntry *create_entry(const char *name, SymbolType type, unsigned int line, unsigned int scope);
 void insert_symbol(SymbolTable *table, const char *name, SymbolType type, unsigned int line, unsigned int scope);
 SymbolTableEntry *lookup_symbol(SymbolTable *table, const char *name, unsigned int scope);
+SymbolTableEntry *lookup_symbol_global(SymbolTable *table, const char *name);
 void print_symbol_table(SymbolTable *table);
 void free_symbol_table(SymbolTable *table);
 
