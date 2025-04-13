@@ -246,7 +246,7 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
     insert_token(yylineno, processed_str, "STRING", "char*");
     free(processed_str);
-    return 1;
+    return STRING;
 }
 
 {comment1}    {insert_token(yylineno, yytext, "COMMENT LINE_COMMENT", "enumerated"); }
