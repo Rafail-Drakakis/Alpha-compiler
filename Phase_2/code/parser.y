@@ -154,13 +154,17 @@ primary
     ;
 
 lvalue
-    : IDENTIFIER { 
-        print_rule("lvalue -> IDENTIFIER"); 
-        SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $1, checkScope);
-        if (!found_identifier) {
-            SymbolType st = (checkScope == 0) ? GLOBAL : LOCAL_VAR;
-            insert_symbol(symbol_table, $1, st, yylineno, checkScope);
-        }
+    : IDENTIFIER {
+         print_rule("lvalue -> IDENTIFIER");
+         SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $1, checkScope);
+         if (found_identifier) {
+             if (found_identifier->type == USER_FUNCTION || found_identifier->type == LIBRARY_FUNCTION) {
+                 fprintf(stderr, "Error: Symbol '%s' is not a valid lvalue (line %d).\n", $1, yylineno);
+             }
+         } else {
+             SymbolType st = (checkScope == 0) ? GLOBAL : LOCAL_VAR;
+             insert_symbol(symbol_table, $1, st, yylineno, checkScope);
+         }
     }
     | LOCAL IDENTIFIER { 
         print_rule("lvalue -> LOCAL IDENTIFIER"); 
