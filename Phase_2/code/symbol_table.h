@@ -18,6 +18,7 @@ typedef struct SymbolTableEntry {
     SymbolType type;
     unsigned int line_number;
     unsigned int scope;
+    int is_active;
     struct SymbolTableEntry *next;
 } SymbolTableEntry;
 
@@ -32,5 +33,7 @@ SymbolTableEntry *lookup_symbol(SymbolTable *table, const char *name, unsigned i
 SymbolTableEntry *lookup_symbol_global(SymbolTable *table, const char *name);
 void print_symbol_table(SymbolTable *table);
 void free_symbol_table(SymbolTable *table);
+
+void deactivate_entries_from_curr_scope(SymbolTable*, unsigned int scope);
 
 #endif

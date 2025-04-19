@@ -159,3 +159,29 @@ void free_symbol_table(SymbolTable *table) {
     }
     free(table);
 }
+
+
+void deactivate_entries_from_curr_scope(SymbolTable *table, unsigned int scope) {
+    SymbolTableEntry *current = table->head;
+    SymbolTableEntry *prev = NULL;
+
+    while (current) {
+        if (current->scope == scope) {
+            SymbolTableEntry *to_delete = current; // delete current
+
+            if (prev == NULL) { // delete head 
+                table->head = current->next;
+                current = table->head;
+            } else { // skip current
+                prev->next = current->next;
+                current = current->next;
+            }
+
+            free(to_delete->name);
+            free(to_delete);
+        } else {
+            prev = current;
+            current = current->next;
+        }
+    }
+}

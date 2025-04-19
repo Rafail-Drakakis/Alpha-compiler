@@ -21,13 +21,23 @@
     int yyerror (char* yaccProvidedMessage);
 
     void print_rule(const char* rule) {
-        printf("Reduced by rule: %s\n", rule);
+        // printf("Reduced by rule: %s\n", rule);
         (void)0;
     }
 
     unsigned int checkScope = 0; // 0 for global, 1 for local
     int checkLoopDepth = 0;
     int inside_function_scope = 0;
+
+    void enter_scope() {
+        checkScope++;
+    }
+
+    void exit_scope() {
+        deactivate_entries_from_curr_scope(symbol_table, checkScope);
+        checkScope--;
+    }
+
 %}
 
 %union {
@@ -179,8 +189,6 @@ lvalue
         print_rule("lvalue -> :: IDENTIFIER"); 
         SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, 0, 0); // Check global scope only
         if (!found_identifier) {
-            // SymbolType st = (checkScope == 0) ? GLOBAL : LOCAL_VAR;
-            // insert_symbol(symbol_table, $2, st, yylineno, checkScope);
             fprintf(stderr, "Error: Symbol '%s' not found in global scope at line %d\n", $2, yylineno);
         }
     }
@@ -227,26 +235,13 @@ methodcall
     : lvalue DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("methodcall -> lvalue .. IDENTIFIER ( elist )"); }
     ;
 
-/*
-empty list
-expr
-expr, expr
-expr, expr, expr
-*/
-
 elist
     : expr { print_rule("elist -> expr"); }
     | expr COMMA elist { print_rule("elist -> expr , elist"); }
     | /* empty */ { print_rule("elist -> epsilon"); }  // Allows empty argument lists
     ;
 
-/* 
-   indexed [{:}, {:}] is not working
-   elist [, , ,]      is not working when element is string
-*/
-
 objectdef
-    //: LEFT_BRACKET RIGHT_BRACKET { print_rule("objectdef -> [ ]"); }
     : LEFT_BRACKET elist RIGHT_BRACKET { print_rule("objectdef -> [ elist ]"); }
     | LEFT_BRACKET indexed RIGHT_BRACKET { print_rule("objectdef -> [ indexed ]"); }
     ;
@@ -262,16 +257,17 @@ indexedelem
     : LEFT_BRACE expr COLON expr RIGHT_BRACE { print_rule("indexedelem -> { expr : expr }"); }
     ;
 
-// func_args -> (++) -- etc
 funcdef
     : FUNCTION IDENTIFIER LEFT_PARENTHESIS idlist RIGHT_PARENTHESIS {
           SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, checkScope, inside_function_scope);
           if (!found_identifier) {
               insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
           }
+          enter_scope(); // increse scope for funcargs
           inside_function_scope = 1; // we enter function
       } block { 
           inside_function_scope = 0; // we get out of function
+          exit_scope();
 	  print_rule("funcdef -> function [ IDENTIFIER ] ( idlist ) block"); 
       }
     | FUNCTION LEFT_PARENTHESIS idlist RIGHT_PARENTHESIS {
@@ -289,7 +285,6 @@ funcdef
       }
     ;
 
-// olo proeretiko --> mporei kai na mhn yparxei
 idlist
     : IDENTIFIER { 
         print_rule("idlist -> IDENTIFIER"); 
@@ -319,7 +314,6 @@ forstmt
 
 returnstmt
     : RETURN SEMICOLON { print_rule("returnstmt -> return ;"); }
-    //| RETURN call SEMICOLON { print_rule("returnstmt -> return call ;"); } // We will remove it to avoid conflict and because RETURN expr SEMICOLON covers all the cases.
     | RETURN expr SEMICOLON { print_rule("returnstmt -> return expr ;"); }
     ;
 
@@ -331,11 +325,8 @@ continue_stmt
     : CONTINUE SEMICOLON { if(checkLoopDepth < 1){ fprintf(stderr, "Error: 'continue' used outside of any loop (line %d)\n", yylineno); } print_rule("continue_stmt -> continue ;"); }
     ;
 
-// {} is possoble
 block
-    : LEFT_BRACE { checkScope++; } stmt_list RIGHT_BRACE { checkScope--; print_rule("block -> { stmt_list }"); }
-    // Block without any value inside can be generated my stmt_list, so we dont need the following:
-    // | LEFT_BRACE RIGHT_BRACE { checkScope++; checkScope--; print_rule("block -> { }"); }
+    : LEFT_BRACE { enter_scope(); } stmt_list RIGHT_BRACE { exit_scope();  print_rule("block -> { stmt_list }"); }
     ;
 
 %%
