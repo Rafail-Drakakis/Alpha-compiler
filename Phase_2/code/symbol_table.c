@@ -1,5 +1,7 @@
 #include "symbol_table.h"
 
+extern int inside_function_scope;
+
 SymbolTable *create_symbol_table() {
     SymbolTable *table = (SymbolTable *)malloc(sizeof(SymbolTable));
     if (!table) {
@@ -26,7 +28,7 @@ SymbolTableEntry *create_entry(const char *name, SymbolType type, unsigned int l
 
 void insert_symbol(SymbolTable *table, const char *name, SymbolType type, unsigned int line, unsigned int scope) {
     // First, check for a definition in the current scope
-    SymbolTableEntry *existing_local = lookup_symbol(table, name, scope);
+    SymbolTableEntry *existing_local = lookup_symbol(table, name, scope, inside_function_scope);
     if (existing_local) {
         fprintf(stderr, "Error: Symbol '%s' already defined in scope %u at line %u.\n", name, scope, line);
         return;
@@ -52,15 +54,36 @@ void insert_symbol(SymbolTable *table, const char *name, SymbolType type, unsign
 }
 
 // This function looks up a symbol in the given scope.
-SymbolTableEntry *lookup_symbol(SymbolTable *table, const char *name, unsigned int scope) {
-    SymbolTableEntry *current = table->head;
-    while (current) {
-        if (strcmp(current->name, name) == 0 && current->scope == scope) {
-            return current;
+SymbolTableEntry *lookup_symbol(SymbolTable *table, const char *name, unsigned int curr_scope, int is_functions_context) {
+    SymbolTableEntry *found = NULL;
+
+    for (int scope = curr_scope; scope >= 0; scope--){
+        
+	SymbolTableEntry *current = table->head;
+	while (current) {
+            if (strcmp(current->name, name) == 0 && current->scope == scope) {
+		// if it is variable, rules apply only if we are inside of function
+                if (current->type == LOCAL_VAR || current->type == ARGUMENT) {
+		    if (scope == curr_scope) {
+		    	return current; // it is locally visible 
+		    } 
+		    else if (scope == 0) {
+		        return current; // it is globally visible
+		    }
+		    else {
+		        if (is_functions_context) { return NULL; }
+		    }
+		}
+		
+		// if it is a function then is visible to all active scopes
+		if (current->type == USER_FUNCTION || current->type == LIBRARY_FUNCTION) {
+		    return current;
+		}
+	    }
+            current = current->next;
         }
-        current = current->next;
     }
-    return NULL;
+    return NULL;	// we found nothing 
 }
 
 // This function looks up a symbol in the global scope (scope == 0).
