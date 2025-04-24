@@ -1,0 +1,29 @@
+-----------     Scope #0     -----------
+"print" [library function] (line 0) (scope 0)
+"input" [library function] (line 0) (scope 0)
+"objectmemberkeys" [library function] (line 0) (scope 0)
+"objecttotalmembers" [library function] (line 0) (scope 0)
+"objectcopy" [library function] (line 0) (scope 0)
+"totalarguments" [library function] (line 0) (scope 0)
+"argument" [library function] (line 0) (scope 0)
+"typeof" [library function] (line 0) (scope 0)
+"strtonum" [library function] (line 0) (scope 0)
+"sqrt" [library function] (line 0) (scope 0)
+"cos" [library function] (line 0) (scope 0)
+"sin" [library function] (line 0) (scope 0)
+"f" [user function] (line 1) (scope 0)
+
+-----------     Scope #1     -----------
+"x" [formal argument] (line 1) (scope 1)
+"y" [formal argument] (line 1) (scope 1)
+"$0" [user function] (line 2) (scope 1)
+"$1" [user function] (line 6) (scope 1)
+"w" [formal argument] (line 11) (scope 1)
+"z" [formal argument] (line 11) (scope 1)
+"h" [user function] (line 12) (scope 1)
+"ha" [user function] (line 13) (scope 1)
+
+-----------     Scope #2     -----------
+"a" [local variable] (line 3) (scope 2)
+"b" [local variable] (line 7) (scope 2)
+
