@@ -22,7 +22,7 @@
 
     void print_rule(const char* rule) {
         // printf("Reduced by rule: %s\n", rule);
-        (void)0;
+        // (void)0;
     }
 
     unsigned int checkScope = 0; // 0 for global, 1 for local
@@ -67,7 +67,7 @@
 %right NOT
 %right PLUS_PLUS
 %right MINUS_MINUS
-
+%right DOT_DOT
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
@@ -108,7 +108,8 @@ expr
     : expr op { print_rule("expr -> expr op expr"); }
     | assignexpr { print_rule("expr -> assignexpr"); }
     | term { print_rule("expr -> term"); }  // Now ensures `term` is used
-    //| call { print_rule("expr -> call"); } We will remove it to avoid conflict and also we dont need that as we can follow this path: [expr -> term -> primary -> call]
+    | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); }    
+//| call { print_rule("expr -> call"); } We will remove it to avoid conflict and also we dont need that as we can follow this path: [expr -> term -> primary -> call]
     ;
 
 assignexpr
@@ -167,9 +168,16 @@ primary
 lvalue
     : IDENTIFIER {
          print_rule("lvalue -> IDENTIFIER");
+         /*made this change because before we assumed 
+         functions can't be lvalues which makes sense for global function definitions, 
+         but not for function variables
+
+         but if variables can shadow functions then */
          SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
+         // Allow shadowing of functions as local variables
+          // Only report error if it's truly not a variable in current scope
          if (found_identifier) {
-             if (found_identifier->type == USER_FUNCTION || found_identifier->type == LIBRARY_FUNCTION) {
+             if ((found_identifier->type == USER_FUNCTION || found_identifier->type == LIBRARY_FUNCTION) && (found_identifier->scope == 0 && checkScope == 0)) {
                  fprintf(stderr, "Error: Symbol '%s' is not a valid lvalue (line %d).\n", $1, yylineno);
              }
          } else {
@@ -190,6 +198,7 @@ lvalue
         SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, 0, 0); // Check global scope only
         if (!found_identifier) {
             fprintf(stderr, "Error: Symbol '%s' not found in global scope at line %d\n", $2, yylineno);
+        // we don't fail the parse for missing global
         }
     }
     | member { print_rule("lvalue -> member"); }
@@ -278,8 +287,10 @@ funcdef
 	  }
           sprintf(anonymus_name, "_anonymus_func_%d", yylineno); // debug print
 	  insert_symbol(symbol_table, anonymus_name, USER_FUNCTION, yylineno, checkScope);
+          enter_scope(); 
           inside_function_scope = 1;
       } block {
+          exit_scope();
           inside_function_scope = 0;
           print_rule("funcdef -> function ( idlist ) block");
       }

@@ -143,7 +143,7 @@ whitespace  [ \t\r\n]+
 comment1    \/\/.*
 operator    (\+|\-|\*|\/|=|%|\+\+|\-\-|==|!=|>|<|>=|<=|&&|\|\|)
 keyword     (function|while|for|if|else|continue|break|return|and|or|not|local|true|false|nil)
-punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
+punctuation (:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
 %%
 {keyword} {
@@ -192,6 +192,12 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
     return 1;
 }
 
+"::" { insert_token(yylineno, yytext, "PUNCTUATION COLON_COLON", "enumerated"); return COLON_COLON; }
+".." { insert_token(yylineno, yytext, "PUNCTUATION DOT_DOT", "enumerated"); return DOT_DOT; 
+
+/* due to ascii 46 error for ".." i split these into top level rules */ }
+
+
 {punctuation} {
     if (!token_string_compare(yytext, "("))       { insert_token(yylineno, yytext, "PUNCTUATION LEFT_PARENTHESIS", "enumerated"); return LEFT_PARENTHESIS; }
     else if (!token_string_compare(yytext, ")"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_PARENTHESIS", "enumerated"); return RIGHT_PARENTHESIS;  }
@@ -200,9 +206,9 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
     else if (!token_string_compare(yytext, "{"))  { insert_token(yylineno, yytext, "PUNCTUATION LEFT_BRACE", "enumerated"); return LEFT_BRACE; }
     else if (!token_string_compare(yytext, "}"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_BRACE", "enumerated"); return RIGHT_BRACE; }
     else if (!token_string_compare(yytext, ";"))  { insert_token(yylineno, yytext, "PUNCTUATION SEMICOLON", "enumerated"); return SEMICOLON;}
-    else if (!token_string_compare(yytext, "..")) { insert_token(yylineno, yytext, "PUNCTUATION DOT_DOT", "enumerated"); return DOT_DOT; }
+    //else if (!token_string_compare(yytext, "..")) { insert_token(yylineno, yytext, "PUNCTUATION DOT_DOT", "enumerated"); return DOT_DOT; }
     else if (!token_string_compare(yytext, "."))  { insert_token(yylineno, yytext, "PUNCTUATION DOT", "enumerated"); return DOT; }
-    else if (!token_string_compare(yytext, "::")) { insert_token(yylineno, yytext, "PUNCTUATION COLON_COLON", "enumerated"); return COLON_COLON; }
+    //else if (!token_string_compare(yytext, "::")) { insert_token(yylineno, yytext, "PUNCTUATION COLON_COLON", "enumerated"); return COLON_COLON; }
     else if (!token_string_compare(yytext, ":"))  { insert_token(yylineno, yytext, "PUNCTUATION COLON", "enumerated"); return COLON; }
     else if (!token_string_compare(yytext, ","))  { insert_token(yylineno, yytext, "PUNCTUATION COMMA", "enumerated"); return COMMA; }
     else {
