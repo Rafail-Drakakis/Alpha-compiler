@@ -19,6 +19,7 @@
     extern SymbolTable *symbol_table;
     extern int yylex();
     int yyerror (char* yaccProvidedMessage);
+    int anonymus_function_counter = 0;
 
     void print_rule(const char* rule) {
         // printf("Reduced by rule: %s\n", rule);
@@ -30,10 +31,12 @@
     int inside_function_scope = 0;
 
     void enter_scope() {
+        printf("Entering new scope: %u\n", checkScope);
         checkScope++;
     }
 
     void exit_scope() {
+        printf("Exiting scope: %u\n", checkScope);
         deactivate_entries_from_curr_scope(symbol_table, checkScope);
         checkScope--;
     }
@@ -285,8 +288,10 @@ funcdef
 	  	fprintf(stderr, "Memory Allocation failed\n");
 		exit(EXIT_FAILURE);
 	  }
-          sprintf(anonymus_name, "_anonymus_func_%d", yylineno); // debug print
-	  insert_symbol(symbol_table, anonymus_name, USER_FUNCTION, yylineno, checkScope);
+          sprintf(anonymus_name, "_anonymus_func_%d", anonymus_function_counter++); // debug print: here we generate unique name
+          printf("About to insert anon func at scope: %u\n", checkScope-1);
+	  insert_symbol(symbol_table, anonymus_name, USER_FUNCTION, yylineno, checkScope-1);
+          printf("Inserted anonymous function: %s at scope %u (line %u)\n", anonymus_name, checkScope, yylineno);
           enter_scope(); 
           inside_function_scope = 1;
       } block {

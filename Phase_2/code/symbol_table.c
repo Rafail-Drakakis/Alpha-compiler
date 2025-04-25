@@ -166,8 +166,11 @@ void deactivate_entries_from_curr_scope(SymbolTable *table, unsigned int scope) 
     SymbolTableEntry *prev = NULL;
 
     while (current) {
-        if (current->scope == scope) {
-            SymbolTableEntry *to_delete = current; // delete current
+	 /* modification: 
+	  * user-defined functions e.x. anonymous functions 
+	  * are not deleted when exiting a scope */
+         if (current->scope == scope && current->type != USER_FUNCTION && current->type != LOCAL_VAR) {
+	    SymbolTableEntry *to_delete = current; // delete current
 
             if (prev == NULL) { // delete head 
                 table->head = current->next;
