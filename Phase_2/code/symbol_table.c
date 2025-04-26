@@ -1,6 +1,16 @@
 #include "symbol_table.h"
 
-extern int inside_function_scope;
+static const char *get_symbol_type_str(SymbolType symbol_type) {
+    switch (symbol_type) {
+        case GLOBAL:            return "global variable";
+        case LOCAL_VAR:         return "local variable";
+        case ARGUMENT:          return "formal argument";
+        case LIBRARY_FUNCTION:  return "library function";
+        case USER_FUNCTION:     return "user function";
+        default:                return "unknown";
+    }
+}
+
 
 SymbolTable *create_symbol_table() {
     SymbolTable *table = (SymbolTable *)malloc(sizeof(SymbolTable));
@@ -11,6 +21,7 @@ SymbolTable *create_symbol_table() {
     table->head = NULL;
     return table;
 }
+
 
 SymbolTableEntry *create_entry(const char *name, SymbolType type, unsigned int line, unsigned int scope) {
     SymbolTableEntry *entry = (SymbolTableEntry *)malloc(sizeof(SymbolTableEntry));
@@ -26,67 +37,69 @@ SymbolTableEntry *create_entry(const char *name, SymbolType type, unsigned int l
     return entry;
 }
 
-void insert_symbol(SymbolTable *table, const char *name, SymbolType type, unsigned int line, unsigned int scope) {
-    // First, check for a definition in the current scope
-    SymbolTableEntry *existing_local = lookup_symbol(table, name, scope, inside_function_scope);
+
+void insert_symbol(SymbolTable *symbol_table, const char *name, SymbolType type, unsigned int line, unsigned int scope) {
+    SymbolTableEntry *existing_local = NULL;
+    for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
+        if (current->scope == scope && strcmp(current->name, name) == 0) { existing_local = current; break; }
+
     if (existing_local) {
-        fprintf(stderr, "Error: Symbol '%s' already defined in scope %u at line %u.\n", name, scope, line);
-        return;
-    }
-    // For any insertion into a non-global scope, verify that we're not shadowing a library function.
-    if (scope != 0) {
-        SymbolTableEntry *global_entry = lookup_symbol_global(table, name);
-        if (global_entry && global_entry->type == LIBRARY_FUNCTION) {
-            fprintf(stderr, "Error: Cannot redeclare library function '%s' in a local scope (line %u).\n", name, line);
+        int allow_duplicate =
+            (type == LOCAL_VAR) || (existing_local->type == LOCAL_VAR && type == LOCAL_VAR) ||
+            (existing_local->type == ARGUMENT  && type == ARGUMENT && existing_local->line_number != line);
+
+        if (!allow_duplicate) {
+            fprintf(stderr, "Error: Symbol '%s' already defined in scope %u at line %u.\n", name, scope, line);
             return;
         }
     }
-    SymbolTableEntry *entry = create_entry(name, type, line, scope);
-    if (table->head == NULL) {
-        table->head = entry;
-    } else {
-        SymbolTableEntry *current = table->head;
-        while (current->next != NULL) {
-            current = current->next;
+
+    if (scope != 0) {
+        SymbolTableEntry *global_entry = lookup_symbol_global(symbol_table, name);
+        if (global_entry && global_entry->type == LIBRARY_FUNCTION) {
+            fprintf(stderr, "Error: Cannot redeclare library function '%s' (line %u).\n", name, line);
+            return;
         }
-        current->next = entry;
+    }
+
+    SymbolTableEntry *new_entry = create_entry(name, type, line, scope);
+
+    if (!symbol_table->head) symbol_table->head = new_entry;
+    else {
+        SymbolTableEntry *current = symbol_table->head;
+        while (current->next) current = current->next;
+        current->next = new_entry;
     }
 }
 
-// This function looks up a symbol in the given scope.
-SymbolTableEntry *lookup_symbol(SymbolTable *table, const char *name, unsigned int curr_scope, int is_functions_context) {
-    SymbolTableEntry *found = NULL;
 
-    for (int scope = curr_scope; scope >= 0; scope--){
-        
-	SymbolTableEntry *current = table->head;
-	while (current) {
-            if (strcmp(current->name, name) == 0 && current->scope == scope) {
-		// if it is variable, rules apply only if we are inside of function
-                if (current->type == LOCAL_VAR || current->type == ARGUMENT) {
-		    if (scope == curr_scope) {
-		    	return current; // it is locally visible 
-		    } 
-		    else if (scope == 0) {
-		        return current; // it is globally visible
-		    }
-		    else {
-		        if (is_functions_context) { return NULL; }
-		    }
-		}
-		
-		// if it is a function then is visible to all active scopes
-		if (current->type == USER_FUNCTION || current->type == LIBRARY_FUNCTION) {
-		    return current;
-		}
-	    }
-            current = current->next;
-        }
-    }
-    return NULL;	// we found nothing 
+SymbolTableEntry *lookup_symbol(SymbolTable *symbol_table, const char *name, unsigned int current_scope, int is_function_context) {
+    for (int scope = (int)current_scope; scope >= 0; --scope)
+        for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
+            if (current->scope == (unsigned)scope && strcmp(current->name, name) == 0) {
+
+                if (current->type == USER_FUNCTION || current->type == LIBRARY_FUNCTION)
+                    return current;
+
+                if (current->type == GLOBAL || current->type == LOCAL_VAR || current->type == ARGUMENT) {
+
+                    if (scope == (int)current_scope || scope == 0)
+                        return current;
+
+                    if (is_function_context) {
+                        int other_scope = 0;
+                        for (int t = (int)current_scope; t > scope && !other_scope; --t)
+                            for (SymbolTableEntry *x = symbol_table->head; x; x = x->next)
+                                if (x->scope == (unsigned)t && x->type == USER_FUNCTION) {
+                                    other_scope = 1; break;
+                                }
+                        if (!other_scope) return current;
+                    }
+                }
+            }
+    return NULL;
 }
 
-// This function looks up a symbol in the global scope (scope == 0).
 SymbolTableEntry *lookup_symbol_global(SymbolTable *table, const char *name) {
     SymbolTableEntry *current = table->head;
     while (current) {
@@ -98,93 +111,72 @@ SymbolTableEntry *lookup_symbol_global(SymbolTable *table, const char *name) {
     return NULL;
 }
 
-void print_symbol_table(SymbolTable *table) {
-    SymbolTableEntry *current = table->head;
-    
+
+static int compare_by_line(const void *a, const void *b) {
+    const SymbolTableEntry *entry_a = *(const SymbolTableEntry * const *)a;
+    const SymbolTableEntry *entry_b = *(const SymbolTableEntry * const *)b;
+    if (entry_a->line_number < entry_b->line_number) return -1;
+    if (entry_a->line_number > entry_b->line_number) return  1;
+    return 0;
+}
+
+void print_symbol_table(SymbolTable *symbol_table) {
     unsigned int max_scope = 0;
-    SymbolTableEntry *tmp = current;
-    while (tmp) {
-        if (tmp->scope > max_scope)
-            max_scope = tmp->scope;
-        tmp = tmp->next;
-    }
+    for (SymbolTableEntry *current = symbol_table->head; 
+        current; current = current->next)
+        if (current->scope > max_scope) 
+        max_scope = current->scope;
 
-    for (unsigned int scope = 0; scope <= max_scope; scope++) {
-        int scope_has_entries = 0;
+    for (unsigned int scope = 0; scope <= max_scope; ++scope) {
+        size_t num_entries = 0;
+        for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
+            if (current->scope == scope) ++num_entries;
+        if (!num_entries) continue;
 
-        tmp = table->head;
-        while (tmp) {
-            if (tmp->scope == scope) {
-                scope_has_entries = 1;
-                break;
-            }
-            tmp = tmp->next;
-        }
+        SymbolTableEntry **entries_array = malloc(num_entries * sizeof *entries_array);
+        size_t i = 0;
+        for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
+            if (current->scope == scope) entries_array[i++] = current;
 
-        if (!scope_has_entries) continue;
+        qsort(entries_array, num_entries, sizeof *entries_array, compare_by_line);
 
         printf("----------   Scope #%u   ----------\n", scope);
+        for (i = 0; i < num_entries; ++i)
+            printf("\"%s\"\t[%s] (line %u) (scope %u)\n",
+                   entries_array[i]->name, get_symbol_type_str(entries_array[i]->type),
+                   entries_array[i]->line_number, entries_array[i]->scope);
+        putchar('\n');
 
-        tmp = table->head;
-        while (tmp) {
-            if (tmp->scope == scope) {
-                const char *type_str;
-                switch (tmp->type) {
-                    case GLOBAL: type_str = "global variable"; break;
-                    case LOCAL_VAR: type_str = "local variable"; break;
-                    case ARGUMENT: type_str = "formal argument"; break;
-                    case LIBRARY_FUNCTION: type_str = "library function"; break;
-                    case USER_FUNCTION: type_str = "user function"; break;
-                    default: type_str = "unknown"; break;
-                }
-
-                printf("\"%s\"\t[%s] (line %u) (scope %u)\n",
-                       tmp->name, type_str, tmp->line_number, tmp->scope);
-            }
-            tmp = tmp->next;
-        }
-
-        printf("\n");
+        free(entries_array);
     }
 }
 
 
-void free_symbol_table(SymbolTable *table) {
-    SymbolTableEntry *current = table->head;
+void deactivate_entries_from_curr_scope(SymbolTable *symbol_table, unsigned int scope) {
+    SymbolTableEntry *current = symbol_table->head, *previous = NULL;
     while (current) {
-        SymbolTableEntry *next = current->next;
-        free(current->name);
-        free(current);
-        current = next;
-    }
-    free(table);
-}
+        int removable = (current->scope == scope) &&
+                        current->type != USER_FUNCTION &&
+                        current->type != LOCAL_VAR   &&
+                        current->type != ARGUMENT;
 
-
-void deactivate_entries_from_curr_scope(SymbolTable *table, unsigned int scope) {
-    SymbolTableEntry *current = table->head;
-    SymbolTableEntry *prev = NULL;
-
-    while (current) {
-	 /* modification: 
-	  * user-defined functions e.x. anonymous functions 
-	  * are not deleted when exiting a scope */
-         if (current->scope == scope && current->type != USER_FUNCTION && current->type != LOCAL_VAR) {
-	    SymbolTableEntry *to_delete = current; // delete current
-
-            if (prev == NULL) { // delete head 
-                table->head = current->next;
-                current = table->head;
-            } else { // skip current
-                prev->next = current->next;
-                current = current->next;
-            }
-
-            free(to_delete->name);
-            free(to_delete);
-        } else {
-            prev = current;
+        if (removable && scope != 0 && current->type != LIBRARY_FUNCTION) {
+            SymbolTableEntry *entry_to_delete = current;
+            if (!previous) symbol_table->head = current->next;
+            else previous->next = current->next;
             current = current->next;
-        }
+            free(entry_to_delete->name); 
+            free(entry_to_delete);
+        } else { previous = current; current = current->next; }
     }
+}
+
+void free_symbol_table(SymbolTable *symbol_table) {
+    SymbolTableEntry *current = symbol_table->head;
+    while (current) { 
+        SymbolTableEntry *next = current->next; 
+        free(current->name); 
+        free(current); current = next; 
+    }
+    free(symbol_table);
 }

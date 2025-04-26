@@ -29,17 +29,26 @@
     unsigned int checkScope = 0; // 0 for global, 1 for local
     int checkLoopDepth = 0;
     int inside_function_scope = 0;
+    int inside_function_depth = 0; // 0 for global, >0 for function scope
+    static int first_brace_of_func = 0;
+
 
     void enter_scope() {
         printf("Entering new scope: %u\n", checkScope);
         checkScope++;
     }
 
-    void exit_scope() {
-        printf("Exiting scope: %u\n", checkScope);
-        deactivate_entries_from_curr_scope(symbol_table, checkScope);
-        checkScope--;
+
+    static void exit_scope(void)
+    {
+        if (checkScope == 0) 
+            return;
+
+        printf("Exiting  scope: %u\n", checkScope-1);
+        deactivate_entries_from_curr_scope(symbol_table, checkScope-1);
+        --checkScope;
     }
+
 
 %}
 
@@ -169,42 +178,28 @@ primary
     ;
 
 lvalue
-    : IDENTIFIER {
-         print_rule("lvalue -> IDENTIFIER");
-         /*made this change because before we assumed 
-         functions can't be lvalues which makes sense for global function definitions, 
-         but not for function variables
+    : IDENTIFIER
+      {
+          SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
 
-         but if variables can shadow functions then */
-         SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
-         // Allow shadowing of functions as local variables
-          // Only report error if it's truly not a variable in current scope
-         if (found_identifier) {
-             if ((found_identifier->type == USER_FUNCTION || found_identifier->type == LIBRARY_FUNCTION) && (found_identifier->scope == 0 && checkScope == 0)) {
-                 fprintf(stderr, "Error: Symbol '%s' is not a valid lvalue (line %d).\n", $1, yylineno);
-             }
-         } else {
-             SymbolType st = (checkScope == 0) ? GLOBAL : LOCAL_VAR;
-             insert_symbol(symbol_table, $1, st, yylineno, checkScope);
-         }
-    }
-    | LOCAL IDENTIFIER { 
-        print_rule("lvalue -> LOCAL IDENTIFIER"); 
-        SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, checkScope, inside_function_scope);
-        if (!found_identifier) {
-            SymbolType st = (checkScope == 0) ? GLOBAL : LOCAL_VAR;
-            insert_symbol(symbol_table, $2, st, yylineno, checkScope);
-        }
-    }
-    | COLON_COLON IDENTIFIER { 
-        print_rule("lvalue -> :: IDENTIFIER"); 
-        SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, 0, 0); // Check global scope only
-        if (!found_identifier) {
-            fprintf(stderr, "Error: Symbol '%s' not found in global scope at line %d\n", $2, yylineno);
-        // we don't fail the parse for missing global
-        }
-    }
-    | member { print_rule("lvalue -> member"); }
+          if (found_identifier &&
+              (found_identifier->type == USER_FUNCTION || found_identifier->type == LIBRARY_FUNCTION) &&
+              found_identifier->scope == 0 && checkScope == 0) {
+              fprintf(stderr, "Error: Symbol '%s' is not a valid lvalue (line %d).\n", $1, yylineno);
+          } else if (!found_identifier) {
+              insert_symbol(symbol_table, $1, (checkScope == 0) ? GLOBAL : LOCAL_VAR, yylineno, checkScope);
+          }
+      }
+    | LOCAL IDENTIFIER
+      {
+          insert_symbol(symbol_table, $2, LOCAL_VAR, yylineno, checkScope);
+      }
+    | COLON_COLON IDENTIFIER
+      {
+          if (!lookup_symbol(symbol_table, $2, 0, 0))
+              fprintf(stderr, "Error: Symbol '%s' not found in global scope at line %d\n", $2, yylineno);
+      }
+    | member
     ;
 
 const
@@ -269,37 +264,47 @@ indexedelem
     : LEFT_BRACE expr COLON expr RIGHT_BRACE { print_rule("indexedelem -> { expr : expr }"); }
     ;
 
+
 funcdef
-    : FUNCTION IDENTIFIER LEFT_PARENTHESIS idlist RIGHT_PARENTHESIS {
-          SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $2, checkScope, inside_function_scope);
-          if (!found_identifier) {
-              insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
-          }
-          enter_scope(); // increse scope for funcargs
-          inside_function_scope = 1; // we enter function
-      } block { 
-          inside_function_scope = 0; // we get out of function
-          exit_scope();
-	  print_rule("funcdef -> function [ IDENTIFIER ] ( idlist ) block"); 
+  : FUNCTION IDENTIFIER
+      {
+          insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
+          enter_scope();
+          ++inside_function_depth;
+          first_brace_of_func = 1;  // Indicates the first brace of the function
       }
-    | FUNCTION LEFT_PARENTHESIS idlist RIGHT_PARENTHESIS {
-          char *anonymus_name = malloc(32);
-	  if(!anonymus_name){
-	  	fprintf(stderr, "Memory Allocation failed\n");
-		exit(EXIT_FAILURE);
-	  }
-          sprintf(anonymus_name, "_anonymus_func_%d", anonymus_function_counter++); // debug print: here we generate unique name
-          printf("About to insert anon func at scope: %u\n", checkScope-1);
-	  insert_symbol(symbol_table, anonymus_name, USER_FUNCTION, yylineno, checkScope-1);
-          printf("Inserted anonymous function: %s at scope %u (line %u)\n", anonymus_name, checkScope, yylineno);
-          enter_scope(); 
-          inside_function_scope = 1;
-      } block {
+      LEFT_PARENTHESIS idlist RIGHT_PARENTHESIS
+      block
+      {
+          --inside_function_depth;
           exit_scope();
-          inside_function_scope = 0;
+      }
+
+  | FUNCTION
+      {
+          char *anonymous_name = malloc(32);
+          if (!anonymous_name) {
+              fprintf(stderr, "Memory allocation failed for anonymous function name\n");
+              exit(EXIT_FAILURE);
+          }
+          sprintf(anonymous_name, "_anonymus_func_%d", anonymus_function_counter++); // debug print: here we generate unique name
+          insert_symbol(symbol_table, anonymous_name, USER_FUNCTION, yylineno, checkScope);
+          
+          enter_scope();
+          ++inside_function_depth;
+          first_brace_of_func = 1;
+
+          free(anonymous_name);
+      }
+      LEFT_PARENTHESIS idlist RIGHT_PARENTHESIS
+      block
+      {
+          --inside_function_depth;
+          exit_scope();
           print_rule("funcdef -> function ( idlist ) block");
       }
-    ;
+  ;
+
 
 idlist
     : IDENTIFIER { 
@@ -342,8 +347,23 @@ continue_stmt
     ;
 
 block
-    : LEFT_BRACE { enter_scope(); } stmt_list RIGHT_BRACE { exit_scope();  print_rule("block -> { stmt_list }"); }
-    ;
+  : LEFT_BRACE
+    {
+        int opened = 0;
+        if (first_brace_of_func)
+            first_brace_of_func = 0;
+        else {
+            enter_scope();
+            opened = 1;
+        }
+        $<intValue>$ = opened;
+    }
+    stmt_list RIGHT_BRACE
+    {
+        if ( $<intValue>2 )
+            exit_scope();
+    }
+  ;
 
 %%
 
