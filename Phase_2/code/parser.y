@@ -287,7 +287,7 @@ funcdef
               fprintf(stderr, "Memory allocation failed for anonymous function name\n");
               exit(EXIT_FAILURE);
           }
-          sprintf(anonymous_name, "_anonymus_func_%d", anonymus_function_counter++); // debug print: here we generate unique name
+          sprintf(anonymous_name, "$%d", anonymus_function_counter++); // debug print: here we generate unique name
           insert_symbol(symbol_table, anonymous_name, USER_FUNCTION, yylineno, checkScope);
           
           enter_scope();
