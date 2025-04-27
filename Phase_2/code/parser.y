@@ -127,6 +127,7 @@ stmt_list
 
 stmt
     : expr SEMICOLON { print_rule("stmt -> expr ;"); }
+    | error SEMICOLON { print_rule("stmt -> error ;"); yyerrok; }
     | ifstmt { print_rule("stmt -> ifstmt"); }
     | whilestmt { print_rule("stmt -> whilestmt"); }
     | forstmt { print_rule("stmt -> forstmt"); }
@@ -189,10 +190,10 @@ term
     : LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { print_rule("term -> ( expr )"); }
     | MINUS expr %prec UMINUS { print_rule("term -> - expr"); }
     | NOT expr { print_rule("term -> not expr"); }
-    | PLUS_PLUS lvalue { print_rule("term -> ++ lvalue"); }
-    | lvalue PLUS_PLUS { print_rule("term -> lvalue ++"); }
-    | MINUS_MINUS lvalue { print_rule("term -> -- lvalue"); }
-    | lvalue MINUS_MINUS { print_rule("term -> lvalue --"); }
+    | PLUS_PLUS lvalue { if ($2 && ($2->type == USER_FUNCTION || $2->type == LIBRARY_FUNCTION)) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->name, yylineno); } { print_rule("term -> ++ lvalue"); }
+    | lvalue PLUS_PLUS { if ($1 && ($1->type == USER_FUNCTION || $1->type == LIBRARY_FUNCTION)) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->name, yylineno); } { print_rule("term -> lvalue ++"); }
+    | MINUS_MINUS lvalue { if ($2 && ($2->type == USER_FUNCTION || $2->type == LIBRARY_FUNCTION)) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->name, yylineno); } { print_rule("term -> -- lvalue"); }
+    | lvalue MINUS_MINUS { if ($1 && ($1->type == USER_FUNCTION || $1->type == LIBRARY_FUNCTION)) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->name, yylineno); } { print_rule("term -> lvalue --"); }
     | primary { print_rule("term -> primary"); }
     ;
 
