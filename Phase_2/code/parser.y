@@ -31,6 +31,8 @@
     int inside_function_scope = 0;
     int inside_function_depth = 0;      // 0 for global, >0 for function scope
     static int first_brace_of_func = 0;
+    int is_calling = 0;			// reducing lvalue for function call 1, normal lvalues 0
+
 
     typedef struct formal_argument_node {
         char *name;
@@ -72,6 +74,7 @@
     double realValue;
     char* stringValue;
     struct formal_argument_node* arglist;
+    struct SymbolTableEntry* symbol;  // for lvalue
 }
 
 %token <stringValue> IF ELSE WHILE FOR RETURN BREAK CONTINUE LOCAL TRUE FALSE NIL
@@ -85,6 +88,8 @@
 
 %type <arglist> idlist
 %type <arglist> formal_arguments
+%type <symbol> lvalue
+%type <symbol> member
 
 %right ASSIGNMENT        /* = has less priority in compare with all the other */
 %left OR
@@ -104,8 +109,7 @@
 
 %nonassoc UMINUS         /* unary minus operator */
 
-// %expect 2 // Expect 2 conflicts to be resolved
-// changed this gt efaga error: shift/reduce conflicts: 0 found, 2
+// %expect 2
 
 %start program
 
@@ -142,7 +146,13 @@ expr
     ;
 
 assignexpr
-    : lvalue ASSIGNMENT expr { print_rule("assignexpr -> lvalue = expr"); }
+    : lvalue ASSIGNMENT expr { 
+          print_rule("assignexpr -> lvalue = expr");
+          /* we only check invalid lvalue when the user actually writes an assignment */
+          if ($1 && ($1->type == USER_FUNCTION || $1->type == LIBRARY_FUNCTION)) {
+              fprintf(stderr, "Error: Symbol '%s' is not a valid lvalue (line %d).\n", $1->name, yylineno);
+          } 
+      }
     ;
 
 op
@@ -161,19 +171,19 @@ op
     | or_op expr         %prec OR
     ;
 
-plus_op: PLUS { print_rule("op -> +"); };
-minus_op: MINUS { print_rule("op -> -"); };
-mult_op: MULTIPLY { print_rule("op -> *"); };
-div_op: DIVIDE { print_rule("op -> /"); };
-mod_op: MODULO { print_rule("op -> %"); };
-greaterthan_op: GREATER_THAN { print_rule("op -> >"); };
-greaterequal_op: GREATER_EQUAL { print_rule("op -> >="); };
-lessthan_op: LESS_THAN { print_rule("op -> <"); };
-lessequal_op: LESS_EQUAL { print_rule("op -> <="); };
-eqeq_op: EQUAL_EQUAL { print_rule("op -> =="); };
-noteq_op: NOT_EQUAL { print_rule("op -> !="); };
-and_op: AND { print_rule("op -> and"); };
-or_op: OR { print_rule("op -> or"); };
+plus_op:            PLUS { print_rule("op -> +"); };
+minus_op:           MINUS { print_rule("op -> -"); };
+mult_op:            MULTIPLY { print_rule("op -> *"); };
+div_op:             DIVIDE { print_rule("op -> /"); };
+mod_op:             MODULO { print_rule("op -> %"); };
+greaterthan_op:     GREATER_THAN { print_rule("op -> >"); };
+greaterequal_op:    GREATER_EQUAL { print_rule("op -> >="); };
+lessthan_op:        LESS_THAN { print_rule("op -> <"); };
+lessequal_op:       LESS_EQUAL { print_rule("op -> <="); };
+eqeq_op:            EQUAL_EQUAL { print_rule("op -> =="); };
+noteq_op:           NOT_EQUAL { print_rule("op -> !="); };
+and_op:             AND { print_rule("op -> and"); };
+or_op:              OR { print_rule("op -> or"); };
 
 term
     : LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { print_rule("term -> ( expr )"); }
@@ -198,23 +208,31 @@ lvalue
     : IDENTIFIER
       {
           SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
-
-          if (found_identifier &&
-              (found_identifier->type == USER_FUNCTION || found_identifier->type == LIBRARY_FUNCTION) &&
-              found_identifier->scope == 0 && checkScope == 0) {
-              fprintf(stderr, "Error: Symbol '%s' is not a valid lvalue (line %d).\n", $1, yylineno);
-          } else if (!found_identifier) {
+          /* 
+          if(!is_calling){
+              if (found_identifier &&
+                  (found_identifier->type == USER_FUNCTION || found_identifier->type == LIBRARY_FUNCTION) &&
+                  found_identifier->scope == 0 && checkScope == 0) {
+                  fprintf(stderr, "Error: Symbol '%s' is not a valid lvalue (line %d).\n", $1, yylineno);
+              } 
+          }
+          */
+          if (!found_identifier) {
               insert_symbol(symbol_table, $1, (checkScope == 0) ? GLOBAL : LOCAL_VAR, yylineno, checkScope);
           }
+          $$ = found_identifier; // we save it for later
       }
     | LOCAL IDENTIFIER
       {
           insert_symbol(symbol_table, $2, LOCAL_VAR, yylineno, checkScope);
+          $$ = lookup_symbol(symbol_table, $2, checkScope, inside_function_scope);  // we store the symbol
       }
     | COLON_COLON IDENTIFIER
       {
-          if (!lookup_symbol(symbol_table, $2, 0, 0))
+          $$ = lookup_symbol(symbol_table, $2, 0, 0);
+          if ($$ == NULL) {
               fprintf(stderr, "Error: Symbol '%s' not found in global scope at line %d\n", $2, yylineno);
+          }
       }
     | member
     ;
@@ -229,9 +247,14 @@ const
     ;
 
 member
-    : lvalue DOT IDENTIFIER { print_rule("member -> lvalue . IDENTIFIER"); }
-    | lvalue LEFT_BRACKET expr RIGHT_BRACKET { print_rule("member -> lvalue [ expr ]"); }
-    | call_member { print_rule("member -> call_member"); }
+    : lvalue DOT IDENTIFIER { 
+          print_rule("member -> lvalue . IDENTIFIER"); 
+      }
+    | lvalue LEFT_BRACKET expr RIGHT_BRACKET { 
+          print_rule("member -> lvalue [ expr ]"); 
+      }
+    | call_member { print_rule("member -> call_member"); 
+      }
     ;
 
 /* Helpful for member */
@@ -242,7 +265,12 @@ call_member
 
 call
     : call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("call -> call (elist)"); }
-    | lvalue callsuffix { print_rule("call -> lvalue callsuffix"); }
+    | lvalue {
+        is_calling = 1;
+      } callsuffix { 
+        is_calling = 0; 
+        print_rule("call -> lvalue callsuffix"); 
+      }
     | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("call -> ( funcdef ) ( elist )"); }     
     ;
 
