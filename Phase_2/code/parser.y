@@ -23,32 +23,47 @@
 
     void print_rule(const char* rule) {
         // printf("Reduced by rule: %s\n", rule);
-        // (void)0;
+        (void)0;
     }
 
-    unsigned int checkScope = 0; // 0 for global, 1 for local
+    unsigned int checkScope = 0;        // 0 for global, 1 for local
     int checkLoopDepth = 0;
     int inside_function_scope = 0;
-    int inside_function_depth = 0; // 0 for global, >0 for function scope
+    int inside_function_depth = 0;      // 0 for global, >0 for function scope
     static int first_brace_of_func = 0;
 
+    typedef struct formal_argument_node {
+        char *name;
+        struct formal_argument_node *next;
+    } formal_argument_node;
+
+    formal_argument_node *create_node(char *name) {
+        formal_argument_node *node = (formal_argument_node *)malloc(sizeof(formal_argument_node));
+        node->name = strdup(name);
+        node->next = NULL;
+        return node;
+    }
+
+    formal_argument_node *append_argument(formal_argument_node *list, char *name) {
+        formal_argument_node *node = create_node(name);
+        node->next = list;
+        return node;
+    }
 
     void enter_scope() {
         printf("Entering new scope: %u\n", checkScope);
         checkScope++;
     }
 
-
-    static void exit_scope(void)
-    {
-        if (checkScope == 0) 
+    static void exit_scope(void) {
+        if (checkScope == 0) {
             return;
+	}
 
         printf("Exiting  scope: %u\n", checkScope-1);
         deactivate_entries_from_curr_scope(symbol_table, checkScope-1);
         --checkScope;
     }
-
 
 %}
 
@@ -56,6 +71,7 @@
     int intValue;
     double realValue;
     char* stringValue;
+    struct formal_argument_node* arglist;
 }
 
 %token <stringValue> IF ELSE WHILE FOR RETURN BREAK CONTINUE LOCAL TRUE FALSE NIL
@@ -67,14 +83,16 @@
 %token <stringValue> FUNCTION AND OR NOT MODULO PLUS_PLUS MINUS_MINUS EQUAL_EQUAL LESS GREATER
 %token <stringValue> DOT_DOT DOT COLON_COLON PUNCTUATION OPERATOR
 
+%type <arglist> idlist
+%type <arglist> formal_arguments
 
-%right ASSIGNMENT   /* = has less priority in compare with all the other */
+%right ASSIGNMENT        /* = has less priority in compare with all the other */
 %left OR
 %left AND
 %nonassoc EQUAL_EQUAL NOT_EQUAL
 %nonassoc GREATER_THAN GREATER_EQUAL LESS_THAN LESS_EQUAL
 %left  PLUS 
-%left MINUS /* changed to UMINUS for (x-y) - z */
+%left MINUS              /* changed to UMINUS for (x-y) - z */
 %left MULTIPLY DIVIDE MODULO
 %right NOT
 %right PLUS_PLUS
@@ -84,7 +102,7 @@
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
 
-%nonassoc UMINUS /* unary minus operator */
+%nonassoc UMINUS         /* unary minus operator */
 
 // %expect 2 // Expect 2 conflicts to be resolved
 // changed this gt efaga error: shift/reduce conflicts: 0 found, 2
@@ -121,7 +139,6 @@ expr
     | assignexpr { print_rule("expr -> assignexpr"); }
     | term { print_rule("expr -> term"); }  // Now ensures `term` is used
     | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); }    
-//| call { print_rule("expr -> call"); } We will remove it to avoid conflict and also we dont need that as we can follow this path: [expr -> term -> primary -> call]
     ;
 
 assignexpr
@@ -129,20 +146,20 @@ assignexpr
     ;
 
 op
-  : plus_op expr       %prec PLUS
-  | minus_op expr      %prec MINUS
-  | mult_op expr       %prec MULTIPLY
-  | div_op expr        %prec DIVIDE
-  | mod_op expr        %prec MODULO
-  | greaterthan_op expr %prec GREATER_THAN
-  | greaterequal_op expr %prec GREATER_EQUAL
-  | lessthan_op expr     %prec LESS_THAN
-  | lessequal_op expr    %prec LESS_EQUAL
-  | eqeq_op expr       %prec EQUAL_EQUAL
-  | noteq_op expr      %prec NOT_EQUAL
-  | and_op expr        %prec AND
-  | or_op expr         %prec OR
-  ;
+    : plus_op expr       %prec PLUS
+    | minus_op expr      %prec MINUS
+    | mult_op expr       %prec MULTIPLY
+    | div_op expr        %prec DIVIDE
+    | mod_op expr        %prec MODULO
+    | greaterthan_op expr %prec GREATER_THAN
+    | greaterequal_op expr %prec GREATER_EQUAL
+    | lessthan_op expr     %prec LESS_THAN
+    | lessequal_op expr    %prec LESS_EQUAL
+    | eqeq_op expr       %prec EQUAL_EQUAL
+    | noteq_op expr      %prec NOT_EQUAL
+    | and_op expr        %prec AND
+    | or_op expr         %prec OR
+    ;
 
 plus_op: PLUS { print_rule("op -> +"); };
 minus_op: MINUS { print_rule("op -> -"); };
@@ -264,6 +281,9 @@ indexedelem
     : LEFT_BRACE expr COLON expr RIGHT_BRACE { print_rule("indexedelem -> { expr : expr }"); }
     ;
 
+formal_arguments
+    : idlist { $$ = $1; }
+    ;
 
 funcdef
   : FUNCTION IDENTIFIER
@@ -273,7 +293,15 @@ funcdef
           ++inside_function_depth;
           first_brace_of_func = 1;  // Indicates the first brace of the function
       }
-      LEFT_PARENTHESIS idlist RIGHT_PARENTHESIS
+      LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
+      {
+          // we insert the formal arguments here for normal functions
+          formal_argument_node* arg = $5;
+          while (arg != NULL) {
+              insert_symbol(symbol_table, arg->name, ARGUMENT, yylineno, checkScope);
+              arg = arg->next;
+          }
+      }
       block
       {
           --inside_function_depth;
@@ -287,7 +315,7 @@ funcdef
               fprintf(stderr, "Memory allocation failed for anonymous function name\n");
               exit(EXIT_FAILURE);
           }
-          sprintf(anonymous_name, "$%d", anonymus_function_counter++); // debug print: here we generate unique name
+          sprintf(anonymous_name, "$%d", anonymus_function_counter++); // here we generate unique name
           insert_symbol(symbol_table, anonymous_name, USER_FUNCTION, yylineno, checkScope);
           
           enter_scope();
@@ -296,7 +324,15 @@ funcdef
 
           free(anonymous_name);
       }
-      LEFT_PARENTHESIS idlist RIGHT_PARENTHESIS
+      LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
+      {
+          // we insert the formal arguments here for anonymous functions
+          formal_argument_node* arg = $4; 
+          while (arg != NULL) {
+              insert_symbol(symbol_table, arg->name, ARGUMENT, yylineno, checkScope);
+              arg = arg->next;
+          }
+      }      
       block
       {
           --inside_function_depth;
@@ -305,25 +341,29 @@ funcdef
       }
   ;
 
+/* NOTE:
+   now idlist returns a list
+   $$ is a pointer to formal_argument_node 
+*/
 
 idlist
     : IDENTIFIER { 
         print_rule("idlist -> IDENTIFIER"); 
-        /* Pass to symbol table as ARGUMENT */
-        insert_symbol(symbol_table, $1, ARGUMENT, yylineno, checkScope);
+        $$ = create_node($1);
     }
     | IDENTIFIER COMMA idlist { 
         print_rule("idlist -> IDENTIFIER , idlist"); 
-        insert_symbol(symbol_table, $1, ARGUMENT, yylineno, checkScope);
+        $$ = append_argument($3, $1);
     }
-    | /* empty */ { print_rule("idlist -> epsilon"); }
+    | /* empty */ { print_rule("idlist -> epsilon");
+        $$ = NULL;
+    }
     ;
 
 ifstmt
     : IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS stmt %prec LOWER_THAN_ELSE { print_rule("ifstmt -> if ( expr ) stmt"); }
     | IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS stmt ELSE stmt { print_rule("ifstmt -> if ( expr ) stmt else stmt"); }
     ;
-
 
 whilestmt
     : WHILE LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { checkLoopDepth++; } stmt { checkLoopDepth--; print_rule("whilestmt -> while ( expr ) stmt"); }
