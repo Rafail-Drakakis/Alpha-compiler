@@ -1,0 +1,3 @@
+[31mError[0m: syntax error token: '=', at line 2
+[31mError[0m: syntax error token: '=', at line 4
+[31mError[0m: Parser failed

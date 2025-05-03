@@ -1,0 +1,112 @@
+-----------     Scope #0     -----------
+"print" [library function] (line 0) (scope 0)
+"input" [library function] (line 0) (scope 0)
+"objectmemberkeys" [library function] (line 0) (scope 0)
+"objecttotalmembers" [library function] (line 0) (scope 0)
+"objectcopy" [library function] (line 0) (scope 0)
+"totalarguments" [library function] (line 0) (scope 0)
+"argument" [library function] (line 0) (scope 0)
+"typeof" [library function] (line 0) (scope 0)
+"strtonum" [library function] (line 0) (scope 0)
+"sqrt" [library function] (line 0) (scope 0)
+"cos" [library function] (line 0) (scope 0)
+"sin" [library function] (line 0) (scope 0)
+"a1" [global variable] (line 2) (scope 0) [space 0] 
+"a2" [global variable] (line 2) (scope 0) [space 0] 
+"a3" [global variable] (line 2) (scope 0) [space 0] 
+"a4" [global variable] (line 2) (scope 0) [space 0] 
+"_t0" [global variable] (line 2) (scope 0) [space 0] 
+"_t1" [global variable] (line 2) (scope 0) [space 0] 
+"_t2" [global variable] (line 2) (scope 0) [space 0] 
+"_t3" [global variable] (line 2) (scope 0) [space 0] 
+"global_var" [global variable] (line 4) (scope 0) [space 0] 
+"_t0" [global variable] (line 4) (scope 0) [space 0] 
+"foo" [user function] (line 10) (scope 0)
+"_t0" [global variable] (line 15) (scope 0) [space 0] 
+"foo1" [user function] (line 17) (scope 0)
+"_t0" [global variable] (line 24) (scope 0) [space 0] 
+"_t0" [global variable] (line 27) (scope 0) [space 0] 
+"_t1" [global variable] (line 27) (scope 0) [space 0] 
+"_t0" [global variable] (line 28) (scope 0) [space 0] 
+"_t1" [global variable] (line 28) (scope 0) [space 0] 
+"_t0" [global variable] (line 29) (scope 0) [space 0] 
+"_t1" [global variable] (line 29) (scope 0) [space 0] 
+"_t0" [global variable] (line 30) (scope 0) [space 0] 
+"_t1" [global variable] (line 30) (scope 0) [space 0] 
+"_t0" [global variable] (line 31) (scope 0) [space 0] 
+"_t1" [global variable] (line 31) (scope 0) [space 0] 
+"_t0" [global variable] (line 33) (scope 0) [space 0] 
+"_t0" [global variable] (line 35) (scope 0) [space 0] 
+"_t1" [global variable] (line 36) (scope 0) [space 0] 
+"_t0" [global variable] (line 39) (scope 0) [space 0] 
+"i" [global variable] (line 41) (scope 0) [space 0] 
+"_t0" [global variable] (line 41) (scope 0) [space 0] 
+"_t1" [global variable] (line 41) (scope 0) [space 0] 
+"_t2" [global variable] (line 41) (scope 0) [space 0] 
+"_t3" [global variable] (line 41) (scope 0) [space 0] 
+"_t4" [global variable] (line 41) (scope 0) [space 0] 
+"_t2" [global variable] (line 63) (scope 0) [space 0] 
+"object" [global variable] (line 71) (scope 0) [space 0] 
+"_t5" [global variable] (line 71) (scope 0) [space 0] 
+"_t6" [global variable] (line 71) (scope 0) [space 0] 
+"_t0" [global variable] (line 73) (scope 0) [space 0] 
+"_t1" [global variable] (line 73) (scope 0) [space 0] 
+"_t0" [global variable] (line 75) (scope 0) [space 0] 
+"_t1" [global variable] (line 75) (scope 0) [space 0] 
+"_t0" [global variable] (line 78) (scope 0) [space 0] 
+"_t1" [global variable] (line 78) (scope 0) [space 0] 
+"_t0" [global variable] (line 79) (scope 0) [space 0] 
+"_t0" [global variable] (line 80) (scope 0) [space 0] 
+"_t0" [global variable] (line 81) (scope 0) [space 0] 
+"$0" [user function] (line 83) (scope 0)
+"_t0" [global variable] (line 83) (scope 0) [space 0] 
+"test" [user function] (line 85) (scope 0)
+"_t0" [global variable] (line 92) (scope 0) [space 0] 
+"_t0" [global variable] (line 93) (scope 0) [space 0] 
+"_t1" [global variable] (line 93) (scope 0) [space 0] 
+"_t0" [global variable] (line 94) (scope 0) [space 0] 
+"_t1" [global variable] (line 94) (scope 0) [space 0] 
+"_t2" [global variable] (line 94) (scope 0) [space 0] 
+"test1" [user function] (line 98) (scope 0)
+"_t3" [global variable] (line 105) (scope 0) [space 0] 
+"_t4" [global variable] (line 105) (scope 0) [space 0] 
+"_t0" [global variable] (line 106) (scope 0) [space 0] 
+"_t1" [global variable] (line 106) (scope 0) [space 0] 
+"_t2" [global variable] (line 106) (scope 0) [space 0] 
+"_t0" [global variable] (line 107) (scope 0) [space 0] 
+"_t1" [global variable] (line 107) (scope 0) [space 0] 
+"_t2" [global variable] (line 107) (scope 0) [space 0] 
+"_t0" [global variable] (line 108) (scope 0) [space 0] 
+"_t1" [global variable] (line 108) (scope 0) [space 0] 
+"_t0" [global variable] (line 110) (scope 0) [space 0] 
+"_t1" [global variable] (line 110) (scope 0) [space 0] 
+"_t2" [global variable] (line 110) (scope 0) [space 0] 
+"_t3" [global variable] (line 110) (scope 0) [space 0] 
+
+-----------     Scope #1     -----------
+"a1" [local variable] (line 7) (scope 1) [space 0] 
+"_t0" [local variable] (line 7) (scope 1) [space 0] 
+"_t0" [local variable] (line 11) (scope 1) [space 1] 
+"global_var" [local variable] (line 18) (scope 1) [space 1] 
+"_t0" [local variable] (line 18) (scope 1) [space 1] 
+"_t0" [local variable] (line 20) (scope 1) [space 1] 
+"_t5" [local variable] (line 42) (scope 1) [space 0] 
+"_t0" [local variable] (line 44) (scope 1) [space 0] 
+"_t1" [local variable] (line 45) (scope 1) [space 0] 
+"_t0" [local variable] (line 47) (scope 1) [space 0] 
+"_t0" [local variable] (line 54) (scope 1) [space 0] 
+"_t1" [local variable] (line 57) (scope 1) [space 0] 
+"j" [local variable] (line 65) (scope 1) [space 0] 
+"_t3" [local variable] (line 65) (scope 1) [space 0] 
+"_t4" [local variable] (line 65) (scope 1) [space 0] 
+"test1" [user function] (line 86) (scope 1)
+"_t0" [local variable] (line 101) (scope 1) [space 1] 
+"_t1" [local variable] (line 101) (scope 1) [space 1] 
+"_t2" [local variable] (line 102) (scope 1) [space 1] 
+
+-----------     Scope #2     -----------
+"_t1" [local variable] (line 48) (scope 2) [space 0] 
+"_t0" [local variable] (line 49) (scope 2) [space 0] 
+"_t0" [local variable] (line 50) (scope 2) [space 0] 
+"_t0" [local variable] (line 51) (scope 2) [space 0] 
+

@@ -1,0 +1,2 @@
+[31mError[0m: Cann't access 'x' from line 11
+[31mError[0m: Cann't access 'y' from line 12

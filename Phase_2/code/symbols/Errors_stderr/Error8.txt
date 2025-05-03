@@ -1,0 +1,1 @@
+[31mError[0m: Tried to declare function 'x' in line 3 but it is alredy declared in this scope as variable

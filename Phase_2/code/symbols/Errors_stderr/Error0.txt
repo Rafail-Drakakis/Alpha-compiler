@@ -1,0 +1,1 @@
+[31mError[0m: Not in global scope identifier 'Global' in line 4

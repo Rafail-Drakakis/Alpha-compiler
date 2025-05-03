@@ -1,0 +1,54 @@
+-----------     Scope #0     -----------
+"print" [library function] (line 0) (scope 0)
+"input" [library function] (line 0) (scope 0)
+"objectmemberkeys" [library function] (line 0) (scope 0)
+"objecttotalmembers" [library function] (line 0) (scope 0)
+"objectcopy" [library function] (line 0) (scope 0)
+"totalarguments" [library function] (line 0) (scope 0)
+"argument" [library function] (line 0) (scope 0)
+"typeof" [library function] (line 0) (scope 0)
+"strtonum" [library function] (line 0) (scope 0)
+"sqrt" [library function] (line 0) (scope 0)
+"cos" [library function] (line 0) (scope 0)
+"sin" [library function] (line 0) (scope 0)
+"globalVarFirst" [global variable] (line 2) (scope 0) [space 0] 
+"_t0" [global variable] (line 2) (scope 0) [space 0] 
+"GlobalFunction" [user function] (line 6) (scope 0)
+"_t0" [global variable] (line 20) (scope 0) [space 0] 
+"globalVarSecond" [global variable] (line 22) (scope 0) [space 0] 
+"_t1" [global variable] (line 22) (scope 0) [space 0] 
+"_t0" [global variable] (line 24) (scope 0) [space 0] 
+"F" [user function] (line 34) (scope 0)
+"a" [global variable] (line 40) (scope 0) [space 0] 
+"b" [global variable] (line 40) (scope 0) [space 0] 
+"_t0" [global variable] (line 40) (scope 0) [space 0] 
+"_t1" [global variable] (line 40) (scope 0) [space 0] 
+"x" [global variable] (line 40) (scope 0) [space 0] 
+"y" [global variable] (line 40) (scope 0) [space 0] 
+"_t2" [global variable] (line 40) (scope 0) [space 0] 
+"_t3" [global variable] (line 40) (scope 0) [space 0] 
+"_t4" [global variable] (line 40) (scope 0) [space 0] 
+"_t5" [global variable] (line 40) (scope 0) [space 0] 
+"G" [global variable] (line 44) (scope 0) [space 0] 
+"_t0" [global variable] (line 44) (scope 0) [space 0] 
+"lol" [global variable] (line 48) (scope 0) [space 0] 
+"_t0" [global variable] (line 48) (scope 0) [space 0] 
+"_t0" [global variable] (line 49) (scope 0) [space 0] 
+"print_" [global variable] (line 53) (scope 0) [space 0] 
+"_t0" [global variable] (line 53) (scope 0) [space 0] 
+"_t0" [global variable] (line 54) (scope 0) [space 0] 
+
+-----------     Scope #1     -----------
+"localVar" [local variable] (line 8) (scope 1) [space 1] 
+"_t0" [local variable] (line 8) (scope 1) [space 1] 
+"LocalFunction" [user function] (line 14) (scope 1)
+"_t1" [local variable] (line 25) (scope 1) [space 0] 
+"localVar" [local variable] (line 27) (scope 1) [space 0] 
+"_t0" [local variable] (line 27) (scope 1) [space 0] 
+
+-----------     Scope #2     -----------
+"x" [formal argument] (line 14) (scope 2) [space 2] 
+"y" [formal argument] (line 14) (scope 2) [space 2] 
+"globalVarFirst" [local variable] (line 16) (scope 2) [space 1] 
+"_t0" [local variable] (line 16) (scope 2) [space 1] 
+
