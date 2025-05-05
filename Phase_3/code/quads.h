@@ -7,6 +7,9 @@
  *      csd5082 Theologos Kokkinellis
  */
 
+#ifndef QUADS_H
+#define QUADS_H
+
 #include <assert.h>
 #include <stdarg.h>
 #include "symbol_table.h"
@@ -69,7 +72,7 @@ typedef struct expr {        /* lec 10 slide 17 */
     double numConst; 
     char* strConst; 
     unsigned char boolConst; 
-    expr* next;             /* Just to make trivial s-lists. */
+    expr* next;              /* Just to make trivial s-lists. */
 } expr;
 
 typedef struct quad { 
@@ -108,11 +111,11 @@ void emit (                                 /* slide 38: some functions may need
     }
 
     quad *p = quads + currQuad++; 
-    p->arg1 =   arg1; 
-    p->arg2 =   arg2; 
+    p->arg1 = arg1; 
+    p->arg2 = arg2; 
     p->result = result; 
-    p->label =  label; 
-    p->line =   line;
+    p->label = label; 
+    p->line = line;
 }
 
 scopespace_t currscopespace (void) { 
@@ -240,29 +243,4 @@ expr *newexpr_constnum(double i) {                          /* lec 10 slide 29 *
     return e;
 }
 
-void comperror(char* format, ...) {
-    va_list args;
-    va_start(args, format);
-
-    fprintf(stderr, "Compiler Error: ");
-    vfprintf(stderr, format, args);
-    fprintf(stderr, "\n");
-
-    va_end(args);
-    exit(EXIT_FAILURE);  /* exit program on Compiler Error */
-}
-
-/**
- * Use this function to check correct use of of expression in arithmetic 
- */
-
-void check_arith (expr* e, const char* context) { 
-    if ( e->type == constbool_e ||
-    e->type == conststring_e    ||
-    e->type == nil_e            ||
-    e->type == newtable_e       ||
-    e->type == programfunc_e    ||
-    e->type == libraryfunc_e    ||
-    e->type == boolexpr_e )
-    comperror("Illegal expr used in %s!", context); 
-}
+#endif

@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct expr;  // forward declare
+
 typedef enum {
     GLOBAL,
     LOCAL_VAR,                      // Renamed to avoid conflict with YACC token
@@ -54,5 +56,8 @@ SymbolTableEntry *lookup_symbol_global(SymbolTable *table, const char *name);
 void print_symbol_table(SymbolTable *table);
 void free_symbol_table(SymbolTable *table);
 void deactivate_entries_from_curr_scope(SymbolTable*, unsigned int scope);
+
+void comperror(char* format, ...);
+void check_arith(struct expr* e, const char* context);
 
 #endif

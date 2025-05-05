@@ -1,4 +1,5 @@
 #include "symbol_table.h"
+#include "quads.h" 
 
 static const char *get_symbol_type_str(SymbolType symbol_type) {
     switch (symbol_type) {
@@ -185,4 +186,32 @@ void free_symbol_table(SymbolTable *symbol_table) {
         free(current); current = next; 
     }
     free(symbol_table);
+}
+
+
+void comperror(char* format, ...) {             /* based on lec 10 slide 32 (custom) */
+    va_list args;
+    va_start(args, format);
+
+    fprintf(stderr, "Compiler Error: ");
+    vfprintf(stderr, format, args);
+    fprintf(stderr, "\n");
+
+    va_end(args);
+    exit(EXIT_FAILURE);
+}
+
+/**
+ * Use this function to check correct use of of expression in arithmetic 
+ */
+
+void check_arith (expr* e, const char* context) {   /* lec 10 slide 32 */
+    if ( e->type == constbool_e ||
+    e->type == conststring_e    ||
+    e->type == nil_e            ||
+    e->type == newtable_e       ||
+    e->type == programfunc_e    ||
+    e->type == libraryfunc_e    ||
+    e->type == boolexpr_e )
+    comperror("Illegal expr used in %s!", context); 
 }
