@@ -8,6 +8,7 @@
  */
 
 #include <assert.h>
+#include <stdarg.h>
 #include "symbol_table.h"
 
 /* NOTE: we may need to add more */
@@ -231,4 +232,37 @@ expr *emit_iftableitem(expr *e) {
         );
         return result;
     }
+}
+
+expr *newexpr_constnum(double i) {                          /* lec 10 slide 29 */
+    expr *e = newexpr(costnum_e);
+    e->numConst = i;
+    return e;
+}
+
+void comperror(char* format, ...) {
+    va_list args;
+    va_start(args, format);
+
+    fprintf(stderr, "Compiler Error: ");
+    vfprintf(stderr, format, args);
+    fprintf(stderr, "\n");
+
+    va_end(args);
+    exit(EXIT_FAILURE);  /* exit program on Compiler Error */
+}
+
+/**
+ * Use this function to check correct use of of expression in arithmetic 
+ */
+
+void check_arith (expr* e, const char* context) { 
+    if ( e->type == constbool_e ||
+    e->type == conststring_e    ||
+    e->type == nil_e            ||
+    e->type == newtable_e       ||
+    e->type == programfunc_e    ||
+    e->type == libraryfunc_e    ||
+    e->type == boolexpr_e )
+    comperror("Illegal expr used in %s!", context); 
 }
