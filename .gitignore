@@ -1,10 +1,2 @@
-*.o
-*.c
-*.h
-parser
-lex.yy.c
-lex.yy.o
-parser.c
-parser.h
 .DS_Store
 *.swp
