@@ -44,11 +44,11 @@ int main(int argc, char *argv[]) {
         insert_symbol(symbol_table, library_functions[k], LIBRARY_FUNCTION, 0, 0);
     }    
 
-    printf("Starting syntax analysis...\n");
+    //printf("Starting syntax analysis...\n");
     if (yyparse() == 0) {
-        printf("Syntax analysis completed successfully.\n");
+        //printf("Syntax analysis completed successfully.\n");
     } else {
-        printf("Syntax analysis encountered errors.\n");
+        //  printf("Syntax analysis encountered errors.\n");
     }
 
     print_symbol_table(symbol_table);

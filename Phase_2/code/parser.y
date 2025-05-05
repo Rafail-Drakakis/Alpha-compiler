@@ -1,4 +1,3 @@
-
 /**
  * HY-340 Project Phase 2 2024-2025
  *
@@ -53,7 +52,7 @@
     }
 
     void enter_scope() {
-        printf("Entering new scope: %u\n", checkScope);
+        //printf("Entering new scope: %u\n", checkScope);
         checkScope++;
     }
 
@@ -62,7 +61,7 @@
             return;
 	}
 
-        printf("Exiting  scope: %u\n", checkScope-1);
+        //printf("Exiting  scope: %u\n", checkScope-1);
         deactivate_entries_from_curr_scope(symbol_table, checkScope-1);
         --checkScope;
     }
@@ -320,6 +319,7 @@ funcdef
           insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
           enter_scope();
           ++inside_function_depth;
+          inside_function_scope = 1;
           first_brace_of_func = 1;  // Indicates the first brace of the function
       }
       LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS

@@ -101,6 +101,7 @@ SymbolTableEntry *lookup_symbol(SymbolTable *symbol_table, const char *name, uns
                                     other_scope = 1; break;
                                 }
                         if (!other_scope) return current;
+                        printf("Error: Symbol '%s' defined at line %u in enclosing function.\n", current->name, current->line_number);
                     }
                 }
             }
@@ -146,9 +147,9 @@ void print_symbol_table(SymbolTable *symbol_table) {
 
         qsort(entries_array, num_entries, sizeof *entries_array, compare_by_line);
 
-        printf("----------   Scope #%u   ----------\n", scope);
+        printf("-----------     Scope #%u     -----------\n", scope);
         for (i = 0; i < num_entries; ++i)
-            printf("\"%s\"\t[%s] (line %u) (scope %u)\n",
+            printf("\"%s\" [%s] (line %u) (scope %u)\n",
                    entries_array[i]->name, get_symbol_type_str(entries_array[i]->type),
                    entries_array[i]->line_number, entries_array[i]->scope);
         putchar('\n');
