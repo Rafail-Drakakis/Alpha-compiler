@@ -38,8 +38,33 @@ typedef enum iopcode {
     tablegetelem,   tablesetelem
 } iopcode;
 
-typedef struct expr{
-    //TODO: actually add code
+typedef enum expr_t {       /* lec 10 slide 17 */
+    var_e, 
+    tableitem_e,
+
+    programfunc_e, 
+    libraryfunc_e, 
+
+    arithexpr_e, 
+    boolexpr_e, 
+    assignexpr_e, 
+    newtable_e, 
+    
+    costnum_e, 
+    constbool_e, 
+    conststring_e,
+    
+    nil_e 
+} expr_t;
+
+typedef struct expr {        /* lec 10 slide 17 */
+    expr_t type; 
+    SymbolTableEntry* sym; 
+    expr* index; 
+    double numConst; 
+    char* strConst; 
+    unsigned char boolConst; 
+    expr* next; 
 } expr;
 
 typedef struct quad { 
