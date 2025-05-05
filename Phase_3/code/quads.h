@@ -243,4 +243,12 @@ expr *newexpr_constnum(double i) {                          /* lec 10 slide 29 *
     return e;
 }
 
+unsigned int istempname(char *s) {                         /* lec 10 slide 37 */
+    return *s == '_';
+}
+
+unsigned int istempexpr(expr *e) {                         /* lec 10 slide 37 */
+    return e->sym && istempname(e->sym->name);
+}
+
 #endif
