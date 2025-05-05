@@ -1,5 +1,5 @@
 #include "symbol_table.h"
-//
+
 static const char *get_symbol_type_str(SymbolType symbol_type) {
     switch (symbol_type) {
         case GLOBAL:            return "global variable";
