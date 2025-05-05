@@ -172,7 +172,7 @@ void exitscopespace (void) {
  * straightforward through the symbol 'sym' field.
  */
 
-expr* lvalue_expr (SymbolTableEntry *sym) { 
+expr* lvalue_expr (SymbolTableEntry *sym) {     /* lec 10 slide 18 */
     assert(sym); 
     expr *e = (expr*) malloc (sizeof(expr)); 
     memset(e, 0, sizeof(expr)); 
@@ -194,4 +194,17 @@ expr* lvalue_expr (SymbolTableEntry *sym) {
             assert(0); 
     } 
     return e; 
+}
+
+expr *newexpr(expr_t t) {                        /* lec 10 slide 24 */
+    expr *e = (expr*) malloc (sizeof(expr));
+    memset(e, 0, sizeof(expr));
+    e->type = t;
+    return e;
+}
+
+expr *newexpr_conststring(char *s) {
+    expr *e = newexpr(conststring_e);
+    e->strConst = strdup(s);
+    return e;
 }
