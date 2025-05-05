@@ -164,4 +164,34 @@ void exitscopespace (void) {
     --scopeSpaceCounter; 
 }
 
+/**
+ * Making an l-value expression out of a symbol is simple, 
+ * since the expression inherits the symbol type. Also, 
+ * getting information like 'library function' name or the 
+ * program function' address (after code generation), is 
+ * straightforward through the symbol 'sym' field.
+ */
 
+expr* lvalue_expr (SymbolTableEntry *sym) { 
+    assert(sym); 
+    expr *e = (expr*) malloc (sizeof(expr)); 
+    memset(e, 0, sizeof(expr)); 
+
+    e->next = (expr*) 0; 
+    e->sym = sym;
+
+    switch (sym->type) { 
+        case var_s:
+            e->type = var_e; 
+            break;
+        case programfunc_s: 
+            e->type = programfunc_e; 
+            break; 
+        case libraryfunc_s: 
+            e->type = libraryfunc_e; 
+            break; 
+        default: 
+            assert(0); 
+    } 
+    return e; 
+}
