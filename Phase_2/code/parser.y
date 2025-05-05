@@ -218,9 +218,14 @@ lvalue
           }
           */
           if (!found_identifier) {
-              insert_symbol(symbol_table, $1, (checkScope == 0) ? GLOBAL : LOCAL_VAR, yylineno, checkScope);
-          }
-          $$ = found_identifier; // we save it for later
+            // Create it only if we're in assignment (e.g., x = 5;)
+            insert_symbol(symbol_table, $1, (checkScope == 0) ? GLOBAL : LOCAL_VAR, yylineno, checkScope);
+            $$ = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
+        } else if (inside_function_scope && found_identifier->type == ARGUMENT && found_identifier->scope < checkScope) {
+            fprintf(stderr, "Error: Cannot access argument '%s' from outer function inside nested function (line %d).\n", $1, yylineno);
+            $$ = NULL;
+        } 
+        $$ = found_identifier;
       }
     | LOCAL IDENTIFIER
       {
