@@ -38,6 +38,8 @@ typedef enum iopcode {
     tablegetelem,   tablesetelem
 } iopcode;
 
+/* NOTE: Expression types. You use only the types you really need for i-code generation, so you may drop some entries. */
+
 typedef enum expr_t {       /* lec 10 slide 17 */
     var_e, 
     tableitem_e,
@@ -57,6 +59,8 @@ typedef enum expr_t {       /* lec 10 slide 17 */
     nil_e 
 } expr_t;
 
+/* NOTE: For simplicity this is a superset type, but you may hack around with more clever storage (if you like) */
+
 typedef struct expr {        /* lec 10 slide 17 */
     expr_t type; 
     SymbolTableEntry* sym; 
@@ -64,7 +68,7 @@ typedef struct expr {        /* lec 10 slide 17 */
     double numConst; 
     char* strConst; 
     unsigned char boolConst; 
-    expr* next; 
+    expr* next;             /* Just to make trivial s-lists. */
 } expr;
 
 typedef struct quad { 
