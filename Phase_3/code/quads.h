@@ -208,3 +208,27 @@ expr *newexpr_conststring(char *s) {
     e->strConst = strdup(s);
     return e;
 }
+
+/*TODO: write this function */
+SymbolTableEntry * newtemp() {
+    // code ...
+    // i think this it the _t0 michalis had
+}
+
+expr *emit_iftableitem(expr *e) {
+    if (e->type != tableitem_e) {
+        return e;
+    } else {
+        expr *result = newexpr(var_e);
+        result->sym = newtemp();
+        emit(
+            tablegetelem,           // iopcode op
+            e,                      // expr* arg1
+            e->index,               // expr* arg2
+            result,                 // expr* result
+            currQuad,               // unsigned label 
+            e->sym->line            // unsigned line        /* changed these to match emit arguments */
+        );
+        return result;
+    }
+}
