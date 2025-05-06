@@ -24,6 +24,8 @@ unsigned scopeSpaceCounter = 1;
 unsigned total = 0; 
 unsigned int currQuad = 0;
 
+static unsigned tempcounter = 0;    /* Internal counter */ 
+
 #define EXPAND_SIZE 1024 
 #define CURR_SIZE (total * sizeof(quad)) 
 #define NEW_SIZE (EXPAND_SIZE * sizeof(quad) + CURR_SIZE)
@@ -217,10 +219,18 @@ expr *newexpr_conststring(char *s) {
     return e;
 }
 
-/*TODO: write this function */
-SymbolTableEntry * newtemp() {
+char *newtempname(void) {
+    char *name = (char*) malloc (10);   /* enough for "_t" + up to 7 digits + '\0' */
+    if (!name) {
+        fprintf(stderr, "Memory allocation failed in newtempname()\n");
+        exit(EXIT_FAILURE);
+    }
+    sprintf(name, "_t%u", tempcounter++);
+    return name;
+}
+
+SymbolTableEntry *newtemp() {
     // code ...
-    // i think this it the _t0 michalis had
 }
 
 expr *emit_iftableitem(expr *e) {
@@ -239,6 +249,10 @@ expr *emit_iftableitem(expr *e) {
         );
         return result;
     }
+}
+
+void resettemp(void) {
+    tempcounter = 0;
 }
 
 expr *newexpr_constnum(double i) {                          /* lec 10 slide 29 */
