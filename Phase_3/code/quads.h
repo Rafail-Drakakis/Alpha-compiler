@@ -28,6 +28,10 @@ unsigned int currQuad = 0;
 #define CURR_SIZE (total * sizeof(quad)) 
 #define NEW_SIZE (EXPAND_SIZE * sizeof(quad) + CURR_SIZE)
 
+/* in quads_print_functions.c file start */
+void print_quads(FILE *f);
+/*    quads_print_functions.c file end */
+
 /* NOTE: we may need to add more and change some */
 
 typedef enum iopcode { 
