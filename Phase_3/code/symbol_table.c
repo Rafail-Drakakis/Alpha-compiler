@@ -8,6 +8,7 @@ static const char *get_symbol_type_str(SymbolType symbol_type) {
         case ARGUMENT:          return "formal argument";
         case LIBRARY_FUNCTION:  return "library function";
         case USER_FUNCTION:     return "user function";
+        case TEMP_VAR:          return "temporary variable";    /* i dont know if adding this new type is okay : maybe instead we use LOCAL_VAR ? */
         default:                return "unknown";
     }
 }

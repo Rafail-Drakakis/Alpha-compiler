@@ -12,7 +12,8 @@ typedef enum {
     LOCAL_VAR,                      // Renamed to avoid conflict with YACC token
     ARGUMENT,
     LIBRARY_FUNCTION,
-    USER_FUNCTION
+    USER_FUNCTION,
+    TEMP_VAR                        /* i dont know if adding this new type is okay */
 } SymbolType;
 
 typedef enum scopespace_t { 
@@ -26,7 +27,6 @@ typedef enum symbol_t {
     programfunc_s, 
     libraryfunc_s 
 } symbol_t; 
-
 
 typedef struct SymbolTableEntry {
     char *name;

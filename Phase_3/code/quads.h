@@ -14,6 +14,8 @@
 #include <stdarg.h>
 #include "symbol_table.h"
 
+extern int yylineno;
+
 /* NOTE: we may need to add more */
 
 unsigned programVarOffset = 0; 
@@ -230,7 +232,22 @@ char *newtempname(void) {
 }
 
 SymbolTableEntry *newtemp() {
-    // code ...
+    char *new_name = newtempname();
+    // FIXME: what to put for 1st argument? [symbol_table i wrote is dummy argument for now]
+    // TODO: need to implement a currscope(); function!!! --> slide 44
+    /**
+     * we need a global variable (maybe the one on parser.y? 
+     * we need to implement (unsigned) int currscope(void)
+     * and make use of current_scope++; and current_scope--; from parser from functdef
+     */
+    // FIXME: what to put as 4th argument? is 0 correct?
+    SymbolTableEntry *sym = lookup_symbol(symbol_table, new_name, currscope(), 0);
+    if (sym == NULL) {
+        insert_symbol(symbol_table, new_name, TEMP_VAR, yylineno, currscope());
+        sym = lookup_symbol(symbol_table, new_name, currscope(), 0);
+    }
+    return sym;
+
 }
 
 expr *emit_iftableitem(expr *e) {
@@ -253,6 +270,7 @@ expr *emit_iftableitem(expr *e) {
 
 void resettemp(void) {
     tempcounter = 0;
+    // do we need to deactivate the tmp names ?
 }
 
 expr *newexpr_constnum(double i) {                          /* lec 10 slide 29 */
