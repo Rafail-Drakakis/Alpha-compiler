@@ -251,4 +251,19 @@ unsigned int istempexpr(expr *e) {                         /* lec 10 slide 37 */
     return e->sym && istempname(e->sym->name);
 }
 
+void patchlabel(unsigned quadNo, unsigned label) {          /* lec 11 slide 10 may need modification */
+    assert(quadNo < currQuad && !quads[quadNo].label);
+    quads[quadNo].label = label;
+}
+
+expr* newexpr_constbool(unsigned int b) {                   /* lec 11 slide 10 */
+    expr *e = newexpr(constbool_e);
+    e->boolConst = !!b;                                     /* !! is what? */
+    return e;
+}
+
+unsigned nextquad(void) {                                   /* lec 11 slide 10 */
+    return currQuad; 
+}
+
 #endif
