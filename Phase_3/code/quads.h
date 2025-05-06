@@ -42,7 +42,7 @@ typedef enum iopcode {
     if_lesseq,      if_geatereq,    if_less, 
     if_greater,     call,           param,
     ret,            getretval,      funcstart, 
-    funcend,        tablecreate, 
+    funcend,        tablecreate,    /* NOTE: should we add jump: Change control flow without condition lec 9 slide 35 */
     tablegetelem,   tablesetelem
 } iopcode;
 
