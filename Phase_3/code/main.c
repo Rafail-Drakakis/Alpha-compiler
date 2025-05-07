@@ -15,15 +15,16 @@ unsigned programVarOffset = 0;
 unsigned functionLocalOffset = 0;
 unsigned formalArgOffset = 0;
 unsigned scopeSpaceCounter = 1;
-
 unsigned total = 0;
 unsigned int currQuad = 0;
-
 static unsigned tempcounter = 0;
-SymbolTable *symbol_table;
 
 quad* quads = (quad*) 0;
 extern unsigned int checkScope;  // already declared in parser.y
+
+extern int yyparse();         // Bison parser function
+extern FILE* yyin;            // Flex input file stream
+SymbolTable *symbol_table;
 
 unsigned int currscope(void) {
     return checkScope;
@@ -213,7 +214,12 @@ static void print_expr(FILE* f, expr* e) {
         fprintf(f, "nil");
         return;
     }
-
+    
+    if (!e->sym) {
+        fprintf(f, "anonymous");
+        return;
+    }
+    
     switch (e->type) {
         case var_e:
         case tableitem_e:
@@ -246,7 +252,7 @@ static void print_expr(FILE* f, expr* e) {
     }
 }
 
-void main(FILE* f) {
+void print_quads(FILE* f) {
     fprintf(f, "------------------------------ Intermediate Code ------------------------------\n");
 
     for (int i = 0; i < currQuad; i++) {
@@ -410,6 +416,36 @@ void main(FILE* f) {
 
         fprintf(f, "\n");
     }
+}
 
-    fprintf(f, "-------------------------------------------------------------------------------\n");
+int main(int argc, char **argv) {
+    if (argc > 2) {
+        fprintf(stderr, "Usage: %s [inputfile]\n", argv[0]);
+        return 1;
+    }
+
+    if (argc == 2) {
+        yyin = fopen(argv[1], "r");
+        if (!yyin) {
+            perror(argv[1]);
+            return 1;
+        }
+    }
+    
+    symbol_table = create_symbol_table();
+
+    if (yyparse() == 0) {
+        printf("Parsing completed successfully.\n");
+    } else {
+        fprintf(stderr, "Parsing failed.\n");
+    }
+
+    print_quads(stdout);
+
+    free_symbol_table(symbol_table);
+    if (argc == 2 && yyin) {
+        fclose(yyin);
+    }
+
+    return 0;
 }
