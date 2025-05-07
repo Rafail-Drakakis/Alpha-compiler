@@ -21,8 +21,7 @@
     int anonymus_function_counter = 0;
 
     void print_rule(const char* rule) {
-        // printf("Reduced by rule: %s\n", rule);
-        (void)0;
+        (void)0; // printf("Reduced by rule: %s\n", rule);
     }
 
     unsigned int checkScope = 0;        // 0 for global, 1 for local
@@ -30,7 +29,7 @@
     int inside_function_scope = 0;
     int inside_function_depth = 0;      // 0 for global, >0 for function scope
     static int first_brace_of_func = 0;
-    int is_calling = 0;			// reducing lvalue for function call 1, normal lvalues 0
+    int is_calling = 0;			        // reducing lvalue for function call 1, normal lvalues 0
 
 
     typedef struct formal_argument_node {
@@ -208,15 +207,6 @@ lvalue
     : IDENTIFIER
       {
           SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
-          /* 
-          if(!is_calling){
-              if (found_identifier &&
-                  (found_identifier->type == USER_FUNCTION || found_identifier->type == LIBRARY_FUNCTION) &&
-                  found_identifier->scope == 0 && checkScope == 0) {
-                  fprintf(stderr, "Error: Symbol '%s' is not a valid lvalue (line %d).\n", $1, yylineno);
-              } 
-          }
-          */
           if (!found_identifier) {
             // Create it only if we're in assignment (e.g., x = 5;)
             insert_symbol(symbol_table, $1, (checkScope == 0) ? GLOBAL : LOCAL_VAR, yylineno, checkScope);
@@ -307,7 +297,6 @@ objectdef
 indexed
     : indexedelem { print_rule("indexed -> indexedelem"); }
     | indexedelem COMMA indexed { print_rule("indexed -> indexedelem, indexed"); }
-    // | /* empty */ { print_rule("indexed -> epsilon"); }
     ;
 
 indexedelem

@@ -33,9 +33,6 @@
  #define CURR_SIZE (total * sizeof(quad))
  #define NEW_SIZE (EXPAND_SIZE * sizeof(quad) + CURR_SIZE)
  
- /* Print function (defined in quads_print_functions.c) */
- void print_quads(FILE *f);
- 
  typedef enum iopcode {
      assign, add, sub, mul, div, mod,
      uminus, and, or, not,

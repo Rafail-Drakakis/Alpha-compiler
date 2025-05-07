@@ -15,8 +15,6 @@
 #include <assert.h>
 extern int yylineno;
 
-//#define YY_DECL int alpha_yylex(void* yylval)
-
 #define token_string_compare(val1, val2) strcmp((val1), (val2))
 
 void print_unclosed_comment_error();
@@ -206,9 +204,7 @@ punctuation (:|\.|\{|\}|\[|\]|\(|\)|;|,)
     else if (!token_string_compare(yytext, "{"))  { insert_token(yylineno, yytext, "PUNCTUATION LEFT_BRACE", "enumerated"); return LEFT_BRACE; }
     else if (!token_string_compare(yytext, "}"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_BRACE", "enumerated"); return RIGHT_BRACE; }
     else if (!token_string_compare(yytext, ";"))  { insert_token(yylineno, yytext, "PUNCTUATION SEMICOLON", "enumerated"); return SEMICOLON;}
-    //else if (!token_string_compare(yytext, "..")) { insert_token(yylineno, yytext, "PUNCTUATION DOT_DOT", "enumerated"); return DOT_DOT; }
     else if (!token_string_compare(yytext, "."))  { insert_token(yylineno, yytext, "PUNCTUATION DOT", "enumerated"); return DOT; }
-    //else if (!token_string_compare(yytext, "::")) { insert_token(yylineno, yytext, "PUNCTUATION COLON_COLON", "enumerated"); return COLON_COLON; }
     else if (!token_string_compare(yytext, ":"))  { insert_token(yylineno, yytext, "PUNCTUATION COLON", "enumerated"); return COLON; }
     else if (!token_string_compare(yytext, ","))  { insert_token(yylineno, yytext, "PUNCTUATION COMMA", "enumerated"); return COMMA; }
     else {
@@ -448,89 +444,3 @@ void print_unclosed_string_error() {
         }
     }
 }
-
-/* Function to print tokens */
-void print_output() {
-    alpha_token_t* temp = list_head;
-    printf("---------------- Lexical Analysis ----------------\n");
-    
-    while (temp) {
-        int extra_size = 0;
-        
-        if (!token_string_compare(temp->token_type, "INTCONST") || !token_string_compare(temp->token_type, "REALCONST")) {
-            extra_size = snprintf(NULL, 0, " %s", temp->content) + 1;
-        } else if (!token_string_compare(temp->token_type, "IDENTIFIER") || !token_string_compare(temp->token_type, "STRING")) {
-            extra_size = snprintf(NULL, 0, " \"%s\"", temp->content) + 1;
-        }
-
-        char *extra_var = (char *)malloc(extra_size);
-        if (extra_var) {
-            if (extra_size > 1) {
-                if (!token_string_compare(temp->token_type, "INTCONST") || 
-                    !token_string_compare(temp->token_type, "REALCONST")) {
-                    snprintf(extra_var, extra_size, " %s", temp->content);
-                } else if (!token_string_compare(temp->token_type, "IDENTIFIER") || 
-                           !token_string_compare(temp->token_type, "STRING")) {
-                    snprintf(extra_var, extra_size, " \"%s\"", temp->content);
-                }
-            } else {
-                extra_var[0] = '\0';
-            }
-        } else {
-            extra_var = "";
-        }
-        
-        printf("%d: #%d \"%s\" %s%s <-%s\n", 
-               temp->line_number, 
-               temp->token_number, 
-               temp->content, 
-               temp->token_type,
-               extra_var,
-               temp->data_type);
-
-        if (extra_size > 1) {
-            free(extra_var);
-        }
-
-        temp = temp->next_t;
-    }
-}
-
-/*
-int main(int argc, char *argv[]) {
-    initStack(&commentStack);
-    initStack(&stringStack);
-
-    if (argc < 2 || argc > 3) {
-        fprintf(stderr, "Usage: %s <input file> [output file]\n", argv[0]);
-        return EXIT_FAILURE;
-    }
-
-    FILE *input_file = fopen(argv[1], "r");
-    if (!input_file) {
-        perror("Error opening input file");
-        return EXIT_FAILURE;
-    }
-    yyin = input_file;
-
-    while (alpha_yylex(NULL));
-    fclose(input_file);
-
-    if (argc == 3) {
-        FILE *output_file = fopen(argv[2], "w");
-        if (!output_file) {
-            perror("Error opening output file");
-            return EXIT_FAILURE;
-        }
-        freopen(argv[2], "w", stdout);
-    }
-
-    print_output();
-
-    free_token_list();
-    freeStack(&commentStack);
-    freeStack(&stringStack);
-
-    return EXIT_SUCCESS;
-}
-*/
