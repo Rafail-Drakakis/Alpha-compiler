@@ -23,6 +23,11 @@ static unsigned tempcounter = 0;
 SymbolTable *symbol_table;
 
 quad* quads = (quad*) 0;
+extern unsigned int checkScope;  // already declared in parser.y
+
+unsigned int currscope(void) {
+    return checkScope;
+}
 
 void expand(void) {
     assert(total == currQuad);

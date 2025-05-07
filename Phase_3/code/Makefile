@@ -18,7 +18,7 @@ SYMBOL_TABLE_H = symbol_table.h
 QUADS_H = quads.h
 
 OBJS = parser.o lex.yy.o main.o symbol_table.o
-EXE = compiler
+EXE = intermediate
 
 all: $(EXE)
 
@@ -44,4 +44,4 @@ symbol_table.o: $(SYMBOL_TABLE_C) $(SYMBOL_TABLE_H)
 	$(CC) $(CFLAGS) -c $(SYMBOL_TABLE_C) -o symbol_table.o
 
 clean:
-	rm -f $(OBJS) $(LEX_C) $(BISON_C) $(BISON_H) $(EXE)
+	rm -f $(OBJS) $(LEX_C) $(BISON_C) $(BISON_H) $(EXE) parser.tab.c parser.tab.h
