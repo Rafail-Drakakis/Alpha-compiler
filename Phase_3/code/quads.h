@@ -34,7 +34,7 @@
  #define NEW_SIZE (EXPAND_SIZE * sizeof(quad) + CURR_SIZE)
  
  typedef enum iopcode {
-     assign, add, sub, mul, div, mod,
+     assign, add, sub, mul, idiv, mod,
      uminus, and, or, not,
      if_eq, if_noteq,
      if_lesseq, if_greatereq, if_less, if_greater,

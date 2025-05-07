@@ -46,10 +46,7 @@ typedef struct SymbolTableEntry {
     struct SymbolTableEntry *next;
     
     scopespace_t space;             // Originating scope space. 
-    unsigned int offset;            // Offset in scope space. 
-    unsigned int scope;             // Scope value. 
-    unsigned int line;              // Source line of declaration. 
-    char *name;                     // Dynamic string.
+    unsigned int offset;            // Offset in scope space.
 
 } SymbolTableEntry;
 

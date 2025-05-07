@@ -20,6 +20,7 @@ unsigned total = 0;
 unsigned int currQuad = 0;
 
 static unsigned tempcounter = 0;
+SymbolTable *symbol_table;
 
 quad* quads = (quad*) 0;
 
@@ -274,7 +275,7 @@ void main(FILE* f) {
                 fprintf(f, " * ");
                 print_expr(f, q->arg2);
                 break;
-            case div:
+            case idiv:
                 print_expr(f, q->result);
                 fprintf(f, " := ");
                 print_expr(f, q->arg1);
