@@ -44,7 +44,7 @@
      jump,
      call, param, ret, getretval,
      funcstart, funcend,
-     tablecreate, tablegetelem, tablesetelem
+     tablecreate, tablegetelem, tablesetelem, if_geatereq
  } iopcode;
  
  typedef enum expr_t {
