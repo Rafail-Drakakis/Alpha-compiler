@@ -18,12 +18,10 @@ unsigned scopeSpaceCounter = 1;
 unsigned total = 0;
 unsigned int currQuad = 0;
 static unsigned tempcounter = 0;
-
 quad* quads = (quad*) 0;
-extern unsigned int checkScope;  // already declared in parser.y
-
-extern int yyparse();         // Bison parser function
-extern FILE* yyin;            // Flex input file stream
+extern unsigned int checkScope;
+extern int yyparse();        
+extern FILE* yyin;          
 SymbolTable *symbol_table;
 
 unsigned int currscope(void) {
