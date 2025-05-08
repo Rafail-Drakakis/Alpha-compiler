@@ -31,9 +31,15 @@ unsigned int currscope(void) {
 void expand(void) {
     assert(total == currQuad);
     quad* p = (quad*) malloc(NEW_SIZE);
-    if (quads) {
+    if (!quads) {
+        quads = malloc(NEW_SIZE);
+        total = EXPAND_SIZE;
+    } else {
+        quad* p = malloc(NEW_SIZE);
         memcpy(p, quads, CURR_SIZE);
         free(quads);
+        quads = p;
+        total += EXPAND_SIZE;
     }
     quads = p;
     total += EXPAND_SIZE;

@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = 
+CFLAGS = -g
 
 LEX = flex
 BISON = bison
