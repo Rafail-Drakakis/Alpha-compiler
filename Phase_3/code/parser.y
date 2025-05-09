@@ -11,7 +11,7 @@
     #include <stdio.h>
     #include <stdlib.h>
     #include "symbol_table.h"
-    #include "parser.h"  // Include Bison-generated header
+    #include "parser.h"
 
     extern int yylineno;
     extern char* yytext;
@@ -119,7 +119,6 @@ program
 
 stmt_list
     : stmt stmt_list { print_rule("stmt_list -> stmt stmt_list"); }
-    //| stmt { print_rule("stmt_list -> stmt"); } //single statement allowed for testng cause "x;" might not reduce properly
     | /* empty */ { print_rule("stmt_list -> epsilon"); }
     ;
 
@@ -293,7 +292,7 @@ objectdef
     | LEFT_BRACKET indexed RIGHT_BRACKET { print_rule("objectdef -> [ indexed ]"); }
     ;
 
-// can be empty but due to shift reduce to ebgala 
+// can be empty but due to shift reduce
 indexed
     : indexedelem { print_rule("indexed -> indexedelem"); }
     | indexedelem COMMA indexed { print_rule("indexed -> indexedelem, indexed"); }

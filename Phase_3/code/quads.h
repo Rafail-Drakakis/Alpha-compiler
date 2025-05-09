@@ -99,7 +99,7 @@
  unsigned int istempexpr(expr* e);
  expr* emit_iftableitem(expr* e);
  
- /* For patching incomplete jumps (e.g. break/continue) */
+ /* For patching incomplete jumps */
  int newlist(int quadNo);
  int mergelist(int list1, int list2);
  void patchlist(int list, int label);

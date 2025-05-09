@@ -18,11 +18,12 @@ unsigned scopeSpaceCounter = 1;
 unsigned total = 0;
 unsigned int currQuad = 0;
 static unsigned tempcounter = 0;
-quad* quads = (quad*) 0;
+
 extern unsigned int checkScope;
 extern int yyparse();        
 extern FILE* yyin;          
 SymbolTable *symbol_table;
+quad* quads = (quad*) 0;
 
 unsigned int currscope(void) {
     return checkScope;

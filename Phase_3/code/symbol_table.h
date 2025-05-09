@@ -14,15 +14,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct expr;  // forward declare
+struct expr;
 
 typedef enum {
     GLOBAL,
-    LOCAL_VAR,                      // Renamed to avoid conflict with YACC token
+    LOCAL_VAR,
     ARGUMENT,
     LIBRARY_FUNCTION,
     USER_FUNCTION,
-    TEMP_VAR                        /* i dont know if adding this new type is okay */
+    TEMP_VAR 
 } SymbolType;
 
 typedef enum scopespace_t { 

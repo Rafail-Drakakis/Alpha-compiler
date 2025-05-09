@@ -405,7 +405,6 @@ punctuation (:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
 %%
 
-/* Print error for unclosed nested comment */
 void print_unclosed_comment_error() {
     while (!isStackEmpty(&commentStack)) {
         int startLine = pop(&commentStack);
@@ -431,7 +430,6 @@ int isStringStackEmpty() {
     return isStackEmpty(&stringStack);
 }
 
-/* Print error for unclosed string */
 void print_unclosed_string_error() {
     while (!isStackEmpty(&stringStack)) {
         int startLine = pop(&stringStack);

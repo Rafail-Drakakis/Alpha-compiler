@@ -17,7 +17,7 @@ static const char *get_symbol_type_str(SymbolType symbol_type) {
         case ARGUMENT:          return "formal argument";
         case LIBRARY_FUNCTION:  return "library function";
         case USER_FUNCTION:     return "user function";
-        case TEMP_VAR:          return "temporary variable";    /* i dont know if adding this new type is okay : maybe instead we use LOCAL_VAR ? */
+        case TEMP_VAR:          return "temporary variable";
         default:                return "unknown";
     }
 }
@@ -47,7 +47,7 @@ SymbolTableEntry *create_entry(const char *name, SymbolType type, unsigned int l
 }
 
 /* Search from scope-1 to 0 for a variable with the same name */
-static SymbolTableEntry *lookup_visible_var(SymbolTable *symbol_table, const char *name, unsigned scope) {                                   /* ψάχνουμε από scope-1 ως 0 */
+static SymbolTableEntry *lookup_visible_var(SymbolTable *symbol_table, const char *name, unsigned scope) {
     for (int s = (int)scope - 1; s >= 0; --s)
         for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
             if (current->scope == (unsigned)s &&
@@ -198,8 +198,9 @@ void free_symbol_table(SymbolTable *symbol_table) {
     free(symbol_table);
 }
 
+/* based on lec 10 slide 32 (custom) */
 
-void comperror(char* format, ...) {             /* based on lec 10 slide 32 (custom) */
+void comperror(char* format, ...) {             
     va_list args;
     va_start(args, format);
 
@@ -215,7 +216,7 @@ void comperror(char* format, ...) {             /* based on lec 10 slide 32 (cus
  * Use this function to check correct use of of expression in arithmetic 
  */
 
-void check_arith (expr* e, const char* context) {   /* lec 10 slide 32 */
+void check_arith (expr* e, const char* context) {
     if ( e->type == constbool_e ||
     e->type == conststring_e    ||
     e->type == nil_e            ||
