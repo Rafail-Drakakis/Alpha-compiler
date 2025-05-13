@@ -44,8 +44,9 @@ int main(int argc, char *argv[]) {
     }    
 
     //printf("Starting syntax analysis...\n");
-    if (yyparse() == 0) //printf("Syntax analysis completed successfully.\n");
-    else //  printf("Syntax analysis encountered errors.\n");
+    
+    //if (yyparse() == 0) {printf("Syntax analysis completed successfully.\n");}
+    //else printf("Syntax analysis encountered errors.\n");
     
     print_symbol_table(symbol_table);
 
