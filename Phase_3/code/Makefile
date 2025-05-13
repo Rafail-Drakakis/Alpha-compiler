@@ -15,9 +15,10 @@ LEX_C = lex.yy.c
 MAIN_C = main.c
 SYMBOL_TABLE_C = symbol_table.c
 SYMBOL_TABLE_H = symbol_table.h
+QUADS_C = quads.c
 QUADS_H = quads.h
 
-OBJS = parser.o lex.yy.o main.o symbol_table.o
+OBJS = parser.o lex.yy.o main.o symbol_table.o quads.o
 EXE = intermediate
 
 all: $(EXE)
@@ -42,6 +43,9 @@ main.o: $(MAIN_C) $(SYMBOL_TABLE_H) $(QUADS_H) $(BISON_H)
 
 symbol_table.o: $(SYMBOL_TABLE_C) $(SYMBOL_TABLE_H)
 	$(CC) $(CFLAGS) -c $(SYMBOL_TABLE_C) -o symbol_table.o
+
+quads.o: $(QUADS_C) $(QUADS_H)
+	$(CC) $(CFLAGS) -c $(QUADS_C) -o quads.o
 
 clean:
 	rm -f $(OBJS) $(LEX_C) $(BISON_C) $(BISON_H) $(EXE) parser.tab.c parser.tab.h
