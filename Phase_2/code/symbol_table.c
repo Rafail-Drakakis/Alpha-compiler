@@ -35,7 +35,6 @@ SymbolTableEntry *create_entry(const char *name, SymbolType type, unsigned int l
     return entry;
 }
 
-/* Search from scope-1 to 0 for a variable with the same name */
 static SymbolTableEntry *lookup_visible_var(SymbolTable *symbol_table, const char *name, unsigned scope) {                                   /* ψάχνουμε από scope-1 ως 0 */
     for (int s = (int)scope - 1; s >= 0; --s)
         for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)

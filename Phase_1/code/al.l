@@ -36,7 +36,6 @@ typedef struct Stack {
 Stack commentStack;
 Stack stringStack;
 
-/* Token Structure */
 typedef struct alpha_token_t {
     unsigned int line_number;
     unsigned int token_number;
@@ -53,7 +52,6 @@ int comment_line_end = 0;
 int comment_nested = 0;
 int string_line_start = 0;
 
-/* Function to insert tokens into the list */
 void insert_token(int line, const char* text, const char* type, const char* type_of_data) {
     alpha_token_t* new_token = (alpha_token_t*)malloc(sizeof(alpha_token_t));
     new_token->line_number = line;
@@ -84,13 +82,13 @@ void push(Stack* stack, int line) {
         exit(EXIT_FAILURE);
     }
     newNode->line = line;
-    newNode->has_nested = 0;	// in the begining default is that these is no nested comment 
+    newNode->has_nested = 0;
     newNode->next = stack->top;
     stack->top = newNode;
 }
 
 int pop(Stack* stack) {
-    if (!stack->top) return -1;  // Stack empty
+    if (!stack->top) return -1;
     StackNode* temp = stack->top;
     int line = temp->line;
     stack->top = stack->top->next;
@@ -108,7 +106,6 @@ void freeStack(Stack* stack) {
     }
 }
 
-/* Free Token List */
 void free_token_list() {
     alpha_token_t* temp;
     while (list_head) {
@@ -126,13 +123,10 @@ void free_token_list() {
 %option yylineno
 %option noyywrap
 
-/* for block comments, before %% */
 %x COMMENT
 
-/* for strings, before %% */
 %x STRING_MODE
 
-/* Regular Expressions */
 id          [a-zA-Z][a-zA-Z_0-9]*
 intconst    (0[xX][0-9A-Fa-f]+)|([0-9]+)
 realconst   [0-9]+\.[0-9]+(e[+-]?[0-9]+)?
@@ -182,7 +176,6 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
     else if (!token_string_compare(yytext, ">="))  { insert_token(yylineno, yytext, "OPERATOR GREATER_EQUAL", "enumerated"); }
     else if (!token_string_compare(yytext, "<="))  { insert_token(yylineno, yytext, "OPERATOR LESS_EQUAL", "enumerated"); }
     else {
-        /* If none of the above operators doesnt match then just store it as a general OPERATOR. */
         insert_token(yylineno, yytext, "OPERATOR", "enumerated");
     }
     return 1;
@@ -230,7 +223,6 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
             } else if (processed_str[i + 1] == '\\') {
                 replacement_regex = '\\';
             } else {
-                // If the escape sequence is unrecognized, leave it as is.
                 continue;
             }
             processed_str[i] = replacement_regex;
@@ -398,7 +390,6 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 
 %%
 
-/* Print error for unclosed nested comment */
 void print_unclosed_comment_error() {
     while (!isStackEmpty(&commentStack)) {
         int startLine = pop(&commentStack);
@@ -424,7 +415,6 @@ int isStringStackEmpty() {
     return isStackEmpty(&stringStack);
 }
 
-/* Print error for unclosed string */
 void print_unclosed_string_error() {
     while (!isStackEmpty(&stringStack)) {
         int startLine = pop(&stringStack);
@@ -438,7 +428,6 @@ void print_unclosed_string_error() {
     }
 }
 
-/* Function to print tokens */
 void print_output() {
     alpha_token_t* temp = list_head;
     printf("---------------- Lexical Analysis ----------------\n");

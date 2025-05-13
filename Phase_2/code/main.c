@@ -39,18 +39,14 @@ int main(int argc, char *argv[]) {
 
     symbol_table = create_symbol_table();
 
-    /* sizeof(library_functions) / sizeof(library_functions[0]) is used to get the number of elements in the array */
     for (int k = 0; k < (sizeof(library_functions) / sizeof(library_functions[0])); k++) {
         insert_symbol(symbol_table, library_functions[k], LIBRARY_FUNCTION, 0, 0);
     }    
 
     //printf("Starting syntax analysis...\n");
-    if (yyparse() == 0) {
-        //printf("Syntax analysis completed successfully.\n");
-    } else {
-        //  printf("Syntax analysis encountered errors.\n");
-    }
-
+    if (yyparse() == 0) //printf("Syntax analysis completed successfully.\n");
+    else //  printf("Syntax analysis encountered errors.\n");
+    
     print_symbol_table(symbol_table);
 
     fclose(yyin);

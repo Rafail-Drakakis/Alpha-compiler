@@ -11,7 +11,7 @@
     #include <stdio.h>
     #include <stdlib.h>
     #include "symbol_table.h"
-    #include "parser.h"  // Include Bison-generated header
+    #include "parser.h"
 
     extern int yylineno;
     extern char* yytext;
@@ -21,16 +21,15 @@
     int anonymus_function_counter = 0;
 
     void print_rule(const char* rule) {
-        // printf("Reduced by rule: %s\n", rule);
-        (void)0;
+        (void)0; // printf("Reduced by rule: %s\n", rule);
     }
 
-    unsigned int checkScope = 0;        // 0 for global, 1 for local
+    unsigned int checkScope = 0;
     int checkLoopDepth = 0;
     int inside_function_scope = 0;
-    int inside_function_depth = 0;      // 0 for global, >0 for function scope
+    int inside_function_depth = 0;
     static int first_brace_of_func = 0;
-    int is_calling = 0;			// reducing lvalue for function call 1, normal lvalues 0
+    int is_calling = 0;
 
 
     typedef struct formal_argument_node {
@@ -52,15 +51,13 @@
     }
 
     void enter_scope() {
-        //printf("Entering new scope: %u\n", checkScope);
-        checkScope++;
+        checkScope++; //printf("Entering new scope: %u\n", checkScope);
     }
 
     static void exit_scope(void) {
         if (checkScope == 0) {
             return;
-	}
-
+	    }
         //printf("Exiting  scope: %u\n", checkScope-1);
         deactivate_entries_from_curr_scope(symbol_table, checkScope-1);
         --checkScope;
@@ -73,7 +70,7 @@
     double realValue;
     char* stringValue;
     struct formal_argument_node* arglist;
-    struct SymbolTableEntry* symbol;  // for lvalue
+    struct SymbolTableEntry* symbol;
 }
 
 %token <stringValue> IF ELSE WHILE FOR RETURN BREAK CONTINUE LOCAL TRUE FALSE NIL
@@ -90,13 +87,13 @@
 %type <symbol> lvalue
 %type <symbol> member
 
-%right ASSIGNMENT        /* = has less priority in compare with all the other */
+%right ASSIGNMENT
 %left OR
 %left AND
 %nonassoc EQUAL_EQUAL NOT_EQUAL
 %nonassoc GREATER_THAN GREATER_EQUAL LESS_THAN LESS_EQUAL
 %left  PLUS 
-%left MINUS              /* changed to UMINUS for (x-y) - z */
+%left MINUS
 %left MULTIPLY DIVIDE MODULO
 %right NOT
 %right PLUS_PLUS
@@ -105,10 +102,7 @@
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
-
-%nonassoc UMINUS         /* unary minus operator */
-
-// %expect 2
+%nonassoc UMINUS
 
 %start program
 
@@ -120,7 +114,6 @@ program
 
 stmt_list
     : stmt stmt_list { print_rule("stmt_list -> stmt stmt_list"); }
-    //| stmt { print_rule("stmt_list -> stmt"); } //single statement allowed for testng cause "x;" might not reduce properly
     | /* empty */ { print_rule("stmt_list -> epsilon"); }
     ;
 
@@ -148,7 +141,6 @@ expr
 assignexpr
     : lvalue ASSIGNMENT expr { 
           print_rule("assignexpr -> lvalue = expr");
-          /* we only check invalid lvalue when the user actually writes an assignment */
           if ($1 && ($1->type == USER_FUNCTION || $1->type == LIBRARY_FUNCTION)) {
               fprintf(stderr, "Error: Symbol '%s' is not a valid lvalue (line %d).\n", $1->name, yylineno);
           } 
@@ -208,15 +200,6 @@ lvalue
     : IDENTIFIER
       {
           SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
-          /* 
-          if(!is_calling){
-              if (found_identifier &&
-                  (found_identifier->type == USER_FUNCTION || found_identifier->type == LIBRARY_FUNCTION) &&
-                  found_identifier->scope == 0 && checkScope == 0) {
-                  fprintf(stderr, "Error: Symbol '%s' is not a valid lvalue (line %d).\n", $1, yylineno);
-              } 
-          }
-          */
           if (!found_identifier) {
             // Create it only if we're in assignment (e.g., x = 5;)
             insert_symbol(symbol_table, $1, (checkScope == 0) ? GLOBAL : LOCAL_VAR, yylineno, checkScope);
@@ -307,7 +290,6 @@ objectdef
 indexed
     : indexedelem { print_rule("indexed -> indexedelem"); }
     | indexedelem COMMA indexed { print_rule("indexed -> indexedelem, indexed"); }
-    // | /* empty */ { print_rule("indexed -> epsilon"); }
     ;
 
 indexedelem
@@ -375,10 +357,7 @@ funcdef
       }
   ;
 
-/* NOTE:
-   now idlist returns a list
-   $$ is a pointer to formal_argument_node 
-*/
+/* NOTE: Now idlist returns a list and $$ is a pointer to formal_argument_node */
 
 idlist
     : IDENTIFIER { 
