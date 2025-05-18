@@ -12,6 +12,7 @@
     #include <stdlib.h>
     #include "symbol_table.h"
     #include "parser.h"
+    #include "quads.h"
 
     extern int yylineno;
     extern char* yytext;
@@ -73,6 +74,7 @@
     char* stringValue;
     struct formal_argument_node* arglist;
     struct SymbolTableEntry* symbol;  // for lvalue
+    struct expr    *expression; // for expressions
 }
 
 %token <stringValue> IF ELSE WHILE FOR RETURN BREAK CONTINUE LOCAL TRUE FALSE NIL
@@ -80,14 +82,16 @@
 %token <stringValue> LEFT_PARENTHESIS RIGHT_PARENTHESIS
 %token <stringValue> LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %token <stringValue> SEMICOLON COMMA COLON
-%token <stringValue> IDENTIFIER INTCONST REALCONST STRING
+%token <stringValue> IDENTIFIER STRING
+%token <intValue>   INTCONST
+%token <realValue>  REALCONST
 %token <stringValue> FUNCTION AND OR NOT MODULO PLUS_PLUS MINUS_MINUS EQUAL_EQUAL LESS GREATER
 %token <stringValue> DOT_DOT DOT COLON_COLON PUNCTUATION OPERATOR
 
-%type <arglist> idlist
-%type <arglist> formal_arguments
-%type <symbol> lvalue
-%type <symbol> member
+%type <arglist>      idlist formal_arguments
+%type <expression>   expr term primary const
+%type <expression>   lvalue member assignexpr
+
 
 %right ASSIGNMENT        /* = has less priority in compare with all the other */
 %left OR
@@ -137,22 +141,63 @@ stmt
     ;
 
 expr
-    : expr op { print_rule("expr -> expr op expr"); }
-    | assignexpr { print_rule("expr -> assignexpr"); }
-    | term { print_rule("expr -> term"); }  // Now ensures `term` is used
-    | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); }    
+    : expr PLUS expr
+      { expr *r=newexpr(arithexpr_e); r->sym=newtemp();
+        emit(add,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno); $$=r;}
+    | expr MINUS expr
+      { expr *r=newexpr(arithexpr_e); r->sym=newtemp();
+        emit(sub,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno); $$=r;}
+    | expr MULTIPLY expr
+      { expr *r=newexpr(arithexpr_e); r->sym=newtemp();
+        emit(mul,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno); $$=r;}
+    | expr DIVIDE expr
+      { expr *r=newexpr(arithexpr_e); r->sym=newtemp();
+        emit(idiv,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno); $$=r;}
+    | expr MODULO expr
+      { expr *r=newexpr(arithexpr_e); r->sym=newtemp();
+        emit(mod,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno); $$=r;}
+    | expr GREATER_THAN expr
+      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
+        emit(if_greater,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno);
+        $$=r; }
+    | expr GREATER_EQUAL expr
+      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
+        emit(if_geatereq,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno);
+        $$=r; }
+    | expr LESS_THAN expr
+      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
+        emit(if_less,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno);
+        $$=r; }
+    | expr LESS_EQUAL expr
+      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
+        emit(if_lesseq,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno);
+        $$=r; }
+    | expr EQUAL_EQUAL expr
+      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
+        emit(if_eq,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno);
+        $$=r; }
+    | expr NOT_EQUAL expr
+      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
+        emit(if_noteq,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno);
+        $$=r; }
+
+    | assignexpr { $$ = $1; }
+    | term       { $$ = $1; } 
+    | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); }
     ;
 
 assignexpr
-    : lvalue ASSIGNMENT expr { 
-          print_rule("assignexpr -> lvalue = expr");
-          /* we only check invalid lvalue when the user actually writes an assignment */
-          if ($1 && ($1->type == USER_FUNCTION || $1->type == LIBRARY_FUNCTION)) {
-              fprintf(stderr, "Error: Symbol '%s' is not a valid lvalue (line %d).\n", $1->name, yylineno);
-          } 
+    : lvalue ASSIGNMENT expr
+      {
+          if($1->type== programfunc_e || $1->type== libraryfunc_e)
+              fprintf(stderr,"Error: Symbol '%s' is not a valid l-value (line %d)\n",
+                      $1->sym->name,yylineno);
+          emit(assign,emit_iftableitem($3),NULL,$1,0,yylineno);
+          $$=$1;
       }
-    ;
+;
 
+/*
 op
     : plus_op expr       %prec PLUS
     | minus_op expr      %prec MINUS
@@ -182,15 +227,16 @@ eqeq_op:            EQUAL_EQUAL { print_rule("op -> =="); };
 noteq_op:           NOT_EQUAL { print_rule("op -> !="); };
 and_op:             AND { print_rule("op -> and"); };
 or_op:              OR { print_rule("op -> or"); };
+*/
 
 term
     : LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { print_rule("term -> ( expr )"); }
     | MINUS expr %prec UMINUS { print_rule("term -> - expr"); }
     | NOT expr { print_rule("term -> not expr"); }
-    | PLUS_PLUS lvalue { if ($2 && ($2->type == USER_FUNCTION || $2->type == LIBRARY_FUNCTION)) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->name, yylineno); } { print_rule("term -> ++ lvalue"); }
-    | lvalue PLUS_PLUS { if ($1 && ($1->type == USER_FUNCTION || $1->type == LIBRARY_FUNCTION)) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->name, yylineno); } { print_rule("term -> lvalue ++"); }
-    | MINUS_MINUS lvalue { if ($2 && ($2->type == USER_FUNCTION || $2->type == LIBRARY_FUNCTION)) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->name, yylineno); } { print_rule("term -> -- lvalue"); }
-    | lvalue MINUS_MINUS { if ($1 && ($1->type == USER_FUNCTION || $1->type == LIBRARY_FUNCTION)) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->name, yylineno); } { print_rule("term -> lvalue --"); }
+    | PLUS_PLUS lvalue { if ($2 && ($2->sym->type == USER_FUNCTION || $2->sym->type == LIBRARY_FUNCTION)) fprintf(stderr,"Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->sym->name,yylineno); }  { $$ = $2; }
+    | lvalue PLUS_PLUS { if ($1 && ($1->sym->type == USER_FUNCTION || $1->sym->type == LIBRARY_FUNCTION)) fprintf(stderr,"Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->sym->name,yylineno); }  { $$ = $1; }
+    | MINUS_MINUS lvalue { if ($2 && ($2->sym->type == USER_FUNCTION || $2->sym->type == LIBRARY_FUNCTION)) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->sym->name, yylineno); $$ = $2; print_rule("term -> -- lvalue"); }
+    | lvalue MINUS_MINUS { if ($1 && ($1->sym->type == USER_FUNCTION || $1->sym->type == LIBRARY_FUNCTION)) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->sym->name, yylineno); $$ = $1; print_rule("term -> lvalue --"); }
     | primary { print_rule("term -> primary"); }
     ;
 
@@ -205,40 +251,37 @@ primary
 lvalue
     : IDENTIFIER
       {
-          SymbolTableEntry *found_identifier = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
-          if (!found_identifier) {
-            // Create it only if we're in assignment (e.g., x = 5;)
-            insert_symbol(symbol_table, $1, (checkScope == 0) ? GLOBAL : LOCAL_VAR, yylineno, checkScope);
-            $$ = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
-        } else if (inside_function_scope && found_identifier->type == ARGUMENT && found_identifier->scope < checkScope) {
-            fprintf(stderr, "Error: Cannot access argument '%s' from outer function inside nested function (line %d).\n", $1, yylineno);
-            $$ = NULL;
-        } 
-        $$ = found_identifier;
+          SymbolTableEntry *sym = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
+          if (!sym) {
+              insert_symbol(symbol_table, $1, (checkScope==0)? GLOBAL : LOCAL_VAR, yylineno, checkScope);
+              sym = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
+          }
+          $$ = lvalue_expr(sym);
       }
     | LOCAL IDENTIFIER
       {
           insert_symbol(symbol_table, $2, LOCAL_VAR, yylineno, checkScope);
-          $$ = lookup_symbol(symbol_table, $2, checkScope, inside_function_scope);  // we store the symbol
+          SymbolTableEntry *sym = lookup_symbol(symbol_table, $2, checkScope, inside_function_scope);
+          $$ = lvalue_expr(sym);
       }
     | COLON_COLON IDENTIFIER
       {
-          $$ = lookup_symbol(symbol_table, $2, 0, 0);
-          if ($$ == NULL) {
-              fprintf(stderr, "Error: Symbol '%s' not found in global scope at line %d\n", $2, yylineno);
-          }
+          SymbolTableEntry *sym = lookup_symbol(symbol_table, $2, 0, 0);
+          if (!sym)
+              fprintf(stderr, "Error: Symbol '%s' not found in global scope (line %d)\n", $2, yylineno);
+          $$ = lvalue_expr(sym);
       }
     | member
-    ;
+;
 
 const
-    : INTCONST { print_rule("const -> INTCONST"); }
-    | REALCONST { print_rule("const -> REALCONST"); }
-    | STRING { print_rule("const -> STRING"); }
-    | NIL { print_rule("const -> NIL"); }
-    | TRUE { print_rule("const -> TRUE"); }
-    | FALSE { print_rule("const -> FALSE"); }
-    ;
+    : INTCONST   { $$ = newexpr_constnum($1);                      }
+    | REALCONST  { $$ = newexpr_constnum($1);                      }
+    | STRING     { $$ = newexpr_conststring($1);                   }
+    | NIL        { $$ = newexpr(nil_e);                            }
+    | TRUE       { $$ = newexpr_constbool(1);                      }
+    | FALSE      { $$ = newexpr_constbool(0);                      }
+;
 
 member
     : lvalue DOT IDENTIFIER { 
