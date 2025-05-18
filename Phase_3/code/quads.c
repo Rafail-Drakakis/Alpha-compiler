@@ -471,7 +471,7 @@ static const char *expr_to_str(expr *e)
     }
  
      fprintf(f,
-         "\n%-4s %-12s %-10s %-10s %-10s %-5s\n",
+         "\n%-4s %-11s %-10s %-10s %-10s %-5s\n",
          "quad#", "opcode", "result", "arg1", "arg2", "label");
  
      for (unsigned i = 0; i < currQuad; ++i) {
