@@ -180,6 +180,14 @@ expr
       { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
         emit(if_noteq,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno);
         $$=r; }
+    | expr AND expr
+      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
+        emit(and , emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
+        $$ = r; }
+    | expr OR expr
+      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
+        emit(or  , emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
+        $$ = r; }
 
     | assignexpr { $$ = $1; }
     | term       { $$ = $1; } 
