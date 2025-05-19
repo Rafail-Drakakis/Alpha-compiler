@@ -31,7 +31,7 @@ unsigned int currscope(void) {
 
 void expand(void) {
     assert(total == currQuad);
-    quad *p = (quad *)malloc(NEW_SIZE);
+    quad *p = (quad *)malloc(NEW_SIZE);   /* note: is this overwritten if quads != NULL */
     if (!quads)
     {
         quads = malloc(NEW_SIZE);
