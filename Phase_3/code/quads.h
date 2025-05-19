@@ -40,7 +40,7 @@ typedef enum expr_t {
     programfunc_e, libraryfunc_e,
     arithexpr_e, boolexpr_e, assignexpr_e, newtable_e,
     constnum_e, constbool_e, conststring_e,
-    nil_e
+    nil_e, call_e /* call_e new 19 may */ 
 } expr_t;
 
 typedef struct expr {
@@ -50,6 +50,7 @@ typedef struct expr {
     double numConst;
     char* strConst;
     unsigned char boolConst;
+    struct expr *args; // new 19 may
     struct expr* next;
 } expr;
 
@@ -94,6 +95,10 @@ SymbolTableEntry* newtemp(void);
 void resettemp(void);
 unsigned int istempname(char* s);
 unsigned int istempexpr(expr* e);
+
+expr* make_call_expr(expr* func_expr, expr* args);
+expr* create_expr_list(expr* head, expr* tail);
+
 expr* emit_iftableitem(expr* e);
 void print_quads(FILE* f);
 

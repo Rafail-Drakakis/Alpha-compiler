@@ -9,6 +9,7 @@
 
  #include <stdio.h>
  #include <string.h>
+ #include <stdint.h>	// uintptr_t
  #include "quads.h"
  #include "symbol_table.h"
  
@@ -152,8 +153,13 @@ static const char *expr_to_str(expr *e)
  
  expr* newexpr(expr_t t) {
      expr* e = (expr*) malloc(sizeof(expr));
+     if (!e) {
+         fprintf(stderr, "Out of memory\n");
+         exit(EXIT_FAILURE);
+     }
      memset(e, 0, sizeof(expr));
      e->type = t;
+     e->sym = NULL;
      return e;
  }
  
@@ -218,8 +224,39 @@ static const char *expr_to_str(expr *e)
      return e;
  }
  
+
+expr* make_call_expr(expr* func_expr, expr* args) {
+    expr* call_expr = newexpr(call_e);  // assuming call_e is a type for function calls
+    call_expr->sym = func_expr->sym;    // or store the function symbol
+    call_expr->args = args;              // you might need to add an args field to expr struct
+    return call_expr;
+}
+expr* create_expr_list(expr* head, expr* tail) {
+    if (!head) return tail;
+    head->next = tail;
+    return head;
+}
+
  expr* emit_iftableitem(expr* e) {
+     
+     /* --- modification: NULL, low address and alignment check ---- */
+     if (!e) {
+         printf("FATAL: NULL expr passed to emit_iftableitem!\n");
+         exit(EXIT_FAILURE);
+     }
+ 
+     // for invalid/corrupted pointers
+     if ((uintptr_t)e < 4096 || ((uintptr_t)e & 0xF) != 0) {
+         printf("FATAL: Invalid expr pointer: %p\n", (void*)e);
+         exit(EXIT_FAILURE);
+     }
+     /* ------------------------------------------------------------ */
      if (e->type != tableitem_e) return e;
+
+     if (!e->index) {
+        fprintf(stderr, "FATAL: expr->index is NULL in emit_iftableitem!\n");
+        exit(EXIT_FAILURE);
+    }
  
      expr* result = newexpr(var_e);
      result->sym = newtemp();

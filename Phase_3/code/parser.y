@@ -7,9 +7,12 @@
  *      csd5082 Theologos Kokkinellis
  */
 
+// expr* current_function_expr = NULL;
+
 %{
     #include <stdio.h>
     #include <stdlib.h>
+    #include <stdint.h>
     #include "symbol_table.h"
     #include "parser.h"
     #include "quads.h"
@@ -31,6 +34,8 @@
     int inside_function_depth = 0;      // 0 for global, >0 for function scope
     static int first_brace_of_func = 0;
     int is_calling = 0;			        // reducing lvalue for function call 1, normal lvalues 0
+    expr* current_function_expr = NULL;
+    char* current_function_char = NULL;
 
 
     typedef struct formal_argument_node {
@@ -89,8 +94,11 @@
 %token <stringValue> DOT_DOT DOT COLON_COLON PUNCTUATION OPERATOR
 
 %type <arglist>      idlist formal_arguments
-%type <expression>   expr term primary const
-%type <expression>   lvalue member assignexpr
+//%type <expression>   expr term primary const call funcdef
+//%type <expression>   lvalue member assignexpr
+%type <expression> expr term primary const lvalue member assignexpr call funcdef elist normcall methodcall callsuffix
+
+// %type <expr_val> expr term call funcdef
 
 
 %right ASSIGNMENT        /* = has less priority in compare with all the other */
@@ -185,7 +193,17 @@ expr
         emit(and , emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r; }
     | expr OR expr
-      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
+      { expr *r=newexpr(boolexpr_e);
+        r->sym=newtemp();
+        
+        fprintf(stderr, "DEBUG: $1 = %p, $3 = %p\n", $1, $3);
+	assert($1 != NULL && $3 != NULL);
+        
+        fprintf(stderr, "DEBUG: $1->type = %d, $3->type = %d\n", $1->type, $3->type);
+        if ((uintptr_t)$3 < 4096 || ((uintptr_t)$3 & 0xF) != 0) {
+            fprintf(stderr, "FATAL: $3 seems corrupted: %p\n", (void*)$3);
+            exit(EXIT_FAILURE);
+        }
         emit(or  , emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r; }
 
@@ -309,14 +327,22 @@ call_member
     ;
 
 call
-    : call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("call -> call (elist)"); }
+    : call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
+        $$ = make_call_expr($1, $3); // $1 = previous call expr, $3 = argument list
+        print_rule("call -> call (elist)"); 
+      }
     | lvalue {
         is_calling = 1;
       } callsuffix { 
-        is_calling = 0; 
+        is_calling = 0;
+        $$ = make_call_expr($1, $3);
         print_rule("call -> lvalue callsuffix"); 
       }
-    | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("call -> ( funcdef ) ( elist )"); }     
+    | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
+        //expr* fexpr = $2; // funcdef now returns expr*
+        //$$ = make_call_expr(current_function_expr, $6);
+        $$ = make_call_expr($2, $5);
+        print_rule("call -> ( funcdef ) ( elist )"); }     
     ;
 
 callsuffix
@@ -333,9 +359,19 @@ methodcall
     ;
 
 elist
-    : expr { print_rule("elist -> expr"); }
-    | expr COMMA elist { print_rule("elist -> expr , elist"); }
-    | /* empty */ { print_rule("elist -> epsilon"); }  // Allows empty argument lists
+    : expr { 
+        // $$ = create_expr_list($1, NULL);	// $1 is expr*
+        $$ = $1;              // $1 is expr*, so $$ should be expr*
+        print_rule("elist -> expr"); 
+      }
+    | expr COMMA elist { 
+        $$ = create_expr_list($1, $3);		  // returns expr* list
+        print_rule("elist -> expr , elist"); 
+      }
+    | /* empty */ { 
+        $$ = NULL;
+        print_rule("elist -> epsilon");  // Allows empty argument lists
+      }
     ;
 
 objectdef
@@ -357,10 +393,23 @@ formal_arguments
     : idlist { $$ = $1; }
     ;
 
+/* 
+	Summary of additions:
+	After insert_symbol, store its return in func_sym.
+	Create expr* e = newexpr(programfunc_e).
+	Assign e->sym = func_sym.
+	Assign $$ = e; 
+*/
+
 funcdef
   : FUNCTION IDENTIFIER
       {
-          insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
+          SymbolTableEntry *func_sym = insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
+          expr* f = newexpr(programfunc_e);
+          f->sym = func_sym;
+	  current_function_expr = f;
+          //$<expression>3 = e;
+
           enter_scope();
           ++inside_function_depth;
           inside_function_scope = 1;
@@ -379,6 +428,7 @@ funcdef
       {
           --inside_function_depth;
           exit_scope();
+          $$ = $<expression>3; // use previously stored expr*
       }
 
   | FUNCTION
@@ -389,7 +439,13 @@ funcdef
               exit(EXIT_FAILURE);
           }
           sprintf(anonymous_name, "$%d", anonymus_function_counter++); // here we generate unique name
-          insert_symbol(symbol_table, anonymous_name, USER_FUNCTION, yylineno, checkScope);
+          SymbolTableEntry *func_sym = insert_symbol(symbol_table, anonymous_name, USER_FUNCTION, yylineno, checkScope);
+          expr* e = newexpr(programfunc_e);
+          e->sym = func_sym;
+          
+          // current_function_expr = e; // store globally  // incopatible since it is char *
+          //$<expression>3 = e;
+          $$ = e; 
           
           enter_scope();
           ++inside_function_depth;
@@ -410,6 +466,8 @@ funcdef
       {
           --inside_function_depth;
           exit_scope();
+          // $$ = $<expression>3;
+          $$ = $1;
           print_rule("funcdef -> function ( idlist ) block");
       }
   ;
