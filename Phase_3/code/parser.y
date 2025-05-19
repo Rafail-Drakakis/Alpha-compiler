@@ -197,7 +197,7 @@ expr
         r->sym=newtemp();
         
         fprintf(stderr, "DEBUG: $1 = %p, $3 = %p\n", $1, $3);
-	assert($1 != NULL && $3 != NULL);
+	    assert($1 != NULL && $3 != NULL);
         
         fprintf(stderr, "DEBUG: $1->type = %d, $3->type = %d\n", $1->type, $3->type);
         if ((uintptr_t)$3 < 4096 || ((uintptr_t)$3 & 0xF) != 0) {
@@ -301,12 +301,12 @@ lvalue
 ;
 
 const
-    : INTCONST   { $$ = newexpr_constnum($1);                      }
-    | REALCONST  { $$ = newexpr_constnum($1);                      }
-    | STRING     { $$ = newexpr_conststring($1);                   }
-    | NIL        { $$ = newexpr(nil_e);                            }
-    | TRUE       { $$ = newexpr_constbool(1);                      }
-    | FALSE      { $$ = newexpr_constbool(0);                      }
+    : INTCONST   { $$ = newexpr_constnum($1);         }
+    | REALCONST  { $$ = newexpr_constnum($1);         }
+    | STRING     { $$ = newexpr_conststring($1);      }
+    | NIL        { $$ = newexpr(nil_e);               }
+    | TRUE       { $$ = newexpr_constbool(1);         }
+    | FALSE      { $$ = newexpr_constbool(0);         }
 ;
 
 member
@@ -339,6 +339,7 @@ call
         print_rule("call -> lvalue callsuffix"); 
       }
     | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
+        /* NOTE: THIS IS WHERE THE INCOMPATIBILITY OCCURS */
         //expr* fexpr = $2; // funcdef now returns expr*
         //$$ = make_call_expr(current_function_expr, $6);
         $$ = make_call_expr($2, $5);
@@ -443,6 +444,7 @@ funcdef
           expr* e = newexpr(programfunc_e);
           e->sym = func_sym;
           
+          /* NOTE: THIS IS THE CAUSE OF THE INCOMPATIBILITY */
           // current_function_expr = e; // store globally  // incopatible since it is char *
           //$<expression>3 = e;
           $$ = e; 
