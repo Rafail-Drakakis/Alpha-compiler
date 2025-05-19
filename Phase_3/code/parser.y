@@ -465,7 +465,7 @@ funcdef
     {
         --inside_function_depth;
         exit_scope();
-        $$ = $<expression>2;  // Use the midrule placeholder
+        $$ = $<expression>2;
         print_rule("funcdef -> function ( idlist ) block");
     }
     ;
