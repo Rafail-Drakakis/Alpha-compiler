@@ -35,11 +35,19 @@ void expand(void) {
     if (!quads)
     {
         quads = malloc(NEW_SIZE);
+        if (!quads) {
+            fprintf(stderr, "memory allocation failed in expand\n");
+            exit(EXIT_FAILURE);
+        }
         total = EXPAND_SIZE;
     }
     else
     {
         quad *p = malloc(NEW_SIZE);
+        if (!p) {
+            fprintf(stderr, "memory allocation failed in expand\n");
+            exit(EXIT_FAILURE);
+        }
         memcpy(p, quads, CURR_SIZE);
         free(quads);
         quads = p;
