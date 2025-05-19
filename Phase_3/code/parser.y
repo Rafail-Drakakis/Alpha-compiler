@@ -340,8 +340,8 @@ call
       }
     | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
         /* NOTE: THIS IS WHERE THE INCOMPATIBILITY OCCURS */
-        //expr* fexpr = $2; // funcdef now returns expr*
-        //$$ = make_call_expr(current_function_expr, $6);
+        // expr* fexpr = $2; // funcdef now returns expr*
+        // $$ = make_call_expr(current_function_expr, $6);
         $$ = make_call_expr($2, $5);
         print_rule("call -> ( funcdef ) ( elist )"); }     
     ;
@@ -474,11 +474,6 @@ funcdef
           print_rule("funcdef -> function ( idlist ) block");
       }
   ;
-
-/* NOTE:
-   now idlist returns a list
-   $$ is a pointer to formal_argument_node 
-*/
 
 idlist
     : IDENTIFIER { 

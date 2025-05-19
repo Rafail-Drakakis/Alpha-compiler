@@ -224,6 +224,7 @@ static const char *expr_to_str(expr *e)
      return e;
  }
  
+/* added make_call_expr & create_expr_list (not sure if they can be replaced by existing functions) */
 
 expr* make_call_expr(expr* func_expr, expr* args) {
     expr* call_expr = newexpr(call_e);  // assuming call_e is a type for function calls
