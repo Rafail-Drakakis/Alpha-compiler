@@ -56,6 +56,7 @@ static SymbolTableEntry *lookup_visible_var(SymbolTable *symbol_table, const cha
     return NULL;
 }
 
+/* modified insert_symbol: from void to SymbolTableEntry to store entries and use them from funcdef in call */
 SymbolTableEntry* insert_symbol(SymbolTable *symbol_table, const char *name, SymbolType type, unsigned int line, unsigned int scope) {
 
     if (type == LOCAL_VAR) {                               
@@ -63,6 +64,7 @@ SymbolTableEntry* insert_symbol(SymbolTable *symbol_table, const char *name, Sym
             return NULL;                                        
     }
 
+    /* note: are the {} correct ? */
     for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
         if (current->scope == scope && strcmp(current->name, name) == 0) {
             int allow_duplicate = (current->type == ARGUMENT && type == ARGUMENT && current->line_number != line);
