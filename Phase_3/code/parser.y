@@ -399,7 +399,8 @@ formal_arguments
 	After insert_symbol, store its return in func_sym.
 	Create expr* e = newexpr(programfunc_e).
 	Assign e->sym = func_sym.
-	Assign $$ = e; 
+	Assign $$ = e;              NOTE: there is an issue here, the thing is the type of $$ is not compatible in call and funcdef 
+                                NOTE: sometimes it is expr* while other times char*
 */
 
 funcdef
@@ -429,7 +430,7 @@ funcdef
       {
           --inside_function_depth;
           exit_scope();
-          $$ = $<expression>3; // use previously stored expr*
+          $$ = $<expression>3;      // use previously stored expr*
       }
 
   | FUNCTION
