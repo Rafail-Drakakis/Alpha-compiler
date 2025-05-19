@@ -94,13 +94,9 @@
 %token <stringValue> DOT_DOT DOT COLON_COLON PUNCTUATION OPERATOR
 %type <expression> funcdef
 
-%type <arglist>      idlist formal_arguments
-//%type <expression>   expr term primary const call funcdef
-//%type <expression>   lvalue member assignexpr
-%type <expression> expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
-
-// %type <expr_val> expr term call funcdef
-
+%type <arglist>      	idlist formal_arguments
+%type <expression> 	expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
+%type <intValue>	ifprefix elseprefix ifstmt stmt
 
 %right ASSIGNMENT        /* = has less priority in compare with all the other */
 %left OR
@@ -363,16 +359,16 @@ methodcall
 elist
     : expr { 
         // $$ = create_expr_list($1, NULL);	// $1 is expr*
-        $$ = $1;              // $1 is expr*, so $$ should be expr*
+        $$ = $1;              			// $1 is expr*, so $$ should be expr*
         print_rule("elist -> expr"); 
       }
     | expr COMMA elist { 
-        $$ = create_expr_list($1, $3);		  // returns expr* list
+        $$ = create_expr_list($1, $3);		// returns expr* list
         print_rule("elist -> expr , elist"); 
       }
     | /* empty */ { 
         $$ = NULL;
-        print_rule("elist -> epsilon");  // Allows empty argument lists
+        print_rule("elist -> epsilon");  	// Allows empty argument lists
       }
     ;
 
@@ -485,8 +481,37 @@ idlist
     ;
 
 ifstmt
-    : IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS stmt %prec LOWER_THAN_ELSE { print_rule("ifstmt -> if ( expr ) stmt"); }
-    | IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS stmt ELSE stmt { print_rule("ifstmt -> if ( expr ) stmt else stmt"); }
+    : ifprefix stmt %prec LOWER_THAN_ELSE
+      {
+        patchlabel($1, nextquad());
+        print_rule("ifstmt -> if ( expr ) stmt");
+      }
+    | ifprefix stmt elseprefix stmt
+      {
+        patchlabel($1, $3);
+        patchlabel($2, nextquad());
+        print_rule("ifstmt -> if ( expr ) stmt else stmt");
+      }
+    ;
+
+ifprefix
+    : IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS
+      {
+        if ($3->type != boolexpr_e) {
+            expr* true_const = newexpr_constbool(1);
+            emit(if_eq, $3, true_const, NULL, nextquad() + 2, yylineno);
+        }
+        $$ = nextquad();
+        emit(jump, NULL, NULL, NULL, 0, yylineno);
+      }
+    ;
+
+elseprefix
+    : ELSE
+      {
+        $$ = nextquad();
+        emit(jump, NULL, NULL, NULL, 0, yylineno);
+      }
     ;
 
 whilestmt
