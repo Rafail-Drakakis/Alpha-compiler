@@ -92,11 +92,12 @@
 %token <realValue>  REALCONST
 %token <stringValue> FUNCTION AND OR NOT MODULO PLUS_PLUS MINUS_MINUS EQUAL_EQUAL LESS GREATER
 %token <stringValue> DOT_DOT DOT COLON_COLON PUNCTUATION OPERATOR
+%type <expression> funcdef
 
 %type <arglist>      idlist formal_arguments
 //%type <expression>   expr term primary const call funcdef
 //%type <expression>   lvalue member assignexpr
-%type <expression> expr term primary const lvalue member assignexpr call funcdef elist normcall methodcall callsuffix
+%type <expression> expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
 
 // %type <expr_val> expr term call funcdef
 
@@ -433,47 +434,41 @@ funcdef
           $$ = $<expression>3;      // use previously stored expr*
       }
 
-  | FUNCTION
-      {
-          char *anonymous_name = malloc(32);
-          if (!anonymous_name) {
-              fprintf(stderr, "Memory allocation failed for anonymous function name\n");
-              exit(EXIT_FAILURE);
-          }
-          sprintf(anonymous_name, "$%d", anonymus_function_counter++); // here we generate unique name
-          SymbolTableEntry *func_sym = insert_symbol(symbol_table, anonymous_name, USER_FUNCTION, yylineno, checkScope);
-          expr* e = newexpr(programfunc_e);
-          e->sym = func_sym;
-          
-          /* NOTE: THIS IS THE CAUSE OF THE INCOMPATIBILITY */
-          // current_function_expr = e; // store globally  // incopatible since it is char *
-          //$<expression>3 = e;
-          $$ = e; 
-          
-          enter_scope();
-          ++inside_function_depth;
-          first_brace_of_func = 1;
+| FUNCTION
+    {
+        char *anonymous_name = malloc(32);
+        if (!anonymous_name) {
+            fprintf(stderr, "Memory allocation failed\n");
+            exit(EXIT_FAILURE);
+        }
+        sprintf(anonymous_name, "$%d", anonymus_function_counter++);
+        SymbolTableEntry *func_sym = insert_symbol(symbol_table, anonymous_name, USER_FUNCTION, yylineno, checkScope);
 
-          free(anonymous_name);
-      }
-      LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
-      {
-          // we insert the formal arguments here for anonymous functions
-          formal_argument_node* arg = $4; 
-          while (arg != NULL) {
-              insert_symbol(symbol_table, arg->name, ARGUMENT, yylineno, checkScope);
-              arg = arg->next;
-          }
-      }      
-      block
-      {
-          --inside_function_depth;
-          exit_scope();
-          // $$ = $<expression>3;
-          $$ = $1;
-          print_rule("funcdef -> function ( idlist ) block");
-      }
-  ;
+        $<expression>$ = newexpr(programfunc_e);
+        $<expression>$->sym = func_sym;
+
+        enter_scope();
+        ++inside_function_depth;
+        first_brace_of_func = 1;
+
+        free(anonymous_name);
+    }
+    LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
+    {
+        formal_argument_node* arg = $4;
+        while (arg != NULL) {
+            insert_symbol(symbol_table, arg->name, ARGUMENT, yylineno, checkScope);
+            arg = arg->next;
+        }
+    }
+    block
+    {
+        --inside_function_depth;
+        exit_scope();
+        $$ = $<expression>2;  // Use the midrule placeholder
+        print_rule("funcdef -> function ( idlist ) block");
+    }
+    ;
 
 idlist
     : IDENTIFIER { 
