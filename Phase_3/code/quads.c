@@ -112,6 +112,13 @@ static const char *expr_to_str(expr *e) {
 }
 
 void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsigned line) {
+    
+    // Check for NULL pointers
+    if (result == NULL) {
+        fprintf(stderr, "Error: NULL result in emit (line %d)\n", line);
+        return;
+    }
+    
     if (currQuad == total)
         expand();
 
