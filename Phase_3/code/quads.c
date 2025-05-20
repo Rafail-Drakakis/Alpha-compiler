@@ -412,11 +412,6 @@ void print_quads(FILE *f) {
     {
         quad *q = quads + i;
 
-        if (q->arg1 && q->arg1->type == constnum_e)
-            printf("quad %u: arg1 is constnum_e, value = %.2f\n", i, q->arg1->numConst);
-        if (q->arg2 && q->arg2->type == constnum_e)
-            printf("quad %u: arg2 is constnum_e, value = %.2f\n", i, q->arg2->numConst);
-
         fprintf(f, "%-3u: ", i);
 
         switch (q->op)
@@ -579,28 +574,21 @@ void print_quads(FILE *f) {
     }
 
     fprintf(f,
-            "\n%-4s %-11s %-10s %-10s %-10s %-5s\n",
-            "quad#", "opcode", "result", "arg1", "arg2", "label");
+        "\n%-4s %-13s %-20s %-10s %-10s %-5s\n",
+	    "quad#", "opcode", "result", "arg1", "arg2", "label");
 
     for (unsigned i = 0; i < currQuad; ++i) {
         quad *q = quads + i;
-        // fprintf(f, "%-4u %-12s %-10s %-10s %-10s %-5u\n",
-        //         i + 1,
-        //         op_to_str(q->op),
-        //         expr_to_str(q->result),
-        //         expr_to_str(q->arg1),
-        //         expr_to_str(q->arg2),
-        //         q->label);
 
-        fprintf(f, "%-4u %-12s ", i + 1, op_to_str(q->op));
+	    fprintf(f, "%-6u %-12s ", i + 1, op_to_str(q->op));
 
         print_expr(f, q->result);
         fprintf(f, " %-10s ", "");
 
         print_expr(f, q->arg1);
-        fprintf(f, " ");
+        fprintf(f, " %-5s ", "");
 
         print_expr(f, q->arg2);
-        fprintf(f, " %-5u\n", q->label);
+        fprintf(f, " %-10u\n", q->label);
     }
 }
