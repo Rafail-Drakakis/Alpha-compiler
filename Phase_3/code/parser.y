@@ -155,7 +155,15 @@ expr
         // Direct operation for both variables and constants
         expr *r = newexpr(arithexpr_e);
         r->sym = newtemp();
-        emit(add, $1, $3, r, 0, yylineno);
+        // emit(add, $1, $3, r, 0, yylineno);
+        expr *arg1 = ($1->type == constnum_e) ? newexpr_constnum($1->numConst) : $1;
+        expr *arg2 = ($3->type == constnum_e) ? newexpr_constnum($3->numConst) : $3;
+
+        printf("EMIT ADD with: arg1=%.2f, arg2=%.2f\n", 
+            arg1->type == constnum_e ? arg1->numConst : -999, 
+            arg2->type == constnum_e ? arg2->numConst : -999);
+
+        emit(add, arg1, arg2, r, 0, yylineno);
         $$ = r;
     }
     | expr MINUS expr
