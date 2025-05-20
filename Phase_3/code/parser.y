@@ -287,13 +287,57 @@ or_op:              OR { print_rule("op -> or"); };
 
 term
     : LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { print_rule("term -> ( expr )"); }
-    | MINUS expr %prec UMINUS { expr *r = newexpr(arithexpr_e); r->sym = newtemp(); emit(uminus, $2, NULL, r, 0, yylineno); $$ = r; print_rule("term -> - expr"); }
-    | NOT expr { print_rule("term -> not expr"); }
-    | PLUS_PLUS lvalue { if ($2->type == programfunc_e || $2->type == libraryfunc_e) fprintf(stderr,"Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->sym->name, yylineno); expr *r = newexpr(var_e); r->sym = newtemp(); emit(assign, $2, NULL, r, 0, yylineno); emit(add, $2, newexpr_constnum(1), $2, 0, yylineno); $$ = r; }
-    | lvalue PLUS_PLUS { if ($1->type == programfunc_e || $1->type == libraryfunc_e) fprintf(stderr,"Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->sym->name, yylineno); expr *r = newexpr(var_e); r->sym = newtemp(); emit(assign, $1, NULL, r, 0, yylineno); emit(add, $1, newexpr_constnum(1), $1, 0, yylineno); $$ = r; }
-    | MINUS_MINUS lvalue { if ($2->type == programfunc_e || $2->type == libraryfunc_e) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->sym->name, yylineno); expr *r = newexpr(var_e); r->sym = newtemp(); emit(assign, $2, NULL, r, 0, yylineno); emit(sub, $2, newexpr_constnum(1), $2, 0, yylineno); $$ = r; }
-    | lvalue MINUS_MINUS { if ($1->type == programfunc_e || $1->type == libraryfunc_e) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->sym->name, yylineno); expr *r = newexpr(var_e); r->sym = newtemp(); emit(assign, $1, NULL, r, 0, yylineno); emit(sub, $1, newexpr_constnum(1), $1, 0, yylineno); $$ = r; }
-    | primary { print_rule("term -> primary"); }
+    | MINUS expr %prec UMINUS 
+        { 
+            expr *r = newexpr(arithexpr_e); 
+            r->sym = newtemp(); 
+            emit(uminus, $2, NULL, r, 0, yylineno); 
+            $$ = r; print_rule("term -> - expr"); 
+        }
+    | NOT expr 
+        { 
+            print_rule("term -> not expr"); 
+        }
+    | PLUS_PLUS lvalue 
+        { 
+            if ($2->type == programfunc_e || $2->type == libraryfunc_e) fprintf(stderr,"Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->sym->name, yylineno); 
+            expr *r = newexpr(var_e); 
+            r->sym = newtemp(); 
+            emit(assign, $2, NULL, r, 0, yylineno); 
+            emit(add, $2, newexpr_constnum(1), $2, 0, yylineno); 
+            $$ = r; 
+        }
+    | lvalue PLUS_PLUS 
+        { 
+            if ($1->type == programfunc_e || $1->type == libraryfunc_e) fprintf(stderr,"Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->sym->name, yylineno); 
+            expr *r = newexpr(var_e); 
+            r->sym = newtemp(); 
+            emit(assign, $1, NULL, r, 0, yylineno); 
+            emit(add, $1, newexpr_constnum(1), $1, 0, yylineno); 
+            $$ = r; 
+        }
+    | MINUS_MINUS lvalue 
+        { 
+            if ($2->type == programfunc_e || $2->type == libraryfunc_e) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->sym->name, yylineno);
+            expr *r = newexpr(var_e); 
+            r->sym = newtemp(); 
+            emit(assign, $2, NULL, r, 0, yylineno); 
+            emit(sub, $2, newexpr_constnum(1), $2, 0, yylineno); 
+            $$ = r; 
+        }
+    | lvalue MINUS_MINUS 
+        { 
+            if ($1->type == programfunc_e || $1->type == libraryfunc_e) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->sym->name, yylineno); 
+            expr *r = newexpr(var_e); 
+            r->sym = newtemp(); 
+            emit(assign, $1, NULL, r, 0, yylineno); 
+            emit(sub, $1, newexpr_constnum(1), $1, 0, yylineno); 
+            $$ = r; 
+            }
+    | primary 
+        { 
+            print_rule("term -> primary"); 
+        }
     ;
 
 primary
