@@ -98,6 +98,8 @@
 %type <expression> 	expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
 %type <intValue>	ifprefix elseprefix ifstmt stmt
 
+%type <expression> call_member indexed indexedelem objectdef
+
 %right ASSIGNMENT        /* = has less priority in compare with all the other */
 %left OR
 %left AND
@@ -147,63 +149,57 @@ stmt
 
 expr
     : expr PLUS expr
-      { expr *r=newexpr(arithexpr_e); r->sym=newtemp();
-        emit(add,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno); $$=r;}
+    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
+      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(arithexpr_e); r->sym = newtemp(); 
+      emit(add, temp, $3, r, 0, yylineno); $$ = r; }
     | expr MINUS expr
-      { expr *r=newexpr(arithexpr_e); r->sym=newtemp();
-        emit(sub,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno); $$=r;}
+    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
+      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(arithexpr_e); r->sym = newtemp(); 
+      emit(add, temp, $3, r, 0, yylineno); $$ = r; }
     | expr MULTIPLY expr
-      { expr *r=newexpr(arithexpr_e); r->sym=newtemp();
-        emit(mul,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno); $$=r;}
+    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
+      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(arithexpr_e); r->sym = newtemp(); 
+      emit(add, temp, $3, r, 0, yylineno); $$ = r; }
     | expr DIVIDE expr
-      { expr *r=newexpr(arithexpr_e); r->sym=newtemp();
-        emit(idiv,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno); $$=r;}
+    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
+      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(arithexpr_e); r->sym = newtemp(); 
+      emit(add, temp, $3, r, 0, yylineno); $$ = r; }
     | expr MODULO expr
-      { expr *r=newexpr(arithexpr_e); r->sym=newtemp();
-        emit(mod,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno); $$=r;}
+    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
+      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(arithexpr_e); r->sym = newtemp(); 
+      emit(add, temp, $3, r, 0, yylineno); $$ = r; }
     | expr GREATER_THAN expr
-      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
-        emit(if_greater,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno);
-        $$=r; }
+    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
+      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
+      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
     | expr GREATER_EQUAL expr
-      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
-        emit(if_geatereq,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno);
-        $$=r; }
+    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
+      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
+      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
     | expr LESS_THAN expr
-      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
-        emit(if_less,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno);
-        $$=r; }
+    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
+      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
+      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
     | expr LESS_EQUAL expr
-      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
-        emit(if_lesseq,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno);
-        $$=r; }
+    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
+      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
+      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
     | expr EQUAL_EQUAL expr
-      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
-        emit(if_eq,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno);
-        $$=r; }
+    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
+      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
+      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
     | expr NOT_EQUAL expr
-      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
-        emit(if_noteq,emit_iftableitem($1),emit_iftableitem($3),r,0,yylineno);
-        $$=r; }
+    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
+      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
+      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
     | expr AND expr
-      { expr *r=newexpr(boolexpr_e); r->sym=newtemp();
-        emit(and , emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
-        $$ = r; }
+    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
+      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
+      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
     | expr OR expr
-      { expr *r=newexpr(boolexpr_e);
-        r->sym=newtemp();
-        
-        fprintf(stderr, "DEBUG: $1 = %p, $3 = %p\n", $1, $3);
-	    assert($1 != NULL && $3 != NULL);
-        
-        fprintf(stderr, "DEBUG: $1->type = %d, $3->type = %d\n", $1->type, $3->type);
-        if ((uintptr_t)$3 < 4096 || ((uintptr_t)$3 & 0xF) != 0) {
-            fprintf(stderr, "FATAL: $3 seems corrupted: %p\n", (void*)$3);
-            exit(EXIT_FAILURE);
-        }
-        emit(or  , emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
-        $$ = r; }
-
+    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
+      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
+      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
     | assignexpr { $$ = $1; }
     | term       { $$ = $1; } 
     | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); }
@@ -211,13 +207,32 @@ expr
 
 assignexpr
     : lvalue ASSIGNMENT expr
-      {
-          if($1->type== programfunc_e || $1->type== libraryfunc_e)
-              fprintf(stderr,"Error: Symbol '%s' is not a valid l-value (line %d)\n",
-                      $1->sym->name,yylineno);
-          emit(assign,emit_iftableitem($3),NULL,$1,0,yylineno);
-          $$=$1;
-      }
+    {
+        if($1->type == programfunc_e || $1->type == libraryfunc_e)
+            fprintf(stderr,"Error: Symbol '%s' is not a valid l-value (line %d)\n",
+                    $1->sym->name, yylineno);
+        
+        if($1->type == tableitem_e) {
+            // Table element assignment
+            emit(tablesetelem, $3, $1->index, $1, 0, yylineno);
+            
+            // Create a temporary for the result
+            expr *result = newexpr(var_e);
+            result->sym = newtemp();
+            emit(tablegetelem, $1, $1->index, result, 0, yylineno);
+            $$ = result;
+        } else {
+            // Regular variable assignment
+            emit(assign, $3, NULL, $1, 0, yylineno);
+            
+            // Add extra assignment after the main assignment
+            expr *final = newexpr(var_e);
+            final->sym = newtemp();
+            emit(assign, $1, NULL, final, 0, yylineno);
+            
+            $$ = $1;
+        }
+    }
 ;
 
 /*
@@ -308,19 +323,43 @@ const
 
 member
     : lvalue DOT IDENTIFIER { 
+          expr* result = newexpr(tableitem_e);
+          result->sym = newtemp();
+          result->index = newexpr_conststring($3);
+          emit(tablegetelem, $1, result->index, result, 0, yylineno);
+          $$ = result;
           print_rule("member -> lvalue . IDENTIFIER"); 
       }
     | lvalue LEFT_BRACKET expr RIGHT_BRACKET { 
+          expr* result = newexpr(tableitem_e);
+          result->sym = newtemp();
+          result->index = $3;
+          emit(tablegetelem, $1, result->index, result, 0, yylineno);
+          $$ = result;
           print_rule("member -> lvalue [ expr ]"); 
       }
-    | call_member { print_rule("member -> call_member"); 
+    | call_member { $$ = $1; print_rule("member -> call_member"); 
       }
     ;
 
 /* Helpful for member */
 call_member
-    : call DOT IDENTIFIER { print_rule("call_member -> call . IDENTIFIER"); }
-    | call LEFT_BRACKET expr RIGHT_BRACKET { print_rule("call_member -> call [ expr ]"); }
+    : call DOT IDENTIFIER { 
+          expr* result = newexpr(tableitem_e);
+          result->sym = newtemp();
+          result->index = newexpr_conststring($3);
+          emit(tablegetelem, $1, result->index, result, 0, yylineno);
+          $$ = result;
+          print_rule("call_member -> call . IDENTIFIER"); 
+      }
+    | call LEFT_BRACKET expr RIGHT_BRACKET { 
+          expr* result = newexpr(tableitem_e);
+          result->sym = newtemp();
+          result->index = $3;
+          emit(tablegetelem, $1, result->index, result, 0, yylineno);
+          $$ = result;
+          print_rule("call_member -> call [ expr ]"); 
+      }
     ;
 
 call
@@ -373,18 +412,60 @@ elist
     ;
 
 objectdef
-    : LEFT_BRACKET elist RIGHT_BRACKET { print_rule("objectdef -> [ elist ]"); }
-    | LEFT_BRACKET indexed RIGHT_BRACKET { print_rule("objectdef -> [ indexed ]"); }
+    : LEFT_BRACKET elist RIGHT_BRACKET { 
+          expr* t = newexpr(newtable_e);
+          t->sym = newtemp();
+          emit(tablecreate, NULL, NULL, t, 0, yylineno);
+          
+          // Add elements from elist
+          int i = 0;
+          expr* curr = $2;
+          while(curr) {
+              expr* index = newexpr_constnum(i++);
+              emit(tablesetelem, curr, index, t, 0, yylineno);
+              curr = curr->next;
+          }
+          
+          $$ = t;
+          print_rule("objectdef -> [ elist ]"); 
+      }
+    | LEFT_BRACKET indexed RIGHT_BRACKET { 
+          expr* t = newexpr(newtable_e);
+          t->sym = newtemp();
+          emit(tablecreate, NULL, NULL, t, 0, yylineno);
+          
+          // Process indexed elements
+          expr* curr = $2;
+          while(curr) {
+              emit(tablesetelem, curr->args, curr->index, t, 0, yylineno);
+              curr = curr->next;
+          }
+          
+          $$ = t;
+          print_rule("objectdef -> [ indexed ]"); 
+      }
     ;
 
-// can be empty but due to shift reduce
 indexed
-    : indexedelem { print_rule("indexed -> indexedelem"); }
-    | indexedelem COMMA indexed { print_rule("indexed -> indexedelem, indexed"); }
+    : indexedelem { $$ = $1; print_rule("indexed -> indexedelem"); }
+    | indexedelem COMMA indexed { 
+          // Link the current indexedelem with the rest of the indexed list
+          $1->next = $3;
+          $$ = $1;
+          print_rule("indexed -> indexedelem, indexed"); 
+      }
     ;
 
 indexedelem
-    : LEFT_BRACE expr COLON expr RIGHT_BRACE { print_rule("indexedelem -> { expr : expr }"); }
+    : LEFT_BRACE expr COLON expr RIGHT_BRACE { 
+          expr* elem = newexpr(var_e);
+          elem->sym = newtemp();
+          elem->index = $2;
+          elem->args = $4;
+          elem->next = NULL;
+          $$ = elem;
+          print_rule("indexedelem -> { expr : expr }"); 
+      }
     ;
 
 formal_arguments
