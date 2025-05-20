@@ -151,39 +151,41 @@ stmt
 
 expr
     : expr PLUS expr
-    { if($1->type == constnum_e && $3->type == constnum_e) { expr *arg1 = newexpr_constnum($1->numConst);
-      expr *arg2 = newexpr_constnum($3->numConst); expr *r = newexpr(var_e); r->sym = newtemp();
-      emit(add, arg1, arg2, r, 0, yylineno); $$ = r; } else { expr *temp = newexpr(var_e);
-      temp->sym = newtemp(); emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(arithexpr_e);
-      r->sym = newtemp(); emit(add, temp, $3, r, 0, yylineno); $$ = r; } }
+    {
+        // Direct operation for both variables and constants
+        expr *r = newexpr(arithexpr_e);
+        r->sym = newtemp();
+        emit(add, $1, $3, r, 0, yylineno);
+        $$ = r;
+    }
     | expr MINUS expr
-    { if($1->type == constnum_e && $3->type == constnum_e) { expr *arg1 = newexpr_constnum($1->numConst);
-      expr *arg2 = newexpr_constnum($3->numConst); expr *r = newexpr(var_e); r->sym = newtemp();
-      emit(sub, arg1, arg2, r, 0, yylineno); $$ = r; } else { expr *temp = newexpr(var_e);
-      temp->sym = newtemp(); emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(arithexpr_e);
-      r->sym = newtemp(); emit(sub, temp, $3, r, 0, yylineno); $$ = r; } }
+    {
+        expr *r = newexpr(arithexpr_e);
+        r->sym = newtemp();
+        emit(sub, $1, $3, r, 0, yylineno);
+        $$ = r;
+    }
     | expr MULTIPLY expr
-    { if($1->type == constnum_e && $3->type == constnum_e) { expr *arg1 = newexpr_constnum($1->numConst);
-      expr *arg2 = newexpr_constnum($3->numConst); expr *r = newexpr(var_e); r->sym = newtemp();
-      emit(mul, arg1, arg2, r, 0, yylineno); $$ = r; } else { expr *temp = newexpr(var_e);
-      temp->sym = newtemp(); emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(arithexpr_e);
-      r->sym = newtemp(); emit(mul, temp, $3, r, 0, yylineno); $$ = r; } }
+    {
+        expr *r = newexpr(arithexpr_e);
+        r->sym = newtemp();
+        emit(mul, $1, $3, r, 0, yylineno);
+        $$ = r;
+    }
     | expr DIVIDE expr
-    { if($1->type == constnum_e && $3->type == constnum_e) { if($3->numConst == 0) {
-      fprintf(stderr, "Error: Division by zero (line %d)\n", yylineno); $$ = newexpr(constnum_e);
-      $$->numConst = 0; } else { expr *arg1 = newexpr_constnum($1->numConst);
-      expr *arg2 = newexpr_constnum($3->numConst); expr *r = newexpr(var_e); r->sym = newtemp();
-      emit(idiv, arg1, arg2, r, 0, yylineno); $$ = r; } } else { expr *temp = newexpr(var_e);
-      temp->sym = newtemp(); emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(arithexpr_e);
-      r->sym = newtemp(); emit(idiv, temp, $3, r, 0, yylineno); $$ = r; } }
+    {
+        expr *r = newexpr(arithexpr_e);
+        r->sym = newtemp();
+        emit(idiv, $1, $3, r, 0, yylineno);
+        $$ = r;
+    }
     | expr MODULO expr
-    { if($1->type == constnum_e && $3->type == constnum_e) { if($3->numConst == 0) {
-      fprintf(stderr, "Error: Modulo by zero (line %d)\n", yylineno); $$ = newexpr(constnum_e);
-      $$->numConst = 0; } else { expr *arg1 = newexpr_constnum($1->numConst);
-      expr *arg2 = newexpr_constnum($3->numConst); expr *r = newexpr(var_e); r->sym = newtemp();
-      emit(mod, arg1, arg2, r, 0, yylineno); $$ = r; } } else { expr *temp = newexpr(var_e);
-      temp->sym = newtemp(); emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(arithexpr_e);
-      r->sym = newtemp(); emit(mod, temp, $3, r, 0, yylineno); $$ = r; } }
+    {
+        expr *r = newexpr(arithexpr_e);
+        r->sym = newtemp();
+        emit(mod, $1, $3, r, 0, yylineno);
+        $$ = r;
+    }
     | expr GREATER_THAN expr
     { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
       emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
