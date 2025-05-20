@@ -574,21 +574,23 @@ void print_quads(FILE *f) {
     }
 
     fprintf(f,
-        "\n%-4s %-13s %-20s %-10s %-10s %-5s\n",
-	    "quad#", "opcode", "result", "arg1", "arg2", "label");
-
+        "\n%-6s %-12s %-20s %-20s %-20s %-5s\n",
+        "quad#", "opcode", "result", "arg1", "arg2", "label");
+    
     for (unsigned i = 0; i < currQuad; ++i) {
         quad *q = quads + i;
-
-	    fprintf(f, "%-6u %-12s ", i + 1, op_to_str(q->op));
-
+    
+        fprintf(f, "%-6u %-12s ", i + 1, op_to_str(q->op));
+    
         print_expr(f, q->result);
-        fprintf(f, " %-10s ", "");
-
+        fprintf(f, "%-*s", 21 - (int)strlen(expr_to_str(q->result)), "");
+    
         print_expr(f, q->arg1);
-        fprintf(f, " %-5s ", "");
-
+        fprintf(f, "%-*s", 21 - (int)strlen(expr_to_str(q->arg1)), "");
+    
         print_expr(f, q->arg2);
-        fprintf(f, " %-10u\n", q->label);
-    }
+        fprintf(f, "%-*s", 21 - (int)strlen(expr_to_str(q->arg2)), "");
+    
+        fprintf(f, "%-5u\n", q->label);
+    }       
 }
