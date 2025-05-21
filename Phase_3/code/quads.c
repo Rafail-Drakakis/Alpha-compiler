@@ -258,19 +258,22 @@ expr *lvalue_expr(SymbolTableEntry *sym) {
     expr *e = newexpr(var_e);
     e->sym = sym;
 
-    switch (sym->type)
-    {
-    case var_s:
-        e->type = var_e;
-        break;
-    case programfunc_s:
-        e->type = programfunc_e;
-        break;
-    case libraryfunc_s:
-        e->type = libraryfunc_e;
-        break;
-    default:
-        assert(0);
+    switch (sym->type) {
+        case GLOBAL:
+        case LOCAL_VAR:
+        case ARGUMENT:
+        case TEMP_VAR:
+            e->type = var_e;
+            break;
+        case USER_FUNCTION:
+            e->type = programfunc_e;
+            break;
+        case LIBRARY_FUNCTION:
+            e->type = libraryfunc_e;
+            break;
+        default:
+            fprintf(stderr, "Error: Unknown symbol type %d for symbol '%s' at line %d\n", sym->type, sym->name, sym->line_number);
+            assert(0); // for debugging
     }
 
     return e;
