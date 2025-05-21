@@ -13,7 +13,9 @@
 
 extern unsigned int checkScope;
 extern int yyparse();        
-extern FILE* yyin;          
+extern FILE* yyin;
+extern int semantic_errors;
+
 SymbolTable *symbol_table;
 quad* quads = (quad*) 0;
 
@@ -34,10 +36,16 @@ int main(int argc, char **argv) {
     symbol_table = create_symbol_table();
 
     if (yyparse() == 0) {
-        printf("Parsing completed successfully.\n");
+        /* this wont be enough, we need to use stack */
+        if (semantic_errors > 0) {
+            fprintf(stderr, "\nParsing completed with %d semantic error(s).\n", semantic_errors);
+        } else {
+            printf("Parsing completed successfully.\n");
+        }
     } else {
         fprintf(stderr, "Parsing failed.\n");
     }
+
 
     print_quads(stdout);
 

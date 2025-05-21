@@ -34,6 +34,7 @@
     int is_calling = 0;			        // reducing lvalue for function call 1, normal lvalues 0
     expr* current_function_expr = NULL;
     char* current_function_char = NULL;
+    int semantic_errors = 0;
 
 
     typedef struct formal_argument_node {
@@ -709,18 +710,45 @@ forstmt
       }
     ;
 
-
 returnstmt
-    : RETURN SEMICOLON { print_rule("returnstmt -> return ;"); }
-    | RETURN expr SEMICOLON { print_rule("returnstmt -> return expr ;"); }
+    : RETURN SEMICOLON
+        {
+            if (inside_function_depth < 1) {
+                fprintf(stderr, "Error: 'return' used outside of any function (line %d)\n", yylineno);
+            }
+            print_rule("returnstmt -> return ;");
+        }
+    | RETURN expr SEMICOLON
+        {
+            if (inside_function_depth < 1) {
+                fprintf(stderr, "Error: 'return' used outside of any function (line %d)\n", yylineno);
+            }
+            print_rule("returnstmt -> return expr ;");
+        }
     ;
 
 break_stmt
-    : BREAK SEMICOLON { if(checkLoopDepth < 1){ fprintf(stderr, "Error: 'break' used outside of any loop (line %d)\n", yylineno); } print_rule("break_stmt -> break ;"); }
+    : BREAK SEMICOLON 
+        {
+	        printf("DEBUG: break_stmt rule matched at line %d\n", yylineno); 
+            if (checkLoopDepth < 1) { 
+                fprintf(stderr, "Error: 'break' used outside of any loop (line %d)\n", yylineno);
+		        semantic_errors++;
+            } 
+            print_rule("break_stmt -> break ;"); 
+        }
     ;
 
 continue_stmt
-    : CONTINUE SEMICOLON { if(checkLoopDepth < 1){ fprintf(stderr, "Error: 'continue' used outside of any loop (line %d)\n", yylineno); } print_rule("continue_stmt -> continue ;"); }
+    : CONTINUE SEMICOLON 
+        { 
+	        printf("DEBUG: continue_stmt rule matched at line %d\n", yylineno);
+            if (checkLoopDepth < 1) { 
+                fprintf(stderr, "Error: 'continue' used outside of any loop (line %d)\n", yylineno);
+		        semantic_errors++;
+            } 
+            print_rule("continue_stmt -> continue ;"); 
+        }
     ;
 
 block
