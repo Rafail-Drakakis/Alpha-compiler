@@ -29,6 +29,13 @@ unsigned loopcounter(void) {
     }
 }
 
+/**
+ * we made push_loopcounter() and 
+ * pop_loopcounter() scope-aware and 
+ * we reset when entering/exiting functions
+ * in enter_function_scope()
+ */
+
 void push_loopcounter(void) {
     struct lc_stack_t* new_node = malloc(sizeof(struct lc_stack_t));
     new_node->counter = loop_id_counter++;
@@ -42,6 +49,7 @@ void pop_loopcounter(void) {
     lcs_top = lcs_top->next;
     free(temp);
 }
+
 
 // #define loopcounter \ (lcs_top->counter)
 // extern void push_loopcounter (void);

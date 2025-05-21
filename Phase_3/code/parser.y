@@ -28,7 +28,7 @@
     }
 
     unsigned int checkScope = 0;        // 0 for global, 1 for local
-    int checkLoopDepth = 0;
+    // int checkLoopDepth = 0;
     int inside_function_scope = 0;
     int inside_function_depth = 0;      // 0 for global, >0 for function scope
     static int first_brace_of_func = 0;
@@ -36,6 +36,8 @@
     expr* current_function_expr = NULL;
     char* current_function_char = NULL;
     int semantic_errors = 0;
+    static unsigned checkFuncDepth = 0;
+
 
 
     typedef struct formal_argument_node {
@@ -71,6 +73,22 @@
         --checkScope;
     }
 
+   /**
+    * we use this function to reset loop depth when entering a new function
+    */
+    void enter_function_scope() {
+        checkFuncDepth++;
+        while (loopcounter() > 0) {
+            pop_loopcounter();
+        }
+    }
+
+    void exit_function_scope() {
+        if (checkFuncDepth > 0) {
+            checkFuncDepth--;
+        }
+    }
+
 %}
 
 %union {
@@ -88,12 +106,12 @@
 %token <stringValue> LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
 %token <stringValue> SEMICOLON COMMA COLON
 %token <stringValue> IDENTIFIER STRING
-%token <intValue>   INTCONST
-%token <realValue>  REALCONST
+%token <intValue>    INTCONST
+%token <realValue>   REALCONST
 %token <stringValue> FUNCTION AND OR NOT MODULO PLUS_PLUS MINUS_MINUS EQUAL_EQUAL LESS GREATER
 %token <stringValue> DOT_DOT DOT COLON_COLON PUNCTUATION OPERATOR
-%type <expression> funcdef
 
+%type <expression> funcdef
 %type <arglist>     idlist formal_arguments
 %type <expression> 	expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
 %type <intValue>	ifprefix elseprefix ifstmt stmt
@@ -584,6 +602,8 @@ funcdef
           ++inside_function_depth;
           inside_function_scope = 1;
           first_brace_of_func = 1;  // Indicates the first brace of the function
+
+	  enter_function_scope();   // for loop
       }
       LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
       {
@@ -598,6 +618,7 @@ funcdef
       {
           --inside_function_depth;
           exit_scope();
+	  exit_function_scope(); // for loop
           $$ = $<expression>3;      // use previously stored expr*
       }
 
@@ -617,6 +638,7 @@ funcdef
         enter_scope();
         ++inside_function_depth;
         first_brace_of_func = 1;
+        enter_function_scope(); // for loop
 
         free(anonymous_name);
     }
@@ -631,6 +653,7 @@ funcdef
     block
     {
         --inside_function_depth;
+	    exit_function_scope();  // for loop
         exit_scope();
         $$ = $<expression>2;
         print_rule("funcdef -> function ( idlist ) block");
@@ -693,22 +716,34 @@ elseprefix
     ;
 
 whilestmt
-    : WHILE LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { checkLoopDepth++; } stmt { checkLoopDepth--; print_rule("whilestmt -> while ( expr ) stmt"); }
+    : WHILE LEFT_PARENTHESIS expr RIGHT_PARENTHESIS 
+        { 
+            //checkLoopDepth++; 
+            push_loopcounter(); // we enter loop scope
+        } 
+        stmt 
+        { 
+            // checkLoopDepth--; 
+	        pop_loopcounter();  // we exit loop scope
+            print_rule("whilestmt -> while ( expr ) stmt"); 
+        }
     ;
 
 forstmt
     : FOR
-      {
-          checkLoopDepth++;
-          enter_scope();
-      }
-      LEFT_PARENTHESIS elist SEMICOLON expr SEMICOLON elist RIGHT_PARENTHESIS
-      stmt
-      {
-          exit_scope();
-          checkLoopDepth--;
-          print_rule("forstmt -> for ( elist ; expr ; elist ) stmt");
-      }
+        {
+            // checkLoopDepth++;
+            push_loopcounter(); // we start loop
+            enter_scope();
+        }
+        LEFT_PARENTHESIS elist SEMICOLON expr SEMICOLON elist RIGHT_PARENTHESIS
+        stmt
+        {
+            exit_scope();
+            // checkLoopDepth--;
+            pop_loopcounter(); // and then end the loop
+            print_rule("forstmt -> for ( elist ; expr ; elist ) stmt");
+        }
     ;
 
 returnstmt
@@ -716,6 +751,7 @@ returnstmt
         {
             if (inside_function_depth < 1) {
                 fprintf(stderr, "Error: 'return' used outside of any function (line %d)\n", yylineno);
+		        semantic_errors++;
             }
             print_rule("returnstmt -> return ;");
         }
@@ -723,6 +759,7 @@ returnstmt
         {
             if (inside_function_depth < 1) {
                 fprintf(stderr, "Error: 'return' used outside of any function (line %d)\n", yylineno);
+		        semantic_errors++;
             }
             print_rule("returnstmt -> return expr ;");
         }
@@ -731,8 +768,9 @@ returnstmt
 break_stmt
     : BREAK SEMICOLON 
         {
-	        printf("DEBUG: break_stmt rule matched at line %d\n", yylineno); 
-            if (checkLoopDepth < 1) { 
+	        //printf("DEBUG: break_stmt rule matched at line %d\n", yylineno); 
+            //if (checkLoopDepth < 1) { 
+	        if (loopcounter() == 0) {
                 fprintf(stderr, "Error: 'break' used outside of any loop (line %d)\n", yylineno);
 		        semantic_errors++;
             } 
@@ -743,8 +781,9 @@ break_stmt
 continue_stmt
     : CONTINUE SEMICOLON 
         { 
-	        printf("DEBUG: continue_stmt rule matched at line %d\n", yylineno);
-            if (checkLoopDepth < 1) { 
+	        //printf("DEBUG: continue_stmt rule matched at line %d\n", yylineno);
+            //if (checkLoopDepth < 1) { 
+	        if (loopcounter() == 0) {
                 fprintf(stderr, "Error: 'continue' used outside of any loop (line %d)\n", yylineno);
 		        semantic_errors++;
             } 
