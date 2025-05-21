@@ -55,7 +55,7 @@
     }
 
     void enter_scope() {
-        //printf("Entering new scope: %u\n", checkScope);
+        // printf("Entering new scope: %u\n", checkScope);
         checkScope++;
     }
 
@@ -64,7 +64,7 @@
             return;
 	}
 
-        //printf("Exiting  scope: %u\n", checkScope-1);
+        // printf("Exiting  scope: %u\n", checkScope-1);
         deactivate_entries_from_curr_scope(symbol_table, checkScope-1);
         --checkScope;
     }
@@ -76,8 +76,8 @@
     double realValue;
     char* stringValue;
     struct formal_argument_node* arglist;
-    struct SymbolTableEntry* symbol;  // for lvalue
-    struct expr    *expression; // for expressions
+    struct SymbolTableEntry* symbol;    // for lvalue
+    struct expr *expression;            // for expressions
 }
 
 %token <stringValue> IF ELSE WHILE FOR RETURN BREAK CONTINUE LOCAL TRUE FALSE NIL
@@ -92,11 +92,10 @@
 %token <stringValue> DOT_DOT DOT COLON_COLON PUNCTUATION OPERATOR
 %type <expression> funcdef
 
-%type <arglist>      	idlist formal_arguments
+%type <arglist>     idlist formal_arguments
 %type <expression> 	expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
 %type <intValue>	ifprefix elseprefix ifstmt stmt
-
-%type <expression> call_member indexed indexedelem objectdef
+%type <expression>  call_member indexed indexedelem objectdef
 
 %right ASSIGNMENT        /* = has less priority in compare with all the other */
 %left OR
@@ -297,19 +296,19 @@ op
     | or_op expr         %prec OR
     ;
 
-plus_op:            PLUS { print_rule("op -> +"); };
-minus_op:           MINUS { print_rule("op -> -"); };
-mult_op:            MULTIPLY { print_rule("op -> *"); };
-div_op:             DIVIDE { print_rule("op -> /"); };
-mod_op:             MODULO { print_rule("op -> %"); };
-greaterthan_op:     GREATER_THAN { print_rule("op -> >"); };
-greaterequal_op:    GREATER_EQUAL { print_rule("op -> >="); };
-lessthan_op:        LESS_THAN { print_rule("op -> <"); };
-lessequal_op:       LESS_EQUAL { print_rule("op -> <="); };
-eqeq_op:            EQUAL_EQUAL { print_rule("op -> =="); };
-noteq_op:           NOT_EQUAL { print_rule("op -> !="); };
-and_op:             AND { print_rule("op -> and"); };
-or_op:              OR { print_rule("op -> or"); };
+    plus_op:            PLUS { print_rule("op -> +"); };
+    minus_op:           MINUS { print_rule("op -> -"); };
+    mult_op:            MULTIPLY { print_rule("op -> *"); };
+    div_op:             DIVIDE { print_rule("op -> /"); };
+    mod_op:             MODULO { print_rule("op -> %"); };
+    greaterthan_op:     GREATER_THAN { print_rule("op -> >"); };
+    greaterequal_op:    GREATER_EQUAL { print_rule("op -> >="); };
+    lessthan_op:        LESS_THAN { print_rule("op -> <"); };
+    lessequal_op:       LESS_EQUAL { print_rule("op -> <="); };
+    eqeq_op:            EQUAL_EQUAL { print_rule("op -> =="); };
+    noteq_op:           NOT_EQUAL { print_rule("op -> !="); };
+    and_op:             AND { print_rule("op -> and"); };
+    or_op:              OR { print_rule("op -> or"); };
 */
 
 term
@@ -570,15 +569,6 @@ formal_arguments
     : idlist { $$ = $1; }
     ;
 
-/* 
-	Summary of additions:
-	After insert_symbol, store its return in func_sym.
-	Create expr* e = newexpr(programfunc_e).
-	Assign e->sym = func_sym.
-	Assign $$ = e;              NOTE: there is an issue here, the thing is the type of $$ is not compatible in call and funcdef 
-                                NOTE: sometimes it is expr* while other times char*
-*/
-
 funcdef
   : FUNCTION IDENTIFIER
       {
@@ -668,7 +658,8 @@ ifstmt
     | ifprefix stmt elseprefix stmt
       {
         patchlabel($1, $3);
-        patchlabel($2, nextquad());
+        //patchlabel($2, nextquad()); // $2 is stmt not a quad number so we use $3
+	    patchlabel($3, nextquad());
         print_rule("ifstmt -> if ( expr ) stmt else stmt");
       }
     ;
@@ -676,22 +667,20 @@ ifstmt
 ifprefix
     : IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS
       {
+
+	    // we ensure the expression is in boolean form
         if ($3->type != boolexpr_e) {
             expr* true_const = newexpr_constbool(1);
-            expr* cond_result = newexpr(boolexpr_e);
-            cond_result->sym = newtemp();
-            emit(if_eq, $3, true_const, cond_result, nextquad() + 2, yylineno);
+            emit(if_eq, $3, true_const, NULL, nextquad() + 2, yylineno);
+        } else {
+            emit(if_eq, $3, NULL, NULL, nextquad() + 2, yylineno);
         }
 
+	    // we emit jump and record its position for patching
         emit(jump, NULL, NULL, NULL, 0, yylineno);
-        $$ = nextquad() - 1; 
+        $$ = nextquad() - 1;
 
-        expr* tmp = newexpr(var_e);
-        tmp->sym = newtemp();
-        emit(assign, tmp, NULL, tmp, 0, yylineno);
       }
-
-
 
 elseprefix
     : ELSE
