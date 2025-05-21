@@ -63,7 +63,9 @@ static const char *op_to_str(iopcode op) {
         "uminus", "and", "or", "not",
         "if_eq", "if_noteq", "if_lesseq", "if_greatereq", "if_less", "if_greater",
         "jump", "call", "param", "ret", "getretval",
-        "funcstart", "funcend", "tablecreate", "tablegetelem", "tablesetelem"};
+        "funcstart", "funcend", "tablecreate", "tablegetelem", "tablesetelem"
+    };
+
     return name[op];
 }
 
@@ -113,11 +115,29 @@ static const char *expr_to_str(expr *e) {
 
 void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsigned line) {
     
-    // Check for NULL pointers
-    if (result == NULL) {
-        fprintf(stderr, "Error: NULL result in emit (line %d)\n", line);
-        return;
+    switch (op) {
+        case assign:
+        case add:
+        case sub:
+        case mul:
+        case idiv:
+        case mod:
+        case uminus:
+        case and:
+        case or:
+        case not:
+        case getretval:
+        case tablecreate:
+        case tablegetelem:
+            if (result == NULL) {
+                fprintf(stderr, "Error: NULL result in emit() for opcode that requires result (line %d)\n", line);
+                return;
+            }
+            break;
+        default:
+            break;
     }
+
     
     if (currQuad == total)
         expand();
@@ -136,7 +156,10 @@ unsigned nextquad(void) {
 }
 
 void patchlabel(unsigned quadNo, unsigned label) {
-    assert(quadNo < currQuad);
+    if (quadNo >= currQuad) {
+        fprintf(stderr, "Error: patchlabel: quadNo (%u) >= currQuad (%u) at line %d\n", quadNo, currQuad, yylineno);
+        exit(EXIT_FAILURE);
+    }
     quads[quadNo].label = label;
 }
 
@@ -504,7 +527,7 @@ void print_quads(FILE *f) {
             print_expr(f, q->arg2);
             fprintf(f, " THEN jump to %u", q->label);
             break;
-        case if_geatereq:
+        case if_greatereq:
             fprintf(f, "IF ");
             print_expr(f, q->arg1);
             fprintf(f, " >= ");
@@ -567,6 +590,9 @@ void print_quads(FILE *f) {
             print_expr(f, q->arg2);
             fprintf(f, "] := ");
             print_expr(f, q->result);
+            break;
+        case jump:
+            fprintf(f, "jump to %u", q->label);
             break;
         default:
             fprintf(f, "[Unknown opcode]");

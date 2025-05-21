@@ -7,8 +7,6 @@
  *      csd5082 Theologos Kokkinellis
  */
 
-// expr* current_function_expr = NULL;
-
 %{
     #include <stdio.h>
     #include <stdlib.h>
@@ -187,37 +185,66 @@ expr
         $$ = r;
     }
     | expr GREATER_THAN expr
-    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
-      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
-      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
+    {
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+        emit(if_greater, $1, $3, r, 0, yylineno);
+        $$ = r;
+    }
     | expr GREATER_EQUAL expr
-    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
-      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
-      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
+    {
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+        emit(if_greatereq, $1, $3, r, 0, yylineno);
+        $$ = r;
+    }
     | expr LESS_THAN expr
-    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
-      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
-      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
+    {
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+        emit(if_less, $1, $3, r, 0, yylineno);
+        $$ = r;
+    }
     | expr LESS_EQUAL expr
-    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
-      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
-      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
+    {
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+        emit(if_lesseq, $1, $3, r, 0, yylineno);
+        $$ = r;
+    }
     | expr EQUAL_EQUAL expr
-    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
-      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
-      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
+    {
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+        emit(if_eq, $1, $3, r, 0, yylineno);
+        $$ = r;
+    }
     | expr NOT_EQUAL expr
-    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
-      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
-      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
+    {
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+        emit(if_noteq, $1, $3, r, 0, yylineno);
+        $$ = r;
+    }
+
     | expr AND expr
-    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
-      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
-      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
+    {
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+
+        emit(and, $1, $3, r, 0, yylineno);
+        $$ = r;
+    }
+
     | expr OR expr
-    { expr *temp = newexpr(var_e); temp->sym = newtemp(); 
-      emit(assign, $1, NULL, temp, 0, yylineno); expr *r = newexpr(boolexpr_e); r->sym = newtemp(); 
-      emit(if_greater, temp, $3, r, 0, yylineno); $$ = r; }
+    {
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+
+        emit(or, $1, $3, r, 0, yylineno);
+        $$ = r;
+    }
+
     | assignexpr { $$ = $1; }
     | term       { $$ = $1; } 
     | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); }
@@ -642,12 +669,19 @@ ifprefix
       {
         if ($3->type != boolexpr_e) {
             expr* true_const = newexpr_constbool(1);
-            emit(if_eq, $3, true_const, NULL, nextquad() + 2, yylineno);
+            expr* cond_result = newexpr(boolexpr_e);
+            cond_result->sym = newtemp();
+            emit(if_eq, $3, true_const, cond_result, nextquad() + 2, yylineno);
         }
+
         $$ = nextquad();
         emit(jump, NULL, NULL, NULL, 0, yylineno);
+
+        expr* tmp = newexpr(var_e);
+        tmp->sym = newtemp();
+        emit(assign, tmp, NULL, tmp, 0, yylineno);
       }
-    ;
+
 
 elseprefix
     : ELSE

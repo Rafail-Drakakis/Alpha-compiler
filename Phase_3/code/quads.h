@@ -27,12 +27,9 @@ extern int yylineno;
 typedef enum iopcode {
     assign, add, sub, mul, idiv, mod,
     uminus, and, or, not,
-    if_eq, if_noteq,
-    if_lesseq, if_greatereq, if_less, if_greater,
-    jump,
-    call, param, ret, getretval,
-    funcstart, funcend,
-    tablecreate, tablegetelem, tablesetelem, if_geatereq
+    if_eq, if_noteq, if_lesseq, if_greatereq, if_less, if_greater,
+    jump, call, param, ret, getretval,
+    funcstart, funcend, tablecreate, tablegetelem, tablesetelem
 } iopcode;
 
 typedef enum expr_t {
