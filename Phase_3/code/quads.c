@@ -277,7 +277,10 @@ unsigned int istempexpr(expr *e) {
 }
 
 expr *lvalue_expr(SymbolTableEntry *sym) {
-    assert(sym);
+    if (!sym) {
+        fprintf(stderr, "FATAL: NULL symbol passed to lvalue_expr (likely undeclared variable) at line %d\n", yylineno);
+        assert(0);
+    }
     expr *e = newexpr(var_e);
     e->sym = sym;
 

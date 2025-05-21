@@ -382,9 +382,18 @@ lvalue
           if (!sym) {
               insert_symbol(symbol_table, $1, (checkScope==0)? GLOBAL : LOCAL_VAR, yylineno, checkScope);
               sym = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
+
+              if (!sym) {
+                  fprintf(stderr, "Error: Failed to insert or lookup symbol '%s' (line %d)\n", $1, yylineno);
+                  $$ = newexpr(nil_e);
+              } else {
+                  $$ = lvalue_expr(sym);
+              }
+          } else {
+              $$ = lvalue_expr(sym);
           }
-          $$ = lvalue_expr(sym);
       }
+
     | LOCAL IDENTIFIER
       {
           insert_symbol(symbol_table, $2, LOCAL_VAR, yylineno, checkScope);
@@ -674,13 +683,14 @@ ifprefix
             emit(if_eq, $3, true_const, cond_result, nextquad() + 2, yylineno);
         }
 
-        $$ = nextquad();
         emit(jump, NULL, NULL, NULL, 0, yylineno);
+        $$ = nextquad() - 1; 
 
         expr* tmp = newexpr(var_e);
         tmp->sym = newtemp();
         emit(assign, tmp, NULL, tmp, 0, yylineno);
       }
+
 
 
 elseprefix
@@ -696,8 +706,20 @@ whilestmt
     ;
 
 forstmt
-    : FOR LEFT_PARENTHESIS elist SEMICOLON expr SEMICOLON elist RIGHT_PARENTHESIS { checkLoopDepth++; } stmt { checkLoopDepth--; print_rule("forstmt -> for ( elist ; expr ; elist ) stmt"); }
+    : FOR
+      {
+          checkLoopDepth++;
+          enter_scope();
+      }
+      LEFT_PARENTHESIS elist SEMICOLON expr SEMICOLON elist RIGHT_PARENTHESIS
+      stmt
+      {
+          exit_scope();
+          checkLoopDepth--;
+          print_rule("forstmt -> for ( elist ; expr ; elist ) stmt");
+      }
     ;
+
 
 returnstmt
     : RETURN SEMICOLON { print_rule("returnstmt -> return ;"); }
