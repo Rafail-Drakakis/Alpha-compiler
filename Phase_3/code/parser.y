@@ -206,43 +206,49 @@ expr
     | expr GREATER_THAN expr
     {
         expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        emit(if_greater, $1, $3, r, 0, yylineno);
-        $$ = r;
-    }
-    | expr GREATER_EQUAL expr
-    {
-        expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        emit(if_greatereq, $1, $3, r, 0, yylineno);
+        r->sym = NULL;
+        emit(if_greater,   $1, $3, NULL, nextquad()+2, yylineno);
+        emit(jump,         NULL, NULL, NULL, nextquad()+1, yylineno);
         $$ = r;
     }
     | expr LESS_THAN expr
     {
         expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        emit(if_less, $1, $3, r, 0, yylineno);
+        r->sym = NULL;
+        emit(if_less,      $1, $3, NULL, nextquad()+2, yylineno);
+        emit(jump,         NULL, NULL, NULL, nextquad()+1, yylineno);
+        $$ = r;
+    }
+    | expr GREATER_EQUAL expr
+    {
+        expr *r = newexpr(boolexpr_e);
+        r->sym = NULL;
+        emit(if_greatereq, $1, $3, NULL, nextquad()+2, yylineno);
+        emit(jump,         NULL, NULL, NULL, nextquad()+1, yylineno);
         $$ = r;
     }
     | expr LESS_EQUAL expr
     {
         expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        emit(if_lesseq, $1, $3, r, 0, yylineno);
+        r->sym = NULL;
+        emit(if_lesseq,    $1, $3, NULL, nextquad()+2, yylineno);
+        emit(jump,         NULL, NULL, NULL, nextquad()+1, yylineno);
         $$ = r;
     }
     | expr EQUAL_EQUAL expr
     {
         expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        emit(if_eq, $1, $3, r, 0, yylineno);
+        r->sym = NULL;
+        emit(if_eq,        $1, $3, NULL, nextquad()+2, yylineno);
+        emit(jump,         NULL, NULL, NULL, nextquad()+1, yylineno);
         $$ = r;
     }
     | expr NOT_EQUAL expr
     {
         expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        emit(if_noteq, $1, $3, r, 0, yylineno);
+        r->sym = NULL;
+        emit(if_noteq,     $1, $3, NULL, nextquad()+2, yylineno);
+        emit(jump,         NULL, NULL, NULL, nextquad()+1, yylineno);
         $$ = r;
     }
 
@@ -250,8 +256,13 @@ expr
     {
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
-
-        emit(and, $1, $3, r, 0, yylineno);
+        int Lfalse = nextquad();
+        emit(if_eq,   $1, newexpr_constbool(0), NULL, 0, yylineno);
+        emit(if_eq,   $3, newexpr_constbool(0), NULL, 0, yylineno);
+        emit(assign, newexpr_constbool(1), NULL, r, 0, yylineno);
+        emit(jump,   NULL, NULL,          NULL, nextquad()+1, yylineno);
+        patchlabel(Lfalse, nextquad());
+        emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         $$ = r;
     }
 
@@ -259,8 +270,13 @@ expr
     {
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
-
-        emit(or, $1, $3, r, 0, yylineno);
+        int Ltrue = nextquad();
+        emit(if_noteq, $1, newexpr_constbool(0), NULL, 0, yylineno);
+        emit(if_noteq, $3, newexpr_constbool(0), NULL, 0, yylineno);
+        emit(assign,   newexpr_constbool(0), NULL, r, 0, yylineno);
+        emit(jump,     NULL, NULL,            NULL, nextquad()+1, yylineno);
+        patchlabel(Ltrue, nextquad());
+        emit(assign,   newexpr_constbool(1), NULL, r, 0, yylineno);
         $$ = r;
     }
 
@@ -294,7 +310,7 @@ assignexpr
             final->sym = newtemp();
             emit(assign, $1, NULL, final, 0, yylineno);
             
-            $$ = $1;
+            $$ = final;
         }
     }
 ;
