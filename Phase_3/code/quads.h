@@ -113,3 +113,12 @@ int mergelist(int list1, int list2);
 void patchlist(int list, int label);
 
 #endif
+
+#ifndef LOOP_CONTROL_H
+#define LOOP_CONTROL_H
+
+unsigned loopcounter(void);
+void push_loopcounter(void);
+void pop_loopcounter(void);
+
+#endif

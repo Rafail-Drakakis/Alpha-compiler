@@ -25,6 +25,45 @@ extern unsigned int checkScope;
 extern int yyparse();
 extern FILE *yyin;
 
+struct lc_stack_t {
+   struct lc_stack_t* next;
+   unsigned counter;
+};
+
+static struct lc_stack_t *lcs_top = 0;
+static struct lc_stack_t *lcs_bottom = 0;
+
+static unsigned loop_id_counter = 1;
+
+unsigned loopcounter(void) {
+    if (lcs_top != NULL) {
+        return lcs_top->counter;
+    } else {
+        return 0;
+    }
+}
+
+/**
+ * we made push_loopcounter() and 
+ * pop_loopcounter() scope-aware and 
+ * we reset when entering/exiting functions
+ * in enter_function_scope()
+ */
+
+void push_loopcounter(void) {
+    struct lc_stack_t* new_node = malloc(sizeof(struct lc_stack_t));
+    new_node->counter = loop_id_counter++;
+    new_node->next = lcs_top;
+    lcs_top = new_node;
+}
+
+void pop_loopcounter(void) {
+    if (!lcs_top) return;
+    struct lc_stack_t* temp = lcs_top;
+    lcs_top = lcs_top->next;
+    free(temp);
+}
+
 unsigned int currscope(void) {
     return checkScope;
 }

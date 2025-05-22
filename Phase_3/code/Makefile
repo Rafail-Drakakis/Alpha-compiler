@@ -18,7 +18,7 @@ SYMBOL_TABLE_H = symbol_table.h
 QUADS_C = quads.c
 QUADS_H = quads.h
 
-OBJS = parser.o lex.yy.o main.o symbol_table.o quads.o loop_control.o
+OBJS = parser.o lex.yy.o main.o symbol_table.o quads.o
 EXE = intermediate
 
 all: $(EXE)
@@ -43,9 +43,6 @@ main.o: $(MAIN_C) $(SYMBOL_TABLE_H) $(QUADS_H) $(BISON_H)
 
 symbol_table.o: $(SYMBOL_TABLE_C) $(SYMBOL_TABLE_H)
 	$(CC) $(CFLAGS) -c $(SYMBOL_TABLE_C) -o symbol_table.o
-
-loop_control.o: loop_control.c loop_control.h
-	$(CC) $(CFLAGS) -c loop_control.c -o loop_control.o
 
 quads.o: $(QUADS_C) $(QUADS_H)
 	$(CC) $(CFLAGS) -c $(QUADS_C) -o quads.o

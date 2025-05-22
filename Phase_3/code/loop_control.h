@@ -7,12 +7,4 @@
  *      csd5082 Theologos Kokkinellis
  */
 
-#ifndef LOOP_CONTROL_H
-#define LOOP_CONTROL_H
-
-unsigned loopcounter(void);
-void push_loopcounter(void);
-void pop_loopcounter(void);
-
-#endif
 
