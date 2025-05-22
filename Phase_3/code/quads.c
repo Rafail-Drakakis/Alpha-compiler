@@ -181,10 +181,13 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
         fprintf(stderr, "Warning: Expression without symbol (type %d) at line %d\n", arg2->type, line);
         arg2->sym = newtemp();
     }
-    
+
     if (result && !result->sym) {
-        fprintf(stderr, "Warning: Result without symbol (type %d) at line %d\n", result->type, line);
-        result->sym = newtemp();
+        // let's only warn if it's not an arithmetic or assign expression since temp results are expected here
+        if (result->type != arithexpr_e && result->type != assignexpr_e && result->type != var_e) {
+            fprintf(stderr, "Warning: Result without symbol (type %d) at line %d\n", result->type, line);
+        }
+    result->sym = newtemp();
     }
     
     // Special handling for boolean expressions in assign operations
