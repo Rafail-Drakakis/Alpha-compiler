@@ -285,42 +285,50 @@ expr
         }
         $$ = r;
     }
-    | expr AND expr
-    {
-        expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp(); // This will be _t0
-        
-        
-        emit(if_eq, $1, newexpr_constbool(1), NULL, 3, yylineno);
-       
-        emit(jump, NULL, NULL, NULL, 7, yylineno);
-       
-        emit(if_eq, $3, newexpr_constbool(1), NULL, 7, yylineno);
-        
-        emit(jump, NULL, NULL, NULL, 5, yylineno);
-    
-        emit(assign, newexpr_constbool(1), NULL, r, 0, yylineno);
-
-        emit(jump, NULL, NULL, NULL, 8, yylineno);
-        
-        emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
-        
-        $$ = r;
-    }
     | expr OR expr
     {
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
+        
+        emit(if_eq, $1, newexpr_constbool(1), NULL, nextquad()+4, yylineno);
 
-        // Generate proper short-circuit evaluation code
-        emit(if_eq, $1, newexpr_constbool(1), NULL, nextquad()+3, yylineno);
-        emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad()+3, yylineno);
+        emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
+        
+        // Combine results
+        emit(if_eq, $1, newexpr_constbool(1), NULL, nextquad()+2, yylineno);
+        emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad()+2, yylineno);
+        
+        // False result
         emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         emit(jump, NULL, NULL, NULL, nextquad()+2, yylineno);
+        
+        // True result
         emit(assign, newexpr_constbool(1), NULL, r, 0, yylineno);
-
+        
         $$ = r;
     }
+
+    | expr AND expr
+    {
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+        
+        emit(if_eq, $1, newexpr_constbool(1), NULL, nextquad()+2, yylineno);
+        emit(jump, NULL, NULL, NULL, nextquad()+5, yylineno);
+        
+        emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad()+4, yylineno);
+        emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
+        
+        // True result
+        emit(assign, newexpr_constbool(1), NULL, r, 0, yylineno);
+        emit(jump, NULL, NULL, NULL, nextquad()+2, yylineno);
+        
+        // False result
+        emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        
+        $$ = r;
+    }
+
     | assignexpr { $$ = $1; }
     | term       { $$ = $1; } 
     | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); }
@@ -784,22 +792,29 @@ elseprefix
 whilestmt
     : whileprefix stmt
       {
-          emit(jump, NULL, NULL, NULL, $1, yylineno);  
-          patchlabel($1 + 1, nextquad());  // patch jump over loop
+          /* at end of body, jump back to the test */
+          emit(jump, NULL, NULL, NULL, $1, yylineno);
+
+          /* patch the “jump 0” we emitted in whileprefix to point here */
+          patchlabel($1 + 1, nextquad());
+
           pop_loopcounter();
-          $$ = 0;
+
           print_rule("whilestmt -> while ( expr ) stmt");
       }
     ;
 
+
 whileprefix
     : WHILE LEFT_PARENTHESIS expr RIGHT_PARENTHESIS
       {
+          /* start of loop: record this quad number */
           push_loopcounter();
-          int start = nextquad();
-          emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
-          emit(jump, NULL, NULL, NULL, 0, yylineno);
-          $$ = start;
+          $$ = nextquad();
+
+          /* if the condition is false, jump out (we’ll patch the 0 below) */
+          emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad()+2, yylineno);
+          emit(jump,   NULL, NULL,             NULL, 0,               yylineno);
       }
     ;
 
