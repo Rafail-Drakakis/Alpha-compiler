@@ -14,7 +14,6 @@
     #include "symbol_table.h"
     #include "parser.h"
     #include "quads.h"
-    #include "loop_control.h"
 
     extern int yylineno;
     extern char* yytext;
