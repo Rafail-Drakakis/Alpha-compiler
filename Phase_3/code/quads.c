@@ -607,211 +607,190 @@ static void print_expr(FILE *f, expr *e) {
 
 void print_quads(FILE *f) {
     fprintf(f,
-            "------------------------------ Intermediate Code ------------------------------\n");
+        "------------------------------ Intermediate Code ------------------------------\n");
 
-    for (unsigned i = 0; i < currQuad; ++i)
-    {
-
-        if (i >= total) {
-            fprintf(stderr, "Error: Quad index %u exceeds total %u\n", i, total);
-            break;
-        }
-
+    for (unsigned i = 0; i < currQuad; ++i) {
         quad *q = quads + i;
-
-        if (!q) {
-            fprintf(stderr, "Error: Invalid quad at index %u\n", i);
-            continue;
-        }
-        
-        // Check for valid operation
-        if (q->op < 0 || q->op > tablesetelem) {
-            fprintf(stderr, "Error: Invalid operation %d at quad %u\n", q->op, i);
-            continue;
-        }
 
         fprintf(f, "%-3u: ", i);
 
-        switch (q->op)
-        {
-        case assign:
-            print_expr(f, q->result);
-            fprintf(f, " := ");
-            print_expr(f, q->arg1);
-            break;
-        case add:
-            print_expr(f, q->result);
-            fprintf(f, " := ");
-            print_expr(f, q->arg1);
-            fprintf(f, " + ");
-            print_expr(f, q->arg2);
-            break;
-        case sub:
-            print_expr(f, q->result);
-            fprintf(f, " := ");
-            print_expr(f, q->arg1);
-            fprintf(f, " - ");
-            print_expr(f, q->arg2);
-            break;
-        case mul:
-            print_expr(f, q->result);
-            fprintf(f, " := ");
-            print_expr(f, q->arg1);
-            fprintf(f, " * ");
-            print_expr(f, q->arg2);
-            break;
-        case idiv:
-            print_expr(f, q->result);
-            fprintf(f, " := ");
-            print_expr(f, q->arg1);
-            fprintf(f, " / ");
-            print_expr(f, q->arg2);
-            break;
-        case mod:
-            print_expr(f, q->result);
-            fprintf(f, " := ");
-            print_expr(f, q->arg1);
-            fprintf(f, " %% ");
-            print_expr(f, q->arg2);
-            break;
-        case uminus:
-            print_expr(f, q->result);
-            fprintf(f, " := -");
-            print_expr(f, q->arg1);
-            break;
-        case and:
-            print_expr(f, q->result);
-            fprintf(f, " := ");
-            print_expr(f, q->arg1);
-            fprintf(f, " and ");
-            print_expr(f, q->arg2);
-            break;
-        case or:
-            print_expr(f, q->result);
-            fprintf(f, " := ");
-            print_expr(f, q->arg1);
-            fprintf(f, " or ");
-            print_expr(f, q->arg2);
-            break;
-        case not:
-            print_expr(f, q->result);
-            fprintf(f, " := not ");
-            print_expr(f, q->arg1);
-            break;
-        case if_eq:
-            fprintf(f, "IF ");
-            print_expr(f, q->arg1);
-            fprintf(f, " == ");
-            print_expr(f, q->arg2);
-            fprintf(f, " THEN jump to %u", q->label);
-            break;
-        case if_noteq:
-            fprintf(f, "IF ");
-            print_expr(f, q->arg1);
-            fprintf(f, " != ");
-            print_expr(f, q->arg2);
-            fprintf(f, " THEN jump to %u", q->label);
-            break;
-        case if_lesseq:
-            fprintf(f, "IF ");
-            print_expr(f, q->arg1);
-            fprintf(f, " <= ");
-            print_expr(f, q->arg2);
-            fprintf(f, " THEN jump to %u", q->label);
-            break;
-        case if_greatereq:
-            fprintf(f, "IF ");
-            print_expr(f, q->arg1);
-            fprintf(f, " >= ");
-            print_expr(f, q->arg2);
-            fprintf(f, " THEN jump to %u", q->label);
-            break;
-        case if_less:
-            fprintf(f, "IF ");
-            print_expr(f, q->arg1);
-            fprintf(f, " < ");
-            print_expr(f, q->arg2);
-            fprintf(f, " THEN jump to %u", q->label);
-            break;
-        case if_greater:
-            fprintf(f, "IF ");
-            print_expr(f, q->arg1);
-            fprintf(f, " > ");
-            print_expr(f, q->arg2);
-            fprintf(f, " THEN jump to %u", q->label);
-            break;
-        case call:
-            fprintf(f, "CALL ");
-            print_expr(f, q->arg1);
-            break;
-        case param:
-            fprintf(f, "PARAM ");
-            print_expr(f, q->arg1);
-            break;
-        case ret:
-            fprintf(f, "RETURN ");
-            print_expr(f, q->arg1);
-            break;
-        case getretval:
-            print_expr(f, q->result);
-            fprintf(f, " := RETVAL");
-            break;
-        case funcstart:
-            fprintf(f, "FUNCSTART ");
-            print_expr(f, q->result);
-            break;
-        case funcend:
-            fprintf(f, "FUNCEND ");
-            print_expr(f, q->result);
-            break;
-        case tablecreate:
-            print_expr(f, q->result);
-            fprintf(f, " := TABLECREATE");
-            break;
-        case tablegetelem:
-            print_expr(f, q->result);
-            fprintf(f, " := ");
-            print_expr(f, q->arg1);
-            fprintf(f, "[");
-            print_expr(f, q->arg2);
-            fprintf(f, "]");
-            break;
-        case tablesetelem:
-            print_expr(f, q->arg1);
-            fprintf(f, "[");
-            print_expr(f, q->arg2);
-            fprintf(f, "] := ");
-            print_expr(f, q->result);
-            break;
-        case jump:
-            fprintf(f, "jump to %u", q->label);
-            break;
-        default:
-            fprintf(f, "[Unknown opcode]");
-            break;
+        switch (q->op) {
+            case assign:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                break;
+            case add:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, " + ");
+                print_expr(f, q->arg2);
+                break;
+            case sub:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, " - ");
+                print_expr(f, q->arg2);
+                break;
+            case mul:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, " * ");
+                print_expr(f, q->arg2);
+                break;
+            case idiv:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, " / ");
+                print_expr(f, q->arg2);
+                break;
+            case mod:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, " %% ");
+                print_expr(f, q->arg2);
+                break;
+            case uminus:
+                print_expr(f, q->result);
+                fprintf(f, " := -");
+                print_expr(f, q->arg1);
+                break;
+            case and:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, " and ");
+                print_expr(f, q->arg2);
+                break;
+            case or:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, " or ");
+                print_expr(f, q->arg2);
+                break;
+            case not:
+                print_expr(f, q->result);
+                fprintf(f, " := not ");
+                print_expr(f, q->arg1);
+                break;
+            case if_eq:
+                fprintf(f, "IF ");
+                print_expr(f, q->arg1);
+                fprintf(f, " == ");
+                print_expr(f, q->arg2);
+                fprintf(f, " THEN jump to %u", q->label);
+                break;
+            case if_noteq:
+                fprintf(f, "IF ");
+                print_expr(f, q->arg1);
+                fprintf(f, " != ");
+                print_expr(f, q->arg2);
+                fprintf(f, " THEN jump to %u", q->label);
+                break;
+            case if_lesseq:
+                fprintf(f, "IF ");
+                print_expr(f, q->arg1);
+                fprintf(f, " <= ");
+                print_expr(f, q->arg2);
+                fprintf(f, " THEN jump to %u", q->label);
+                break;
+            case if_greatereq:
+                fprintf(f, "IF ");
+                print_expr(f, q->arg1);
+                fprintf(f, " >= ");
+                print_expr(f, q->arg2);
+                fprintf(f, " THEN jump to %u", q->label);
+                break;
+            case if_less:
+                fprintf(f, "IF ");
+                print_expr(f, q->arg1);
+                fprintf(f, " < ");
+                print_expr(f, q->arg2);
+                fprintf(f, " THEN jump to %u", q->label);
+                break;
+            case if_greater:
+                fprintf(f, "IF ");
+                print_expr(f, q->arg1);
+                fprintf(f, " > ");
+                print_expr(f, q->arg2);
+                fprintf(f, " THEN jump to %u", q->label);
+                break;
+            case call:
+                fprintf(f, "CALL ");
+                print_expr(f, q->arg1);
+                break;
+            case param:
+                fprintf(f, "PARAM ");
+                print_expr(f, q->arg1);
+                break;
+            case ret:
+                fprintf(f, "RETURN ");
+                print_expr(f, q->arg1);
+                break;
+            case getretval:
+                print_expr(f, q->result);
+                fprintf(f, " := RETVAL");
+                break;
+            case funcstart:
+                fprintf(f, "FUNCSTART ");
+                print_expr(f, q->result);
+                break;
+            case funcend:
+                fprintf(f, "FUNCEND ");
+                print_expr(f, q->result);
+                break;
+            case tablecreate:
+                print_expr(f, q->result);
+                fprintf(f, " := TABLECREATE");
+                break;
+            case tablegetelem:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, "[");
+                print_expr(f, q->arg2);
+                fprintf(f, "]");
+                break;
+            case tablesetelem:
+                print_expr(f, q->arg1);
+                fprintf(f, "[");
+                print_expr(f, q->arg2);
+                fprintf(f, "] := ");
+                print_expr(f, q->result);
+                break;
+            case jump:
+                fprintf(f, "jump to %u", q->label);
+                break;
+            default:
+                fprintf(f, "[Unknown opcode]");
+                break;
         }
 
         fprintf(f, "\n");
     }
 
-    fprintf(f,
-        "\n%-6s %-12s %-20s %-20s %-20s %-5s\n",
-        "quad#", "opcode", "result", "arg1", "arg2", "label");
-    
+    fprintf(f, "\n%-6s %-12s %-20s %-20s %-20s %-5s\n", "quad#", "opcode", "result", "arg1", "arg2", "label");
+
     for (unsigned i = 0; i < currQuad; ++i) {
         quad *q = quads + i;
-    
-        fprintf(f, "%-6u %-12s ", i + 1, op_to_str(q->op));
-    
-        print_expr(f, q->result);
-        fprintf(f, "%-*s", 21 - (int)strlen(expr_to_str(q->result)), "");
-    
-        print_expr(f, q->arg1);
-        fprintf(f, "%-*s", 21 - (int)strlen(expr_to_str(q->arg1)), "");
-    
-        print_expr(f, q->arg2);
-        fprintf(f, "%-*s", 21 - (int)strlen(expr_to_str(q->arg2)), "");
-    
-        fprintf(f, "%-5u\n", q->label);
-    }       
+
+        const char *res_str  = q->result ? expr_to_str(q->result) : "nil";
+        const char *arg1_str = q->arg1   ? expr_to_str(q->arg1)   : "nil";
+        const char *arg2_str = q->arg2   ? expr_to_str(q->arg2)   : "nil";
+
+        fprintf(f, "%-6u %-12s %-20s %-20s %-20s %-5u\n",
+            i + 1,
+            op_to_str(q->op),
+            res_str,
+            arg1_str,
+            arg2_str,
+            q->label
+        );
+    }
 }
