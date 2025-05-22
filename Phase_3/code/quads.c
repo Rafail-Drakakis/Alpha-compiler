@@ -50,7 +50,7 @@ unsigned loopcounter(void) {
  * in enter_function_scope()
  */
 
- void push_loopcounter(void) {
+void push_loopcounter(void) {
     struct lc_stack_t* new_node = malloc(sizeof(struct lc_stack_t));
     if (!new_node) {
         fprintf(stderr, "Memory allocation failed in push_loopcounter\n");
@@ -109,48 +109,55 @@ static const char *op_to_str(iopcode op) {
     return name[op];
 }
 
-static const char *expr_to_str(expr *e) {
-    static char buf[64];
-
-    if (!e)
-        return "nil";
+static const char *expr_to_str_buf(expr *e, char *buf, size_t bufsize) {
+    
+    if (!e) {
+        snprintf(buf, bufsize, "nil");
+        return buf;
+    }
 
     /* 1. Types that do not depend on sym */
     switch (e->type) {
-    case constnum_e:
-        snprintf(buf, sizeof(buf), "%.2f", e->numConst);
-        return buf;
-    case conststring_e:
-        snprintf(buf, sizeof(buf), "\"%s\"", e->strConst);
-        return buf;
-    case constbool_e:
-        return e->boolConst ? "TRUE" : "FALSE";
-    case nil_e:
-        return "NIL";
-    default:
-        break;
+        case constnum_e:
+            snprintf(buf, bufsize, "%.2f", e->numConst);
+            return buf;
+        case conststring_e:
+            snprintf(buf, bufsize, "\"%s\"", e->strConst);
+            return buf;
+        case constbool_e:
+            snprintf(buf, bufsize, "%s", e->boolConst ? "TRUE" : "FALSE");
+            return buf;
+        case nil_e:
+            snprintf(buf, bufsize, "NIL");
+            return buf;
+        default:
+            break;
     }
 
-    if (!e->sym)
-        return "anonymous";
+    if (!e->sym) {
+        snprintf(buf, bufsize, "anonymous");
+        return buf;
+    }
 
     switch (e->type) {
     case var_e:
     case tableitem_e:
     case arithexpr_e:
     case assignexpr_e:
-        return e->sym->name;
-
+        snprintf(buf, bufsize, "%s", e->sym->name);
+        break;
     case programfunc_e:
     case libraryfunc_e:
-        return e->sym->name;
-
+        snprintf(buf, bufsize, "%s()", e->sym->name);
+        break;
     case newtable_e:
-        return "[table]";
-
+        snprintf(buf, bufsize, "[table]");
+        break;
     default:
-        return "UNKNOWN";
+        snprintf(buf, bufsize, "UNKNOWN");
+        break;
     }
+    return buf;
 }
 
 void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsigned line) {
@@ -255,7 +262,6 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
                 return;
             }
             break;
-            
         // Operations requiring both arg1 and arg2
         case tablesetelem:
             if (arg1 == NULL || arg2 == NULL) {
@@ -780,9 +786,10 @@ void print_quads(FILE *f) {
     for (unsigned i = 0; i < currQuad; ++i) {
         quad *q = quads + i;
 
-        const char *res_str  = q->result ? expr_to_str(q->result) : "nil";
-        const char *arg1_str = q->arg1   ? expr_to_str(q->arg1)   : "nil";
-        const char *arg2_str = q->arg2   ? expr_to_str(q->arg2)   : "nil";
+	    char res_buf[64], arg1_buf[64], arg2_buf[64];
+        const char *res_str  = q->result ? expr_to_str_buf(q->result, res_buf, sizeof(res_buf)) : "nil";
+        const char *arg1_str = q->arg1   ? expr_to_str_buf(q->arg1, arg1_buf, sizeof(arg1_buf)) : "nil";
+        const char *arg2_str = q->arg2   ? expr_to_str_buf(q->arg2, arg2_buf, sizeof(arg2_buf)) : "nil";
 
         fprintf(f, "%-6u %-12s %-20s %-20s %-20s %-5u\n",
             i + 1,
