@@ -116,6 +116,7 @@
 %type <expression> 	expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
 %type <intValue>	ifprefix elseprefix ifstmt stmt
 %type <expression>  call_member indexed indexedelem objectdef
+%type <intValue>    whilestmt
 
 %right ASSIGNMENT        /* = has less priority in compare with all the other */
 %left OR
@@ -720,9 +721,25 @@ whilestmt
         { 
             //checkLoopDepth++; 
             push_loopcounter(); // we enter loop scope
+
+            /* ----------------------- new ------------------------ */
+            int loop_start = nextquad(); 
+	        emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
+
+            int jump_false = nextquad();
+	        emit(jump, NULL, NULL, NULL, 0, yylineno);
+
+            int loop_body = nextquad();
+            $<intValue>$ = loop_start;
+            /* --------------------- end new ---------------------- */
         } 
         stmt 
         { 
+            /* ----------------------- new ------------------------ */
+            emit(jump, NULL, NULL, NULL, $<intValue>1, yylineno);  
+       	    patchlabel($<intValue>4, nextquad());
+	        /* --------------------- end new ---------------------- */
+
             // checkLoopDepth--; 
 	        pop_loopcounter();  // we exit loop scope
             print_rule("whilestmt -> while ( expr ) stmt"); 
