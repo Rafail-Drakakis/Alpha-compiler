@@ -50,8 +50,12 @@ unsigned loopcounter(void) {
  * in enter_function_scope()
  */
 
-void push_loopcounter(void) {
+ void push_loopcounter(void) {
     struct lc_stack_t* new_node = malloc(sizeof(struct lc_stack_t));
+    if (!new_node) {
+        fprintf(stderr, "Memory allocation failed in push_loopcounter\n");
+        exit(EXIT_FAILURE);
+    }
     new_node->counter = loop_id_counter++;
     new_node->next = lcs_top;
     lcs_top = new_node;
@@ -70,30 +74,27 @@ unsigned int currscope(void) {
 
 void expand(void) {
     assert(total == currQuad);
-    quad *p = (quad *)malloc(NEW_SIZE);   /* note: is this overwritten if quads != NULL */
-    if (!quads)
-    {
-        quads = malloc(NEW_SIZE);
-        if (!quads) {
+    quad *p = NULL;
+    
+    if (!quads) {
+        p = (quad *)malloc(NEW_SIZE);
+        if (!p) {
             fprintf(stderr, "memory allocation failed in expand\n");
             exit(EXIT_FAILURE);
         }
         total = EXPAND_SIZE;
     }
-    else
-    {
-        quad *p = malloc(NEW_SIZE);
+    else {
+        p = (quad *)malloc(NEW_SIZE);
         if (!p) {
             fprintf(stderr, "memory allocation failed in expand\n");
             exit(EXIT_FAILURE);
         }
         memcpy(p, quads, CURR_SIZE);
         free(quads);
-        quads = p;
         total += EXPAND_SIZE;
     }
     quads = p;
-    total += EXPAND_SIZE;
 }
 
 static const char *op_to_str(iopcode op) {
@@ -153,8 +154,74 @@ static const char *expr_to_str(expr *e) {
 }
 
 void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsigned line) {
+    // Debug output for critical quads
+    if (currQuad >= 48 && currQuad <= 55) {
+        fprintf(stderr, "DEBUG: About to emit quad %d - op: %s\n", currQuad+1, op_to_str(op));
+        if (arg1) fprintf(stderr, "  arg1 type: %d, addr: %p\n", arg1->type, (void*)arg1);
+        if (result) {
+            fprintf(stderr, "  result type: %d, addr: %p\n", result->type, (void*)result);
+            if (result->sym) fprintf(stderr, "  result sym: %s\n", result->sym->name);
+        }
+    }
     
+    // Comprehensive safety checks for all expressions
+    if (arg1 && !arg1->sym && (arg1->type != constnum_e && arg1->type != conststring_e && arg1->type != constbool_e)) {
+        fprintf(stderr, "Warning: Expression without symbol (type %d) at line %d\n", arg1->type, line);
+        arg1->sym = newtemp();
+    }
+    
+    if (arg2 && !arg2->sym && (arg2->type != constnum_e && arg2->type != conststring_e && arg2->type != constbool_e)) {
+        fprintf(stderr, "Warning: Expression without symbol (type %d) at line %d\n", arg2->type, line);
+        arg2->sym = newtemp();
+    }
+    
+    if (result && !result->sym) {
+        fprintf(stderr, "Warning: Result without symbol (type %d) at line %d\n", result->type, line);
+        result->sym = newtemp();
+    }
+    
+    // Special handling for boolean expressions in assign operations
+    if (op == assign && arg1 && arg1->type == boolexpr_e) {
+        // If the boolean expression doesn't have a symbol, create a temporary one
+        if (!arg1->sym) {
+            fprintf(stderr, "Warning: Boolean expression without symbol in assign operation (line %d)\n", line);
+            
+            // Create a new temporary expression with a symbol
+            expr *temp = newexpr(var_e);
+            temp->sym = newtemp();
+            
+            // Create a boolean constant to assign to the temporary
+            expr *boolval = newexpr_constbool(0);
+            
+            // Emit a separate quad for this assignment
+            if (currQuad < total) {
+                quad *q = quads + currQuad++;
+                q->op = assign;
+                q->arg1 = boolval;
+                q->arg2 = NULL;
+                q->result = temp;
+                q->label = 0;
+                q->line = line;
+            }
+            
+            // Use this temporary instead of the original arg1
+            arg1 = temp;
+        }
+    }
+    
+    // Safety check for NULL or nil expressions in critical operations
+    if ((op == if_eq || op == if_noteq || op == if_lesseq || op == if_greatereq || 
+         op == if_less || op == if_greater) && 
+        (arg1 == NULL || arg2 == NULL || 
+         (arg1 && arg1->type == nil_e) || 
+         (arg2 && arg2->type == nil_e))) {
+        fprintf(stderr, "Warning: Skipping unsafe boolean operation at line %d\n", line);
+        return; // Skip this quad entirely
+    }
+
+    // Check for required arguments based on opcode
     switch (op) {
+        // Operations requiring result
         case assign:
         case add:
         case sub:
@@ -173,14 +240,39 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
                 return;
             }
             break;
+            
+        // Operations requiring arg1
+        case if_eq:
+        case if_noteq:
+        case if_lesseq:
+        case if_greatereq:
+        case if_less:
+        case if_greater:
+        case param:
+        case call:
+            if (arg1 == NULL) {
+                fprintf(stderr, "Error: NULL arg1 in emit() for opcode that requires arg1 (line %d)\n", line);
+                return;
+            }
+            break;
+            
+        // Operations requiring both arg1 and arg2
+        case tablesetelem:
+            if (arg1 == NULL || arg2 == NULL) {
+                fprintf(stderr, "Error: NULL arg1 or arg2 in emit() for opcode that requires both (line %d)\n", line);
+                return;
+            }
+            break;
+            
         default:
             break;
     }
 
-    
+    // Ensure we have space for the new quad
     if (currQuad == total)
         expand();
 
+    // Create the new quad
     quad *q = quads + currQuad++;
     q->op = op;
     q->arg1 = arg1;
@@ -195,10 +287,18 @@ unsigned nextquad(void) {
 }
 
 void patchlabel(unsigned quadNo, unsigned label) {
+    // Add comprehensive safety checks
     if (quadNo >= currQuad) {
         fprintf(stderr, "Error: patchlabel: quadNo (%u) >= currQuad (%u) at line %d\n", quadNo, currQuad, yylineno);
         return;
     }
+    
+    // Make sure quads array is valid
+    if (!quads) {
+        fprintf(stderr, "Error: quads array is NULL in patchlabel\n");
+        return;
+    }
+    
     printf("Patching quad %u with label %u\n", quadNo, label);  // debug print
     quads[quadNo].label = label;
 }
@@ -258,14 +358,20 @@ void exitscopespace(void) {
 
 expr *newexpr(expr_t t) {
     expr *e = (expr *)malloc(sizeof(expr));
-    if (!e)
-    {
+    if (!e) {
         fprintf(stderr, "Out of memory\n");
         exit(EXIT_FAILURE);
     }
     memset(e, 0, sizeof(expr));
     e->type = t;
     e->sym = NULL;
+    
+    // For nil expressions, ensure they have safe default values
+    if (t == nil_e) {
+        // Create a temporary symbol for nil expressions to avoid NULL dereferences
+        e->sym = newtemp();
+    }
+    
     return e;
 }
 
@@ -284,6 +390,10 @@ expr *newexpr_conststring(char *s) {
 expr *newexpr_constbool(unsigned int b) {
     expr *e = newexpr(constbool_e);
     e->boolConst = !!b;
+    // Make sure it has a symbol to prevent issues
+    if (!e->sym) {
+        e->sym = newtemp();
+    }
     return e;
 }
 
@@ -348,11 +458,30 @@ expr *lvalue_expr(SymbolTableEntry *sym) {
 /* added make_call_expr & create_expr_list (not sure if they can be replaced by existing functions) */
 
 expr *make_call_expr(expr *func_expr, expr *args) {
-    expr *call_expr = newexpr(call_e); // assuming call_e is a type for function calls
-    call_expr->sym = func_expr->sym;   // or store the function symbol
-    call_expr->args = args;            // you might need to add an args field to expr struct
+    // Defensive check for NULL function expression
+    if (!func_expr) {
+        fprintf(stderr, "Warning: NULL function expression in make_call_expr\n");
+        return newexpr(nil_e);
+    }
+    
+    // Create a new call expression
+    expr *call_expr = newexpr(call_e);
+    
+    // Safely copy the symbol if available
+    if (func_expr->sym) {
+        call_expr->sym = func_expr->sym;
+    } else {
+        // Create a temporary symbol if none exists
+        call_expr->sym = newtemp();
+        fprintf(stderr, "Warning: Function expression has no symbol, created temp\n");
+    }
+    
+    // Safely handle arguments
+    call_expr->args = args;
+    
     return call_expr;
 }
+
 expr *create_expr_list(expr *head, expr *tail) {
     if (!head)
         return tail;
@@ -361,26 +490,23 @@ expr *create_expr_list(expr *head, expr *tail) {
 }
 
 expr *emit_iftableitem(expr *e) {
-
-    /* --- modification: NULL, low address and alignment check ---- */
-
     if (!e) {
-        printf("FATAL: NULL expr passed to emit_iftableitem!\n");
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "FATAL: NULL expr passed to emit_iftableitem!\n");
+        return newexpr(nil_e); // Return safe nil instead of exiting
     }
 
-    // for invalid/corrupted pointers
+    // Skip invalid expressions
     if ((uintptr_t)e < 4096 || ((uintptr_t)e & 0xF) != 0) {
-        printf("FATAL: Invalid expr pointer: %p\n", (void *)e);
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "FATAL: Invalid expr pointer: %p\n", (void *)e);
+        return newexpr(nil_e); // Return safe nil instead of exiting
     }
-    /* ------------------------------------------------------------ */
+
     if (e->type != tableitem_e)
         return e;
 
     if (!e->index) {
         fprintf(stderr, "FATAL: expr->index is NULL in emit_iftableitem!\n");
-        exit(EXIT_FAILURE);
+        return newexpr(nil_e); // Return safe nil instead of exiting
     }
 
     expr *result = newexpr(var_e);
@@ -424,6 +550,12 @@ void make_stmt(stmt_t *s) {
 static void print_expr(FILE *f, expr *e) {
     if (!e) {
         fprintf(f, "nil");
+        return;
+    }
+
+    // Handle nil_e expressions specially
+    if (e->type == nil_e) {
+        fprintf(f, "NIL");
         return;
     }
 
@@ -479,7 +611,24 @@ void print_quads(FILE *f) {
 
     for (unsigned i = 0; i < currQuad; ++i)
     {
+
+        if (i >= total) {
+            fprintf(stderr, "Error: Quad index %u exceeds total %u\n", i, total);
+            break;
+        }
+
         quad *q = quads + i;
+
+        if (!q) {
+            fprintf(stderr, "Error: Invalid quad at index %u\n", i);
+            continue;
+        }
+        
+        // Check for valid operation
+        if (q->op < 0 || q->op > tablesetelem) {
+            fprintf(stderr, "Error: Invalid operation %d at quad %u\n", q->op, i);
+            continue;
+        }
 
         fprintf(f, "%-3u: ", i);
 

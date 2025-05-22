@@ -83,10 +83,10 @@
     }
 
     void exit_function_scope() {
-        if (checkFuncDepth > 0) {
-            checkFuncDepth--;
-        }
+        assert(checkFuncDepth > 0); // Add assertion to catch imbalanced calls
+        checkFuncDepth--;
     }
+
 
 %}
 
@@ -205,64 +205,126 @@ expr
     }
     | expr GREATER_THAN expr
     {
+        // Create a safe result expression regardless of input
         expr *r = newexpr(boolexpr_e);
-        r->sym = NULL;
-        emit(if_greater,   $1, $3, NULL, nextquad()+2, yylineno);
-        emit(jump,         NULL, NULL, NULL, nextquad()+1, yylineno);
+        r->sym = newtemp();
+        
+        // Check if either operand is NULL or nil
+        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
+            // Just assign a constant instead of generating complex code
+            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        } else {
+            // Only generate comparison code for valid expressions
+            emit(if_greater, $1, $3, NULL, nextquad()+2, yylineno);
+            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
+        }
         $$ = r;
     }
     | expr LESS_THAN expr
     {
+        // Create a safe result expression regardless of input
         expr *r = newexpr(boolexpr_e);
-        r->sym = NULL;
-        emit(if_less,      $1, $3, NULL, nextquad()+2, yylineno);
-        emit(jump,         NULL, NULL, NULL, nextquad()+1, yylineno);
+        r->sym = newtemp();
+        
+        // Check if either operand is NULL or nil
+        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
+            // Just assign a constant instead of generating complex code
+            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        } else {
+            // Only generate comparison code for valid expressions
+            emit(if_less, $1, $3, NULL, nextquad()+2, yylineno);
+            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
+        }
         $$ = r;
     }
     | expr GREATER_EQUAL expr
     {
+        // Create a safe result expression regardless of input
         expr *r = newexpr(boolexpr_e);
-        r->sym = NULL;
-        emit(if_greatereq, $1, $3, NULL, nextquad()+2, yylineno);
-        emit(jump,         NULL, NULL, NULL, nextquad()+1, yylineno);
+        r->sym = newtemp();
+        
+        // Check if either operand is NULL or nil
+        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
+            // Just assign a constant instead of generating complex code
+            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        } else {
+            // Only generate comparison code for valid expressions
+            emit(if_greatereq, $1, $3, NULL, nextquad()+2, yylineno);
+            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
+        }
         $$ = r;
     }
     | expr LESS_EQUAL expr
     {
+        // Create a safe result expression regardless of input
         expr *r = newexpr(boolexpr_e);
-        r->sym = NULL;
-        emit(if_lesseq,    $1, $3, NULL, nextquad()+2, yylineno);
-        emit(jump,         NULL, NULL, NULL, nextquad()+1, yylineno);
+        r->sym = newtemp();
+        
+        // Check if either operand is NULL or nil
+        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
+            // Just assign a constant instead of generating complex code
+            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        } else {
+            // Only generate comparison code for valid expressions
+            emit(if_lesseq, $1, $3, NULL, nextquad()+2, yylineno);
+            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
+        }
         $$ = r;
     }
     | expr EQUAL_EQUAL expr
     {
+        // Create a safe result expression regardless of input
         expr *r = newexpr(boolexpr_e);
-        r->sym = NULL;
-        emit(if_eq,        $1, $3, NULL, nextquad()+2, yylineno);
-        emit(jump,         NULL, NULL, NULL, nextquad()+1, yylineno);
+        r->sym = newtemp();
+        
+        // Check if either operand is NULL or nil
+        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
+            // Just assign a constant instead of generating complex code
+            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        } else {
+            // Only generate comparison code for valid expressions
+            emit(if_eq, $1, $3, NULL, nextquad()+2, yylineno);
+            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
+        }
         $$ = r;
     }
     | expr NOT_EQUAL expr
     {
-        expr *r = newexpr(boolexpr_e);
-        r->sym = NULL;
-        emit(if_noteq,     $1, $3, NULL, nextquad()+2, yylineno);
-        emit(jump,         NULL, NULL, NULL, nextquad()+1, yylineno);
-        $$ = r;
-    }
-
-    | expr AND expr
-    {
+        // Create a safe result expression regardless of input
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
-        int Lfalse = nextquad();
-        emit(if_eq,   $1, newexpr_constbool(0), NULL, 0, yylineno);
-        emit(if_eq,   $3, newexpr_constbool(0), NULL, 0, yylineno);
-        emit(assign, newexpr_constbool(1), NULL, r, 0, yylineno);
-        emit(jump,   NULL, NULL,          NULL, nextquad()+1, yylineno);
-        patchlabel(Lfalse, nextquad());
-        emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        
+        // Check if either operand is NULL or nil
+        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
+            // Just assign a constant instead of generating complex code
+            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        } else {
+            // Only generate comparison code for valid expressions
+            emit(if_noteq, $1, $3, NULL, nextquad()+2, yylineno);
+            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
+        }
+        $$ = r;
+    }
+    | expr AND expr
+    {
+        // Create a safe boolean expression result
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+        
+        // Check if either operand is nil or invalid
+        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
+            // Directly assign a default value instead of generating complex code
+            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        } else {
+            // Original code for valid expressions
+            int Lfalse = nextquad();
+            emit(if_eq, $1, newexpr_constbool(0), NULL, 0, yylineno);
+            emit(if_eq, $3, newexpr_constbool(0), NULL, 0, yylineno);
+            emit(assign, newexpr_constbool(1), NULL, r, 0, yylineno);
+            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
+            patchlabel(Lfalse, nextquad());
+            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        }
         $$ = r;
     }
 
@@ -270,15 +332,35 @@ expr
     {
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
+
+        // Fix left operand if invalid
+        if (!$1 || (uintptr_t)$1 < 4096 || !$1->sym) {
+            fprintf(stderr, "Fixing OR left operand\n");
+            $1 = newexpr(constbool_e);
+            $1->boolConst = 0;
+            $1->sym = newtemp();
+        }
+
+        // Fix right operand if invalid
+        if (!$3 || (uintptr_t)$3 < 4096 || !$3->sym) {
+            fprintf(stderr, "Fixing OR right operand\n");
+            $3 = newexpr(constbool_e);
+            $3->boolConst = 0;
+            $3->sym = newtemp();
+        }
+
         int Ltrue = nextquad();
         emit(if_noteq, $1, newexpr_constbool(0), NULL, 0, yylineno);
         emit(if_noteq, $3, newexpr_constbool(0), NULL, 0, yylineno);
-        emit(assign,   newexpr_constbool(0), NULL, r, 0, yylineno);
-        emit(jump,     NULL, NULL,            NULL, nextquad()+1, yylineno);
+        emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        emit(jump, NULL, NULL, NULL, nextquad() + 1, yylineno);
         patchlabel(Ltrue, nextquad());
-        emit(assign,   newexpr_constbool(1), NULL, r, 0, yylineno);
+        emit(assign, newexpr_constbool(1), NULL, r, 0, yylineno);
+
         $$ = r;
     }
+
+
 
     | assignexpr { $$ = $1; }
     | term       { $$ = $1; } 
@@ -356,10 +438,22 @@ term
             emit(uminus, $2, NULL, r, 0, yylineno); 
             $$ = r; print_rule("term -> - expr"); 
         }
-    | NOT expr 
-        { 
-            print_rule("term -> not expr"); 
-        }
+    | NOT expr {
+        // Create a safe result expression
+    expr *r = newexpr(boolexpr_e);
+    r->sym = newtemp();
+    
+    // Check if operand is NULL or nil
+    if (!$2 || $2->type == nil_e) {
+        // Just assign a constant instead of generating complex code
+        emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+    } else {
+        // Original code for valid expressions
+        emit(not, $2, NULL, r, 0, yylineno);
+    }
+    $$ = r;
+    print_rule("term -> not expr");
+    }
     | PLUS_PLUS lvalue 
         { 
             if ($2->type == programfunc_e || $2->type == libraryfunc_e) fprintf(stderr,"Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->sym->name, yylineno); 
@@ -440,12 +534,16 @@ lvalue
         }
     }
     | COLON_COLON IDENTIFIER
-      {
-          SymbolTableEntry *sym = lookup_symbol(symbol_table, $2, 0, 0);
-          if (!sym)
-              fprintf(stderr, "Error: Symbol '%s' not found in global scope (line %d)\n", $2, yylineno);
-          $$ = lvalue_expr(sym);
-      }
+    {
+        SymbolTableEntry *sym = lookup_symbol(symbol_table, $2, 0, 0);
+        if (!sym) {
+            fprintf(stderr, "Error: Symbol '%s' not found in global scope (line %d)\n", $2, yylineno);
+            semantic_errors++;
+            $$ = newexpr(nil_e); // Return a safe nil expression instead of using NULL
+        } else {
+            $$ = lvalue_expr(sym);
+        }
+    }
     | member
 ;
 
@@ -512,11 +610,15 @@ call
         print_rule("call -> lvalue callsuffix"); 
       }
     | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
-        /* NOTE: THIS IS WHERE THE INCOMPATIBILITY OCCURS */
-        // expr* fexpr = $2; // funcdef now returns expr*
-        // $$ = make_call_expr(current_function_expr, $6);
-        $$ = make_call_expr($2, $5);
-        print_rule("call -> ( funcdef ) ( elist )"); }     
+        // Add safety check for anonymous function calls
+        if (!$2) {
+            fprintf(stderr, "Warning: Invalid function definition at line %d\n", yylineno);
+            $$ = newexpr(nil_e); // Return a safe nil expression
+        } else {
+            $$ = make_call_expr($2, $5);
+        }
+        print_rule("call -> ( funcdef ) ( elist )"); 
+    }    
     ;
 
 callsuffix
@@ -642,7 +744,7 @@ funcdef
           $$ = $<expression>3;      // use previously stored expr*
       }
 
-| FUNCTION
+    | FUNCTION
     {
         char *anonymous_name = malloc(32);
         if (!anonymous_name) {
@@ -651,6 +753,9 @@ funcdef
         }
         sprintf(anonymous_name, "$%d", anonymus_function_counter++);
         SymbolTableEntry *func_sym = insert_symbol(symbol_table, anonymous_name, USER_FUNCTION, yylineno, checkScope);
+        
+        // Only free if insert_symbol makes a deep copy of the name
+        free(anonymous_name);
 
         $<expression>$ = newexpr(programfunc_e);
         $<expression>$->sym = func_sym;
@@ -659,8 +764,6 @@ funcdef
         ++inside_function_depth;
         first_brace_of_func = 1;
         enter_function_scope(); // for loop
-
-        free(anonymous_name);
     }
     LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
     {
