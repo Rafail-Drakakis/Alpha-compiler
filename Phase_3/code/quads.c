@@ -197,7 +197,7 @@ unsigned nextquad(void) {
 void patchlabel(unsigned quadNo, unsigned label) {
     if (quadNo >= currQuad) {
         fprintf(stderr, "Error: patchlabel: quadNo (%u) >= currQuad (%u) at line %d\n", quadNo, currQuad, yylineno);
-        exit(EXIT_FAILURE);
+        return;
     }
     printf("Patching quad %u with label %u\n", quadNo, label);  // debug print
     quads[quadNo].label = label;

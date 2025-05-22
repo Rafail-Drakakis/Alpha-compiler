@@ -110,12 +110,12 @@
 %token <stringValue> FUNCTION AND OR NOT MODULO PLUS_PLUS MINUS_MINUS EQUAL_EQUAL LESS GREATER
 %token <stringValue> DOT_DOT DOT COLON_COLON PUNCTUATION OPERATOR
 
-%type <expression> funcdef
+%type <expression>  funcdef
 %type <arglist>     idlist formal_arguments
 %type <expression> 	expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
 %type <intValue>	ifprefix elseprefix ifstmt stmt
 %type <expression>  call_member indexed indexedelem objectdef
-%type <intValue>    whilestmt
+%type <intValue>    whilestmt whileprefix
 
 %right ASSIGNMENT        /* = has less priority in compare with all the other */
 %left OR
@@ -397,28 +397,32 @@ primary
 lvalue
     : IDENTIFIER
       {
-          SymbolTableEntry *sym = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
-          if (!sym) {
-              insert_symbol(symbol_table, $1, (checkScope==0)? GLOBAL : LOCAL_VAR, yylineno, checkScope);
-              sym = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
-
-              if (!sym) {
-                  fprintf(stderr, "Error: Failed to insert or lookup symbol '%s' (line %d)\n", $1, yylineno);
-                  $$ = newexpr(nil_e);
-              } else {
-                  $$ = lvalue_expr(sym);
-              }
-          } else {
-              $$ = lvalue_expr(sym);
-          }
+        SymbolTableEntry *sym = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
+        if (!sym) {
+            sym = insert_symbol(symbol_table, $1, (checkScope==0)? GLOBAL : LOCAL_VAR, yylineno, checkScope);
+            if (!sym) {
+                fprintf(stderr, "Error: Failed to insert symbol '%s' (line %d)\n", $1, yylineno);
+                semantic_errors++;
+                $$ = newexpr(nil_e);
+            } else {
+                $$ = lvalue_expr(sym);
+            }
+        } else {
+            $$ = lvalue_expr(sym);
+        }
       }
 
     | LOCAL IDENTIFIER
       {
-          insert_symbol(symbol_table, $2, LOCAL_VAR, yylineno, checkScope);
-          SymbolTableEntry *sym = lookup_symbol(symbol_table, $2, checkScope, inside_function_scope);
-          $$ = lvalue_expr(sym);
-      }
+        SymbolTableEntry *sym = insert_symbol(symbol_table, $2, LOCAL_VAR, yylineno, checkScope);
+        if (!sym) {
+            fprintf(stderr, "Error: Failed to insert symbol '%s' (line %d)\n", $2, yylineno);
+            semantic_errors++;
+            $$ = newexpr(nil_e);
+        } else {
+            $$ = lvalue_expr(sym);
+        }
+    }
     | COLON_COLON IDENTIFIER
       {
           SymbolTableEntry *sym = lookup_symbol(symbol_table, $2, 0, 0);
@@ -716,33 +720,25 @@ elseprefix
     ;
 
 whilestmt
-    : WHILE LEFT_PARENTHESIS expr RIGHT_PARENTHESIS 
-        { 
-            //checkLoopDepth++; 
-            push_loopcounter(); // we enter loop scope
+    : whileprefix stmt
+      {
+          emit(jump, NULL, NULL, NULL, $1, yylineno);  
+          patchlabel($1 + 1, nextquad());  // patch jump over loop
+          pop_loopcounter();
+          $$ = 0;
+          print_rule("whilestmt -> while ( expr ) stmt");
+      }
+    ;
 
-            /* ----------------------- new ------------------------ */
-            int loop_start = nextquad(); 
-	        emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
-
-            int jump_false = nextquad();
-	        emit(jump, NULL, NULL, NULL, 0, yylineno);
-
-            int loop_body = nextquad();
-            $<intValue>$ = loop_start;
-            /* --------------------- end new ---------------------- */
-        } 
-        stmt 
-        { 
-            /* ----------------------- new ------------------------ */
-            emit(jump, NULL, NULL, NULL, $<intValue>1, yylineno);  
-       	    patchlabel($<intValue>4, nextquad());
-	        /* --------------------- end new ---------------------- */
-
-            // checkLoopDepth--; 
-	        pop_loopcounter();  // we exit loop scope
-            print_rule("whilestmt -> while ( expr ) stmt"); 
-        }
+whileprefix
+    : WHILE LEFT_PARENTHESIS expr RIGHT_PARENTHESIS
+      {
+          push_loopcounter();
+          int start = nextquad();
+          emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
+          emit(jump, NULL, NULL, NULL, 0, yylineno);
+          $$ = start;
+      }
     ;
 
 forstmt
