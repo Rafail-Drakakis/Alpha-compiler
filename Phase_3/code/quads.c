@@ -171,7 +171,7 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
     }
     
     // Comprehensive safety checks for all expressions
-    if (arg1 && !arg1->sym && (arg1->type != constnum_e && arg1->type != conststring_e && arg1->type != constbool_e)) {
+    /*if (arg1 && !arg1->sym && (arg1->type != constnum_e && arg1->type != conststring_e && arg1->type != constbool_e)) {
         debug(1, "Warning: Expression without symbol (type %d) at line %d\n", arg1->type, line);
         arg1->sym = newtemp();
     }
@@ -179,11 +179,32 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
     if (arg2 && !arg2->sym && (arg2->type != constnum_e && arg2->type != conststring_e && arg2->type != constbool_e)) {
         debug(1, "Warning: Expression without symbol (type %d) at line %d\n", arg2->type, line);
         arg2->sym = newtemp();
+    }*/
+
+    if (arg1 && !arg1->sym &&
+        (arg1->type != constnum_e &&
+        arg1->type != conststring_e &&
+        arg1->type != constbool_e &&
+        arg1->type != newtable_e)) {
+        debug(1, "Warning: Expression without symbol (type %d) at line %d\n", arg1->type, line);
+        arg1->sym = newtemp();
+    }
+
+    if (arg2 && !arg2->sym &&
+        (arg2->type != constnum_e &&
+        arg2->type != conststring_e &&
+        arg2->type != constbool_e &&
+        arg2->type != newtable_e)) { 
+        debug(1, "Warning: Expression without symbol (type %d) at line %d\n", arg2->type, line);
+        arg2->sym = newtemp();
     }
 
     if (result && !result->sym) {
         // let's only warn if it's not an arithmetic or assign expression since temp results are expected here
-        if (result->type != arithexpr_e && result->type != assignexpr_e && result->type != var_e) {
+        if (result->type != arithexpr_e 
+	&& result->type != assignexpr_e 
+	&& result->type != var_e 
+	&& result->type != tableitem_e && result->type != newtable_e) {
             debug(1, "Warning: Result without symbol (type %d) at line %d\n", result->type, line);
         }
     result->sym = newtemp();
@@ -283,8 +304,15 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
     // Create the new quad
     quad *q = quads + currQuad++;
     q->op = op;
-    q->arg1 = arg1;
-    q->arg2 = arg2;
+    // q->arg1 = arg1;
+    // q->arg2 = arg2;
+    if (op == tablesetelem) {
+        q->arg1 = arg2;  // index
+        q->arg2 = arg1;  // value
+    } else {
+        q->arg1 = arg1;
+        q->arg2 = arg2;
+    }
     q->result = result;
     q->label = label;
     q->line = line;
