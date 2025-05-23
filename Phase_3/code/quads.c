@@ -170,17 +170,6 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
         }
     }
     
-    // Comprehensive safety checks for all expressions
-    /*if (arg1 && !arg1->sym && (arg1->type != constnum_e && arg1->type != conststring_e && arg1->type != constbool_e)) {
-        debug(1, "Warning: Expression without symbol (type %d) at line %d\n", arg1->type, line);
-        arg1->sym = newtemp();
-    }
-    
-    if (arg2 && !arg2->sym && (arg2->type != constnum_e && arg2->type != conststring_e && arg2->type != constbool_e)) {
-        debug(1, "Warning: Expression without symbol (type %d) at line %d\n", arg2->type, line);
-        arg2->sym = newtemp();
-    }*/
-
     if (arg1 && !arg1->sym &&
         (arg1->type != constnum_e &&
         arg1->type != conststring_e &&
@@ -202,11 +191,11 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
     if (result && !result->sym) {
         // let's only warn if it's not an arithmetic or assign expression since temp results are expected here
         if (result->type != arithexpr_e 
-	&& result->type != assignexpr_e 
-	&& result->type != var_e 
-	&& result->type != boolexpr_e
-	&& result->type != tableitem_e && result->type != newtable_e) {
-            debug(1, "Warning: Result without symbol (type %d) at line %d\n", result->type, line);
+            && result->type != assignexpr_e 
+            && result->type != var_e 
+            && result->type != boolexpr_e
+            && result->type != tableitem_e && result->type != newtable_e) {
+                    debug(1, "Warning: Result without symbol (type %d) at line %d\n", result->type, line);
         }
     result->sym = newtemp();
     }
@@ -271,7 +260,6 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
                 return;
             }
             break;
-            
         // Operations requiring arg1
         case if_eq:
         case if_noteq:
@@ -293,20 +281,17 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
                 return;
             }
             break;
-            
         default:
             break;
     }
 
-    // Ensure we have space for the new quad
+    // ensure we have space for the new quad
     if (currQuad == total)
         expand();
 
-    // Create the new quad
+    // create the new quad
     quad *q = quads + currQuad++;
     q->op = op;
-    // q->arg1 = arg1;
-    // q->arg2 = arg2;
     if (op == tablesetelem) {
         q->arg1 = arg2;  // index
         q->arg2 = arg1;  // value
@@ -343,12 +328,13 @@ void patchlabel(unsigned quadNo, unsigned label) {
 /* Scoping */
 
 scopespace_t currscopespace(void) {
-    if (scopeSpaceCounter == 1)
+    if (scopeSpaceCounter == 1) {
         return programvar;
-    else if (scopeSpaceCounter % 2 == 0)
+    } else if (scopeSpaceCounter % 2 == 0) {
         return formalarg;
-    else
+    } else {
         return functionlocal;
+    }
 }
 
 unsigned currscopeoffset(void) {
@@ -403,7 +389,7 @@ expr *newexpr(expr_t t) {
     e->type = t;
     e->sym = NULL;
     
-    // For nil expressions, ensure they have safe default values
+    // for nil expressions, ensure they have safe default values
     if (t == nil_e) {
         e->sym = newtemp();
     }
@@ -434,7 +420,7 @@ expr* newexpr_conststring(char* s) {
 expr *newexpr_constbool(unsigned int b) {
     expr *e = newexpr(constbool_e);
     e->boolConst = !!b;
-    // Make sure it has a symbol to prevent issues
+    // make sure it has a symbol to prevent issues
     if (!e->sym) {
         e->sym = newtemp();
     }
@@ -527,8 +513,9 @@ expr *make_call_expr(expr *func_expr, expr *args) {
 }
 
 expr *create_expr_list(expr *head, expr *tail) {
-    if (!head)
+    if (!head) {
         return tail;
+    }
     head->next = tail;
     return head;
 }
@@ -545,8 +532,9 @@ expr *emit_iftableitem(expr *e) {
         return newexpr(nil_e); // Return safe nil instead of exiting
     }
 
-    if (e->type != tableitem_e)
+    if (e->type != tableitem_e){
         return e;
+    }
 
     if (!e->index) {
         fprintf(stderr, "FATAL: expr->index is NULL in emit_iftableitem!\n");
@@ -567,14 +555,16 @@ int newlist(int quadNo) {
 }
 
 int mergelist(int l1, int l2) {
-    if (!l1)
+    if (!l1){
         return l2;
-    if (!l2)
+    }
+    if (!l2){
         return l1;
-
+    }
     int i = l1;
-    while (quads[i].label)
+    while (quads[i].label){
         i = quads[i].label;
+    }
     quads[i].label = l2;
     return l1;
 }
@@ -650,12 +640,10 @@ static void print_expr(FILE *f, expr *e) {
 }
 
 void print_quads(FILE *f) {
-    fprintf(f,
-        "------------------------------ Intermediate Code ------------------------------\n");
+    fprintf(f, "------------------------------ Intermediate Code ------------------------------\n");
 
     for (unsigned i = 0; i < currQuad; ++i) {
         quad *q = quads + i;
-
         fprintf(f, "%-3u: ", i);
 
         switch (q->op) {
@@ -843,9 +831,9 @@ void print_quads(FILE *f) {
 
 
 expr* convert_to_value(expr* bool_expr) {
-    if (bool_expr->type != boolexpr_e)
+    if (bool_expr->type != boolexpr_e){
         return bool_expr;
-
+    }
     expr* result = newexpr(var_e);
     result->sym = newtemp();
 
@@ -878,9 +866,9 @@ expr* convert_to_bool(expr* e) {
 }
 
 expr* make_not(expr* e) {
-    if (e->type != boolexpr_e)
+    if (e->type != boolexpr_e){
         e = convert_to_bool(e);  // emits if_eq/jump to produce true/false lists
-
+    }
     expr* r = newexpr(boolexpr_e);
     r->truelist = e->falselist;
     r->falselist = e->truelist;
@@ -911,12 +899,12 @@ expr* make_eq_neq(expr* e1, expr* e2, iopcode op) {
     if (!e1) e1 = newexpr(nil_e);
     if (!e2) e2 = newexpr(nil_e);
 
-    if (e1->type == boolexpr_e)
+    if (e1->type == boolexpr_e){
         e1 = convert_to_value(e1);
-
-    if (e2->type == boolexpr_e)
+    }
+    if (e2->type == boolexpr_e){
         e2 = convert_to_value(e2);
-
+    }
     expr* r = newexpr(boolexpr_e);
     r->sym = newtemp();
 
