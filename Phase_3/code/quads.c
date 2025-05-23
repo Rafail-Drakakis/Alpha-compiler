@@ -53,7 +53,7 @@ unsigned loopcounter(void) {
 void push_loopcounter(void) {
     struct lc_stack_t* new_node = malloc(sizeof(struct lc_stack_t));
     if (!new_node) {
-        fprintf(stderr, "Memory allocation failed in push_loopcounter\n");
+        debug(1, "Memory allocation failed in push_loopcounter\n");
         exit(EXIT_FAILURE);
     }
     new_node->counter = loop_id_counter++;
@@ -79,7 +79,7 @@ void expand(void) {
     if (!quads) {
         p = (quad *)malloc(NEW_SIZE);
         if (!p) {
-            fprintf(stderr, "memory allocation failed in expand\n");
+            debug(1, "memory allocation failed in expand\n");
             exit(EXIT_FAILURE);
         }
         total = EXPAND_SIZE;
@@ -87,7 +87,7 @@ void expand(void) {
     else {
         p = (quad *)malloc(NEW_SIZE);
         if (!p) {
-            fprintf(stderr, "memory allocation failed in expand\n");
+            debug(1, "memory allocation failed in expand\n");
             exit(EXIT_FAILURE);
         }
         memcpy(p, quads, CURR_SIZE);
@@ -110,7 +110,6 @@ static const char *op_to_str(iopcode op) {
 }
 
 static const char *expr_to_str_buf(expr *e, char *buf, size_t bufsize) {
-    
     if (!e) {
         snprintf(buf, bufsize, "nil");
         return buf;
@@ -133,7 +132,7 @@ static const char *expr_to_str_buf(expr *e, char *buf, size_t bufsize) {
         default:
             break;
     }
-
+    
     if (!e->sym) {
         snprintf(buf, bufsize, "anonymous");
         return buf;
@@ -163,29 +162,51 @@ static const char *expr_to_str_buf(expr *e, char *buf, size_t bufsize) {
 void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsigned line) {
     // Debug output for critical quads
     if (currQuad >= 48 && currQuad <= 55) {
-        fprintf(stderr, "DEBUG: About to emit quad %d - op: %s\n", currQuad+1, op_to_str(op));
-        if (arg1) fprintf(stderr, "  arg1 type: %d, addr: %p\n", arg1->type, (void*)arg1);
+        debug(1, "About to emit quad %d - op: %s\n", currQuad+1, op_to_str(op));
+        if (arg1) debug(1, "  arg1 type: %d, addr: %p\n", arg1->type, (void*)arg1);
         if (result) {
-            fprintf(stderr, "  result type: %d, addr: %p\n", result->type, (void*)result);
-            if (result->sym) fprintf(stderr, "  result sym: %s\n", result->sym->name);
+            debug(1, "  result type: %d, addr: %p\n", result->type, (void*)result);
+            if (result->sym) debug(1, "  result sym: %s\n", result->sym->name);
         }
     }
     
     // Comprehensive safety checks for all expressions
-    if (arg1 && !arg1->sym && (arg1->type != constnum_e && arg1->type != conststring_e && arg1->type != constbool_e)) {
-        fprintf(stderr, "Warning: Expression without symbol (type %d) at line %d\n", arg1->type, line);
+    /*if (arg1 && !arg1->sym && (arg1->type != constnum_e && arg1->type != conststring_e && arg1->type != constbool_e)) {
+        debug(1, "Warning: Expression without symbol (type %d) at line %d\n", arg1->type, line);
         arg1->sym = newtemp();
     }
     
     if (arg2 && !arg2->sym && (arg2->type != constnum_e && arg2->type != conststring_e && arg2->type != constbool_e)) {
-        fprintf(stderr, "Warning: Expression without symbol (type %d) at line %d\n", arg2->type, line);
+        debug(1, "Warning: Expression without symbol (type %d) at line %d\n", arg2->type, line);
+        arg2->sym = newtemp();
+    }*/
+
+    if (arg1 && !arg1->sym &&
+        (arg1->type != constnum_e &&
+        arg1->type != conststring_e &&
+        arg1->type != constbool_e &&
+        arg1->type != newtable_e)) {
+        debug(1, "Warning: Expression without symbol (type %d) at line %d\n", arg1->type, line);
+        arg1->sym = newtemp();
+    }
+
+    if (arg2 && !arg2->sym &&
+        (arg2->type != constnum_e &&
+        arg2->type != conststring_e &&
+        arg2->type != constbool_e &&
+        arg2->type != newtable_e)) { 
+        debug(1, "Warning: Expression without symbol (type %d) at line %d\n", arg2->type, line);
         arg2->sym = newtemp();
     }
 
     if (result && !result->sym) {
         // let's only warn if it's not an arithmetic or assign expression since temp results are expected here
-        if (result->type != arithexpr_e && result->type != assignexpr_e && result->type != var_e) {
-            fprintf(stderr, "Warning: Result without symbol (type %d) at line %d\n", result->type, line);
+        if (result->type != arithexpr_e 
+	&& result->type != assignexpr_e 
+	&& result->type != var_e 
+	&& result->type != boolexpr_e
+	&& result->type != tableitem_e && result->type != newtable_e) {
+            debug(1, "Warning: Result without symbol (type %d) at line %d\n", result->type, line);
         }
     result->sym = newtemp();
     }
@@ -194,7 +215,7 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
     if (op == assign && arg1 && arg1->type == boolexpr_e) {
         // If the boolean expression doesn't have a symbol, create a temporary one
         if (!arg1->sym) {
-            fprintf(stderr, "Warning: Boolean expression without symbol in assign operation (line %d)\n", line);
+            debug(1, "Warning: Boolean expression without symbol in assign operation (line %d)\n", line);
             
             // Create a new temporary expression with a symbol
             expr *temp = newexpr(var_e);
@@ -225,7 +246,7 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
         (arg1 == NULL || arg2 == NULL || 
          (arg1 && arg1->type == nil_e) || 
          (arg2 && arg2->type == nil_e))) {
-        fprintf(stderr, "Warning: Skipping unsafe boolean operation at line %d\n", line);
+        debug(1, "Warning: Skipping unsafe boolean operation at line %d\n", line);
         return; // Skip this quad entirely
     }
 
@@ -246,7 +267,7 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
         case tablecreate:
         case tablegetelem:
             if (result == NULL) {
-                fprintf(stderr, "Error: NULL result in emit() for opcode that requires result (line %d)\n", line);
+                debug(1, "Error: NULL result in emit() for opcode that requires result (line %d)\n", line);
                 return;
             }
             break;
@@ -261,7 +282,7 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
         case param:
         case call:
             if (arg1 == NULL) {
-                fprintf(stderr, "Error: NULL arg1 in emit() for opcode that requires arg1 (line %d)\n", line);
+                debug(1, "Error: NULL arg1 in emit() for opcode that requires arg1 (line %d)\n", line);
                 return;
             }
             break;
@@ -284,8 +305,15 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
     // Create the new quad
     quad *q = quads + currQuad++;
     q->op = op;
-    q->arg1 = arg1;
-    q->arg2 = arg2;
+    // q->arg1 = arg1;
+    // q->arg2 = arg2;
+    if (op == tablesetelem) {
+        q->arg1 = arg2;  // index
+        q->arg2 = arg1;  // value
+    } else {
+        q->arg1 = arg1;
+        q->arg2 = arg2;
+    }
     q->result = result;
     q->label = label;
     q->line = line;
@@ -308,7 +336,7 @@ void patchlabel(unsigned quadNo, unsigned label) {
         return;
     }
     
-    printf("Patching quad %u with label %u\n", quadNo, label);  // debug print
+    debug(1, "Patching quad %u with label %u\n", quadNo, label);
     quads[quadNo].label = label;
 }
 
@@ -377,10 +405,12 @@ expr *newexpr(expr_t t) {
     
     // For nil expressions, ensure they have safe default values
     if (t == nil_e) {
-        // Create a temporary symbol for nil expressions to avoid NULL dereferences
         e->sym = newtemp();
     }
-    
+    // FOR newtable_e, ALWAYS ASSIGN A SYMBOL!
+    if (t == newtable_e) {
+        e->sym = newtemp();
+    }
     return e;
 }
 
@@ -390,11 +420,16 @@ expr *newexpr_constnum(double i) {
     return e;
 }
 
-expr *newexpr_conststring(char *s) {
-    expr *e = newexpr(conststring_e);
+expr* newexpr_conststring(char* s) {
+    if (!s || ((uintptr_t)s) < 0x1000) { // Super-low address = likely error
+        fprintf(stderr, "BUG: newexpr_conststring called with bad pointer %p\n", s);
+        exit(1); // or exit(1)
+    }
+    expr* e = newexpr(conststring_e);
     e->strConst = strdup(s);
     return e;
 }
+
 
 expr *newexpr_constbool(unsigned int b) {
     expr *e = newexpr(constbool_e);
@@ -407,8 +442,8 @@ expr *newexpr_constbool(unsigned int b) {
 }
 
 char *newtempname(void) {
-    char *name = malloc(10);
-    sprintf(name, "_t%u", tempcounter++);
+    char *name = malloc(16);
+    sprintf(name, "_%u", tempcounter++);
     return name;
 }
 
@@ -784,7 +819,6 @@ void print_quads(FILE *f) {
         fprintf(f, "\n");
     }
 
-    // Updated this part to include line numbers
     fprintf(f, "\n%-6s %-12s %-20s %-20s %-20s %-5s\n", "quad#", "opcode", "result", "arg1", "arg2", "label");
 
     for (unsigned i = 0; i < currQuad; ++i) {
