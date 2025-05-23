@@ -150,10 +150,18 @@ stmt_list
     | /* empty */ { print_rule("stmt_list -> epsilon"); }
     ;
 
+
 stmt
-    : expr SEMICOLON { if($1->type == constnum_e) { expr *temp = newexpr(var_e); temp->sym = newtemp();
-      emit(add, newexpr_constnum($1->numConst), NULL, temp, 0, yylineno); }
-      print_rule("stmt -> expr ;"); }
+    : expr SEMICOLON 
+        {
+	    expr *val = convert_to_value($1);
+            if($1->type == constnum_e) { 
+                expr *temp = newexpr(var_e); 
+                temp->sym = newtemp();
+                emit(add, newexpr_constnum($1->numConst), NULL, temp, 0, yylineno); 
+            }
+            print_rule("stmt -> expr ;"); 
+        }
     | error SEMICOLON { print_rule("stmt -> error ;"); yyerrok; }
     | ifstmt { print_rule("stmt -> ifstmt"); }
     | whilestmt { print_rule("stmt -> whilestmt"); }
@@ -291,52 +299,8 @@ expr
         }
         $$ = r;
     }
-    
-    | expr OR expr
-    {
-        expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-
-        // if left operand is true, jump to true‐case
-        unsigned trueLabel = nextquad() + 3;
-        emit(if_eq, $1, newexpr_constbool(1), NULL, trueLabel, yylineno);
-
-        // else if right operand is true, same true‐case
-        emit(if_eq, $3, newexpr_constbool(1), NULL, trueLabel, yylineno);
-
-        // neither was true → r := false; then jump past the true‐case
-        emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
-        emit(jump, NULL, NULL, NULL, nextquad()+2, yylineno);
-
-        // trueLabel: r := true
-        emit(assign, newexpr_constbool(1), NULL, r, 0, yylineno);
-
-        $$ = r;
-    }
-
-    | expr AND expr
-    {
-        expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        if (!$1) $1 = newexpr(nil_e);
-        if (!$3) $3 = newexpr(nil_e);
-        emit(if_eq, $1, newexpr_constbool(1), NULL, nextquad()+2, yylineno);
-        emit(jump, NULL, NULL, NULL, nextquad()+5, yylineno);
-        
-        emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad()+4, yylineno);
-        emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
-        
-        // True result
-        emit(assign, newexpr_constbool(1), NULL, r, 0, yylineno);
-        emit(jump, NULL, NULL, NULL, nextquad()+2, yylineno);
-        
-        // False result
-        emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
-        
-        $$ = r;
-    }
-
-
+    | expr OR expr { $$ = make_or($1, $3); }
+    | expr AND expr { $$ = make_and($1, $3); }
     | assignexpr { $$ = $1; }
     | term       { $$ = $1; } 
     | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); $$ = newexpr(nil_e);}
@@ -345,12 +309,15 @@ expr
 assignexpr
     : lvalue ASSIGNMENT expr
     {
-        if($1->type == programfunc_e || $1->type == libraryfunc_e)
+        expr *rhs = convert_to_value($3);
+
+        if($1->type == programfunc_e || $1->type == libraryfunc_e) {
             fprintf(stderr,"Error: Symbol '%s' is not a valid l-value (line %d)\n",
                     $1->sym->name, yylineno);
-        
-        // Regular variable assignment - assign expr to lvalue
-        emit(assign, $3, NULL, $1, 0, yylineno);
+        }
+
+	    // Regular variable assignment - assign expr to lvalue
+        emit(assign, rhs, NULL, $1, 0, yylineno);
         
         // Create a new temporary (_t1) and assign lvalue to it
         expr *final = newexpr(var_e);
@@ -897,6 +864,8 @@ returnstmt
                 fprintf(stderr, "Error: 'return' used outside of any function (line %d)\n", yylineno);
 		        semantic_errors++;
             }
+	        expr *val = convert_to_value($2);
+            emit(ret, val, NULL, NULL, 0, yylineno);
             print_rule("returnstmt -> return expr ;");
         }
     ;

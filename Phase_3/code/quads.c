@@ -840,3 +840,47 @@ void print_quads(FILE *f) {
         );
     }
 }
+
+
+expr* convert_to_value(expr* bool_expr) {
+    if (bool_expr->type != boolexpr_e)
+        return bool_expr;
+
+    expr* result = newexpr(var_e);
+    result->sym = newtemp();
+
+    unsigned trueLabel = nextquad();
+    emit(assign, newexpr_constbool(1), NULL, result, 0, yylineno);
+
+    unsigned jumpLabel = nextquad();
+    emit(jump, NULL, NULL, NULL, 0, yylineno);
+
+    unsigned falseLabel = nextquad();
+    emit(assign, newexpr_constbool(0), NULL, result, 0, yylineno);
+
+    patchlist(bool_expr->truelist, trueLabel);
+    patchlist(bool_expr->falselist, falseLabel);
+    patchlabel(jumpLabel, nextquad());
+
+    return result;
+}
+
+expr* make_or(expr* e1, expr* e2) {
+    patchlist(e1->falselist, nextquad());  // If e1 is false, evaluate e2
+
+    expr* result = newexpr(boolexpr_e);
+    result->truelist = mergelist(e1->truelist, e2->truelist);
+    result->falselist = e2->falselist;
+
+    return result;
+}
+
+expr* make_and(expr* e1, expr* e2) {
+    patchlist(e1->truelist, nextquad());
+
+    expr* result = newexpr(boolexpr_e);
+    result->truelist = e2->truelist;
+    result->falselist = mergelist(e1->falselist, e2->falselist);
+
+    return result;
+}

@@ -51,8 +51,10 @@ typedef struct expr {
     double numConst;
     char* strConst;
     unsigned char boolConst;
-    struct expr *args; // new 19 may
+    struct expr *args;
     struct expr* next;
+    int truelist;
+    int falselist;
 } expr;
 
 typedef struct quad {
@@ -115,6 +117,10 @@ void make_stmt(stmt_t* s);
 int newlist(int quadNo);
 int mergelist(int list1, int list2);
 void patchlist(int list, int label);
+
+expr* convert_to_value(expr* e);
+expr* make_or(expr* e1, expr* e2);
+expr* make_and(expr* e1, expr* e2);
 
 #endif
 
