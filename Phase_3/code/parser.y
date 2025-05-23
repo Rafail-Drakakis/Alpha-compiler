@@ -340,7 +340,7 @@ expr
 
     | assignexpr { $$ = $1; }
     | term       { $$ = $1; } 
-    | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); }
+    | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); $$ = newexpr(nil_e);}
     ;
 
 assignexpr
@@ -464,7 +464,7 @@ primary
     : lvalue { print_rule("primary -> lvalue"); }
     | call { print_rule("primary -> call"); }
     | objectdef { print_rule("primary -> objectdef"); }
-    | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS { print_rule("primary -> ( funcdef )"); }
+    | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS { print_rule("primary -> ( funcdef )"); $$ = $2;}
     | const { print_rule("primary -> const"); }
     ;
 
