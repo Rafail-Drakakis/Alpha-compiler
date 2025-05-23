@@ -115,7 +115,7 @@
 %type <expression> 	expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
 %type <intValue>	ifprefix elseprefix ifstmt stmt
 %type <expression>  call_member indexed indexedelem objectdef
-%type <intValue>    whilestmt whileprefix
+%type <intValue>    whilestmt
 
 %right ASSIGNMENT        /* = has less priority in compare with all the other */
 %left OR
@@ -837,32 +837,33 @@ elseprefix
     ;
 
 whilestmt
-    : whileprefix stmt
-      {
-          /* at end of body, jump back to the test */
-          emit(jump, NULL, NULL, NULL, $1, yylineno);
+    : WHILE LEFT_PARENTHESIS expr RIGHT_PARENTHESIS 
+        { 
+            //checkLoopDepth++; 
+            push_loopcounter(); // we enter loop scope
 
-          /* patch the “jump 0” we emitted in whileprefix to point here */
-          patchlabel($1 + 1, nextquad());
+            /* ----------------------- new ------------------------ */
+            int loop_start = nextquad(); 
+	        emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
 
-          pop_loopcounter();
+            int jump_false = nextquad();
+	        emit(jump, NULL, NULL, NULL, 0, yylineno);
 
-          print_rule("whilestmt -> while ( expr ) stmt");
-      }
-    ;
+            int loop_body = nextquad();
+            $<intValue>$ = loop_start;
+            /* --------------------- end new ---------------------- */
+        } 
+        stmt 
+        { 
+            /* ----------------------- new ------------------------ */
+            emit(jump, NULL, NULL, NULL, $<intValue>1, yylineno);  
+       	    patchlabel($<intValue>4, nextquad());
+	        /* --------------------- end new ---------------------- */
 
-
-whileprefix
-    : WHILE LEFT_PARENTHESIS expr RIGHT_PARENTHESIS
-      {
-          /* start of loop: record this quad number */
-          push_loopcounter();
-          $$ = nextquad();
-
-          /* if the condition is false, jump out (we’ll patch the 0 below) */
-          emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad()+2, yylineno);
-          emit(jump,   NULL, NULL,             NULL, 0,               yylineno);
-      }
+            // checkLoopDepth--; 
+	        pop_loopcounter();  // we exit loop scope
+            print_rule("whilestmt -> while ( expr ) stmt"); 
+        }
     ;
 
 forstmt
