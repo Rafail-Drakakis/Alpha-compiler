@@ -329,6 +329,7 @@ expr
         $$ = r;
     }
 
+
     | assignexpr { $$ = $1; }
     | term       { $$ = $1; } 
     | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); }
@@ -396,12 +397,16 @@ term
     }
     | NOT expr 
     {
-        // Create a constant TRUE instead of using NOT opcode
-        expr *r = newexpr(constbool_e);
-        r->boolConst = 1; // Always use TRUE here to match the expected output
+        expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
+
+        // Generate the NOT logic: if $2 is true, assign 0, else assign 1
+        emit(if_eq, $2, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
+        emit(assign, newexpr_constbool(1), NULL, r, 0, yylineno);  // $2 is false => TRUE
+        emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
+        emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);  // $2 is true => FALSE
+
         $$ = r;
-        print_rule("term -> not expr");
     }
 
 
