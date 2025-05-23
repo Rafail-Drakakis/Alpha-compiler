@@ -24,11 +24,11 @@ extern unsigned int currQuad;
 SymbolTable *symbol_table;
 quad* quads = (quad*) 0;
  
-void debug(int level, const char* fmt, ...) {
+void debug(int level, const char* fmt) {
     va_list args;
     va_start(args, fmt);
 
-    if (level > 0) { // Adjust this to control verbosity
+    if (level > 0) {
         fprintf(stderr, "[DEBUG] ");
         vfprintf(stderr, fmt, args);
     }
