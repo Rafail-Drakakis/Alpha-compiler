@@ -207,7 +207,8 @@ expr
     {
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
-        
+        if (!$1) $1 = newexpr(nil_e);
+        if (!$3) $3 = newexpr(nil_e);
         // Check if either operand is NULL or nil
         if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
            
@@ -222,7 +223,8 @@ expr
     {
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
-        
+        if (!$1) $1 = newexpr(nil_e);
+        if (!$3) $3 = newexpr(nil_e);
         if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
             emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         } else {
@@ -235,7 +237,8 @@ expr
     {
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
-        
+        if (!$1) $1 = newexpr(nil_e);
+        if (!$3) $3 = newexpr(nil_e);
         if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
             emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         } else {
@@ -248,7 +251,8 @@ expr
     {
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
-        
+        if (!$1) $1 = newexpr(nil_e);
+        if (!$3) $3 = newexpr(nil_e);
         if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
             emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         } else {
@@ -261,7 +265,8 @@ expr
     {
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
-        
+        if (!$1) $1 = newexpr(nil_e);
+        if (!$3) $3 = newexpr(nil_e);
         if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
             emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         } else {
@@ -274,7 +279,8 @@ expr
     {
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
-        
+        if (!$1) $1 = newexpr(nil_e);
+        if (!$3) $3 = newexpr(nil_e);
         // Check if either operand is NULL or nil
         if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
            
@@ -289,7 +295,8 @@ expr
     {
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
-        
+        if (!$1) $1 = newexpr(nil_e);
+        if (!$3) $3 = newexpr(nil_e);
         emit(if_eq, $1, newexpr_constbool(1), NULL, nextquad()+4, yylineno);
 
         emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
@@ -312,7 +319,8 @@ expr
     {
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
-        
+        if (!$1) $1 = newexpr(nil_e);
+        if (!$3) $3 = newexpr(nil_e);
         emit(if_eq, $1, newexpr_constbool(1), NULL, nextquad()+2, yylineno);
         emit(jump, NULL, NULL, NULL, nextquad()+5, yylineno);
         
