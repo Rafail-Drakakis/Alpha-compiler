@@ -291,27 +291,26 @@ expr
         }
         $$ = r;
     }
+    
     | expr OR expr
     {
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
-        if (!$1) $1 = newexpr(nil_e);
-        if (!$3) $3 = newexpr(nil_e);
-        emit(if_eq, $1, newexpr_constbool(1), NULL, nextquad()+4, yylineno);
 
-        emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
-        
-        // Combine results
-        emit(if_eq, $1, newexpr_constbool(1), NULL, nextquad()+2, yylineno);
-        emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad()+2, yylineno);
-        
-        // False result
+        // if left operand is true, jump to true‐case
+        unsigned trueLabel = nextquad() + 3;
+        emit(if_eq, $1, newexpr_constbool(1), NULL, trueLabel, yylineno);
+
+        // else if right operand is true, same true‐case
+        emit(if_eq, $3, newexpr_constbool(1), NULL, trueLabel, yylineno);
+
+        // neither was true → r := false; then jump past the true‐case
         emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         emit(jump, NULL, NULL, NULL, nextquad()+2, yylineno);
-        
-        // True result
+
+        // trueLabel: r := true
         emit(assign, newexpr_constbool(1), NULL, r, 0, yylineno);
-        
+
         $$ = r;
     }
 
