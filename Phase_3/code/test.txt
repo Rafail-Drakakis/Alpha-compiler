@@ -1,1 +1,245 @@
+\backpatch1.asc
+while(a or b and c)
+	print("...");
+
+\backpatch0.asc
+x = a and not true;
+
+\p3t_const_maths.asc
+4+5;
+6*8;
+4-9;
+3/1;
+0%3;
+
+
+\p3t_flow_control.asc
+
+while (a=1) {
+	2-0;
+	break;
+	3-0;
+	continue;
+}
+
+while (4) while (5) while (6) ;
+
+while (7) if (8) 9-0; else 10-0; 
+
+while (11)
+	for (12-0; 13; 14-0) {
+		if (15)
+			16-0;
+		else if (17)
+			18-0;
+		else
+			19-0;
+		break;
+		continue;
+	}
+
+for (20-0; 21; 22-0) {
+	while (23)
+		break;
+	continue;
+}
+
+
+
+\p3t_assignments_simple.asc
+
+a=4;
+a=a+5;
+b=a;
+a = a+b;
+
+
+\p3t_if_else.asc
+if (true)
+	a=4;
+
+if (false)
+	b=5;
+
+if (a)
+	if (b)
+		c=6;
+		
+if (a)
+	d=4;
+else
+	c=a;
+
+if (a)
+	if (b)
+		c=5;
+	else
+		d-5;
+
+if (a)
+	if (b)
+		d-0;
+	else
+		d-4;
+else
+	0-d;
+
+if (a) {
+	if (b)
+		0+d;
+}
+else
+	0-0;
+
+
+if (a) 
+	8+0;
+else if (b)
+	9+0;
+else if (c)
+	8+0;
+else
+	10-0;
+
+
+\p3t_assignments_objects.asc
+a[3] = 3;
+a[3][4] = a[3];
+a.r = a[3][4][4][4];
+a.r = a.r;
+a.r.q = a.r.q;
+a.r.q["r"].s[3] = 12;
+a["3"].q[4]();
+a.x = a[1] = a["r"] = 5;
+
+\p3t_funcdecl.asc
+
+function iamafunction(a, b) { 
+	a + b;
+	return 8;
+	9-0;
+}
+
+function iamnothing() { iamafunction; }
+
+ihavenoname = (function(){ 10-0; return 12; 11-0; });
+
+function(){}
+
+function(){ function() { iamafunction(3,4); } }
+
+
+
+
+\p3t_calls.asc
+
+a=b=c=d=e=false;
+
+a..f(a);
+
+e()(a,b,c,d,e()());
+
+
+(function(a,b){a;b();})(a(), b()());
+
+
+
+
+\backpatch2.asc
+if (a or b < 2)
+	print("?");
+
+\backpatch3.asc
+a = b = c = d = e = f = 1;
+
+x = a < b or c > d and e < f;
+
+y = not x and x or a;
+
+
 x = x and (function (){ return false;})(2) or (function(){return true;});
+
+if (a or b or (y = x)) {
+	for (local i = 0; i < 5 and a; ++i) {
+		print(i);
+		continue;	
+		++i;
+	}
+	print(y);
+}
+else
+	while (not y) {
+		print(not y);
+		break;
+	}
+
+\p3t_var_maths.asc
+x+y;
+z*w;
+t-s;
+u/v;
+r%l;
+
+
+\p3t_flow_control_error.asc
+while (true) {
+	function () {
+		continue;
+		break;
+	}
+	return;
+}
+
+\p3t_basic_expr.asc
+
+a = 4;
+b = 5;
+c = 7;
+d = 8;
+
+e = a+b+c+d;
+e = a+(b+(c+d));
+e = -a+b;
+e = -(a+b);
+
+e = a*b-c/d%e;
+e = a*(b-c/(d%e));
+
+e = -(-(a+b)/-(c+d))%e;
+
+a---++b+--c-d++;
+
+t.x---++t[3]+--t["a"]-t.z++;
+
+\p3t_relational.asc
+a=b=c=d=e=f=g=h=i=j=k=l=0;
+
+a > b or c < d and e >= f or g <= h and not i == j or not k != l;
+
+
+\p3t_assignments_complex.asc
+a = 3;
+b=6;
+c = 9;
+d  =  54;
+
+a = b = c = d;
+
+a = b = -(-(c+d)*(a-b))%-b;
+
+
+\p3t_object_creation_expr.asc
+[];
+
+[1, 2, 3];
+
+[false, true, [], 5, [ "hello", "lol" ], []];
+
+[ {4: 5}, {2:18}, {"lulz": (function(){[];})},
+  {"wot": [1,2,3]}, {"wut": [{1: 2},{"bool": false},{5: print}]}
+];
+
+[{4: [{4: [{4: [{4: (function four(four){four=4;})}] }] }] }];
+
+
+

@@ -575,7 +575,7 @@ call
     | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
         // Add safety check for anonymous function calls
         if (!$2) {
-            fprintf(stderr, "Warning: Invalid function definition at line %d\n", yylineno);
+            debug(1, "Warning: Invalid function definition at line %d\n", yylineno);
             $$ = newexpr(nil_e); // Return a safe nil expression
         } else {
             $$ = make_call_expr($2, $5);

@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdarg.h>
 
 #include "symbol_table.h"
 
@@ -23,6 +24,9 @@ extern int yylineno;
 #define EXPAND_SIZE 1024
 #define CURR_SIZE (total * sizeof(quad))
 #define NEW_SIZE (EXPAND_SIZE * sizeof(quad) + CURR_SIZE)
+
+
+void debug(int level, const char* fmt, ...);
 
 typedef enum iopcode {
     assign, add, sub, mul, idiv, mod,
