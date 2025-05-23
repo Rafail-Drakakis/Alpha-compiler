@@ -119,8 +119,11 @@ int mergelist(int list1, int list2);
 void patchlist(int list, int label);
 
 expr* convert_to_value(expr* e);
+expr* convert_to_bool(expr* e);
+expr* make_not(expr* e);
 expr* make_or(expr* e1, expr* e2);
 expr* make_and(expr* e1, expr* e2);
+expr* make_eq_neq(expr* e1, expr* e2, iopcode op);
 
 #endif
 

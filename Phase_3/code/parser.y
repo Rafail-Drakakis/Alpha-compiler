@@ -122,10 +122,10 @@
 %left AND
 %nonassoc EQUAL_EQUAL NOT_EQUAL
 %nonassoc GREATER_THAN GREATER_EQUAL LESS_THAN LESS_EQUAL
+%right NOT
 %left  PLUS 
 %left MINUS              /* changed to UMINUS for (x-y) - z */
 %left MULTIPLY DIVIDE MODULO
-%right NOT
 %right PLUS_PLUS
 %right MINUS_MINUS
 %right DOT_DOT
@@ -269,36 +269,8 @@ expr
         }
         $$ = r;
     }
-    | expr EQUAL_EQUAL expr
-    {
-        expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        if (!$1) $1 = newexpr(nil_e);
-        if (!$3) $3 = newexpr(nil_e);
-        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
-            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
-        } else {
-            emit(if_eq, $1, $3, NULL, nextquad()+2, yylineno);
-            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
-        }
-        $$ = r;
-    }
-    | expr NOT_EQUAL expr
-    {
-        expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        if (!$1) $1 = newexpr(nil_e);
-        if (!$3) $3 = newexpr(nil_e);
-        // Check if either operand is NULL or nil
-        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
-           
-            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
-        } else {
-            emit(if_noteq, $1, $3, NULL, nextquad()+2, yylineno);
-            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
-        }
-        $$ = r;
-    }
+    | expr EQUAL_EQUAL expr { $$ = make_eq_neq($1, $3, if_eq); }
+    | expr NOT_EQUAL expr { $$ = make_eq_neq($1, $3, if_noteq); }
     | expr OR expr { $$ = make_or($1, $3); }
     | expr AND expr { $$ = make_and($1, $3); }
     | assignexpr { $$ = $1; }
@@ -369,21 +341,7 @@ term
         emit(uminus, $2, NULL, r, 0, yylineno); 
         $$ = r; print_rule("term -> - expr"); 
     }
-    | NOT expr 
-    {
-        expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-
-        // Generate the NOT logic: if $2 is true, assign 0, else assign 1
-        emit(if_eq, $2, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
-        emit(assign, newexpr_constbool(1), NULL, r, 0, yylineno);  // $2 is false => TRUE
-        emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
-        emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);  // $2 is true => FALSE
-
-        $$ = r;
-    }
-
-
+    | NOT expr { $$ = make_not($2); }
     | PLUS_PLUS lvalue 
     { 
         if ($2->type == programfunc_e || $2->type == libraryfunc_e) fprintf(stderr,"Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->sym->name, yylineno); 

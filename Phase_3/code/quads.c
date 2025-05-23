@@ -865,6 +865,28 @@ expr* convert_to_value(expr* bool_expr) {
     return result;
 }
 
+expr* convert_to_bool(expr* e) {
+    if (e->type == boolexpr_e) return e;
+
+    expr* bool_expr = newexpr(boolexpr_e);
+    emit(if_eq, e, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
+    emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
+
+    bool_expr->truelist = newlist(nextquad() - 2);
+    bool_expr->falselist = newlist(nextquad() - 1);
+    return bool_expr;
+}
+
+expr* make_not(expr* e) {
+    if (e->type != boolexpr_e)
+        e = convert_to_bool(e);  // emits if_eq/jump to produce true/false lists
+
+    expr* r = newexpr(boolexpr_e);
+    r->truelist = e->falselist;
+    r->falselist = e->truelist;
+    return r;
+}
+
 expr* make_or(expr* e1, expr* e2) {
     patchlist(e1->falselist, nextquad());  // If e1 is false, evaluate e2
 
@@ -883,4 +905,29 @@ expr* make_and(expr* e1, expr* e2) {
     result->falselist = mergelist(e1->falselist, e2->falselist);
 
     return result;
+}
+
+expr* make_eq_neq(expr* e1, expr* e2, iopcode op) {
+    if (!e1) e1 = newexpr(nil_e);
+    if (!e2) e2 = newexpr(nil_e);
+
+    if (e1->type == boolexpr_e)
+        e1 = convert_to_value(e1);
+
+    if (e2->type == boolexpr_e)
+        e2 = convert_to_value(e2);
+
+    expr* r = newexpr(boolexpr_e);
+    r->sym = newtemp();
+
+    if (e1->type == nil_e || e2->type == nil_e) {
+        emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+    } else {
+        emit(op, e1, e2, NULL, nextquad() + 2, yylineno);
+        emit(jump, NULL, NULL, NULL, nextquad() + 1, yylineno);
+
+        r->truelist = newlist(nextquad() - 2);
+        r->falselist = newlist(nextquad() - 1);
+    }
+    return r;
 }
