@@ -587,19 +587,22 @@ methodcall
 
 elist
     : expr { 
-        // $$ = create_expr_list($1, NULL);	// $1 is expr*
-        $$ = $1;              			// $1 is expr*, so $$ should be expr*
+        if ($1 && !$1->sym && $1->type != constnum_e && $1->type != conststring_e && $1->type != constbool_e)
+            $1->sym = newtemp();
+        $$ = $1;
         print_rule("elist -> expr"); 
       }
     | expr COMMA elist { 
-        $$ = create_expr_list($1, $3);		// returns expr* list
+        if ($1 && !$1->sym && $1->type != constnum_e && $1->type != conststring_e && $1->type != constbool_e)
+            $1->sym = newtemp();
+        $$ = create_expr_list($1, $3);
         print_rule("elist -> expr , elist"); 
       }
     | /* empty */ { 
         $$ = NULL;
-        print_rule("elist -> epsilon");  	// Allows empty argument lists
+        print_rule("elist -> epsilon");
       }
-    ;
+;
 
 objectdef
     : LEFT_BRACKET elist RIGHT_BRACKET { 
@@ -611,6 +614,9 @@ objectdef
           int i = 0;
           expr* curr = $2;
           while(curr) {
+              // --- NEW CODE: Ensure curr has a symbol! ---
+              if (!curr->sym) curr->sym = newtemp();
+
               expr* index = newexpr_constnum(i++);
               emit(tablesetelem, curr, index, t, 0, yylineno);
               curr = curr->next;
@@ -623,10 +629,25 @@ objectdef
           expr* t = newexpr(newtable_e);
           t->sym = newtemp();
           emit(tablecreate, NULL, NULL, t, 0, yylineno);
-          
+
           // Process indexed elements
           expr* curr = $2;
           while(curr) {
+              // --- NEW CODE: Defensive checks ---
+              if (!curr->args) {
+                  fprintf(stderr, "ERROR: indexedelem->args is NULL at line %d\n", yylineno);
+                  curr = curr->next;
+                  continue;
+              }
+              if (!curr->index) {
+                  fprintf(stderr, "ERROR: indexedelem->index is NULL at line %d\n", yylineno);
+                  curr = curr->next;
+                  continue;
+              }
+              // --- Ensure both have symbols! ---
+              if (!curr->args->sym) curr->args->sym = newtemp();
+              if (!curr->index->sym && curr->index->type != constnum_e && curr->index->type != conststring_e) curr->index->sym = newtemp();
+
               emit(tablesetelem, curr->args, curr->index, t, 0, yylineno);
               curr = curr->next;
           }
@@ -634,7 +655,7 @@ objectdef
           $$ = t;
           print_rule("objectdef -> [ indexed ]"); 
       }
-    ;
+;
 
 indexed
     : indexedelem { $$ = $1; print_rule("indexed -> indexedelem"); }
@@ -653,10 +674,23 @@ indexedelem
           elem->index = $2;
           elem->args = $4;
           elem->next = NULL;
+
+          // --- New: Make sure $2 and $4 have sym ---
+          if (elem->index && !elem->index->sym &&
+              elem->index->type != constnum_e &&
+              elem->index->type != conststring_e) {
+              elem->index->sym = newtemp();
+          }
+          if (elem->args && 
+            elem->args->type != constnum_e &&
+            elem->args->type != conststring_e &&
+            elem->args->type != constbool_e &&
+            !elem->args->sym) { elem->args->sym = newtemp();
+          }
           $$ = elem;
           print_rule("indexedelem -> { expr : expr }"); 
       }
-    ;
+;
 
 formal_arguments
     : idlist { $$ = $1; }

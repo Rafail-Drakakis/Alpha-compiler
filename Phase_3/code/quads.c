@@ -377,10 +377,12 @@ expr *newexpr(expr_t t) {
     
     // For nil expressions, ensure they have safe default values
     if (t == nil_e) {
-        // Create a temporary symbol for nil expressions to avoid NULL dereferences
         e->sym = newtemp();
     }
-    
+    // FOR newtable_e, ALWAYS ASSIGN A SYMBOL!
+    if (t == newtable_e) {
+        e->sym = newtemp();
+    }
     return e;
 }
 
@@ -390,11 +392,16 @@ expr *newexpr_constnum(double i) {
     return e;
 }
 
-expr *newexpr_conststring(char *s) {
-    expr *e = newexpr(conststring_e);
+expr* newexpr_conststring(char* s) {
+    if (!s || ((uintptr_t)s) < 0x1000) { // Super-low address = likely error
+        fprintf(stderr, "BUG: newexpr_conststring called with bad pointer %p\n", s);
+        exit(1); // or exit(1)
+    }
+    expr* e = newexpr(conststring_e);
     e->strConst = strdup(s);
     return e;
 }
+
 
 expr *newexpr_constbool(unsigned int b) {
     expr *e = newexpr(constbool_e);

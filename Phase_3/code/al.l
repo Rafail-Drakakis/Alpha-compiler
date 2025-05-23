@@ -247,7 +247,7 @@ punctuation (:|\.|\{|\}|\[|\]|\(|\)|;|,)
     }
 
     insert_token(yylineno, processed_str, "STRING", "char*");
-    free(processed_str);
+    yylval.stringValue = processed_str;
     return STRING;
 }
 
