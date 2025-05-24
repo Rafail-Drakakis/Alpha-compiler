@@ -147,7 +147,8 @@ static const char *expr_to_str_buf(expr *e, char *buf, size_t bufsize) {
         break;
     case programfunc_e:
     case libraryfunc_e:
-        snprintf(buf, bufsize, "%s()", e->sym->name);
+        // snprintf(buf, bufsize, "%s()", e->sym->name);
+        snprintf(buf, bufsize, "%s", e->sym->name);
         break;
     case newtable_e:
         snprintf(buf, bufsize, "[table]");
@@ -626,8 +627,9 @@ static void print_expr(FILE *f, expr *e) {
 
     case programfunc_e:
     case libraryfunc_e:
-        fprintf(f, "%s()", e->sym->name);
-        break;
+        // fprintf(f, "%s()", e->sym->name);
+        fprintf(f, "%s", e->sym->name);
+	break;
 
     case newtable_e:
         fprintf(f, "[table]");

@@ -116,6 +116,7 @@
 %type <intValue>	ifprefix elseprefix ifstmt stmt
 %type <expression>  call_member indexed indexedelem objectdef
 %type <intValue>    whilestmt
+%type <expression> immediately_invoked_func_expr
 
 %right ASSIGNMENT        /* = has less priority in compare with all the other */
 %left OR
@@ -274,6 +275,7 @@ expr
     | expr OR expr { $$ = make_or($1, $3); }
     | expr AND expr { $$ = make_and($1, $3); }
     | assignexpr { $$ = $1; }
+    | immediately_invoked_func_expr { $$ = $1; }
     | term       { $$ = $1; } 
     | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); $$ = newexpr(nil_e);}
     ;
@@ -497,6 +499,7 @@ call
         $$ = make_call_expr($1, $3);
         print_rule("call -> lvalue callsuffix"); 
       }
+    /*
     | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
         // Add safety check for anonymous function calls
         if (!$2) {
@@ -507,7 +510,21 @@ call
         }
         print_rule("call -> ( funcdef ) ( elist )"); 
     }    
+    */
     ;
+
+immediately_invoked_func_expr
+    : LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS {
+        // Add safety check for anonymous function calls
+        if (!$2) {
+            debug(1, "Warning: Invalid function definition at line %d\n", yylineno);
+            $$ = newexpr(nil_e); // Return a safe nil expression
+        } else {
+            $$ = make_call_expr($2, $5);
+        }
+        print_rule("call -> ( funcdef ) ( elist )"); 
+    }
+;
 
 callsuffix
     : normcall { print_rule("callsuffix -> normcall"); }
