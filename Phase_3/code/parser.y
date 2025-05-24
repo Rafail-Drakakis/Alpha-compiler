@@ -65,8 +65,7 @@
     static void exit_scope(void) {
         if (checkScope == 0) {
             return;
-	}
-
+	    }
         // printf("Exiting  scope: %u\n", checkScope-1);
         deactivate_entries_from_curr_scope(symbol_table, checkScope-1);
         --checkScope;
@@ -413,7 +412,7 @@ lvalue
       }
 
     | LOCAL IDENTIFIER
-      {
+    {
         SymbolTableEntry *sym = insert_symbol(symbol_table, $2, LOCAL_VAR, yylineno, checkScope);
         if (!sym) {
             fprintf(stderr, "Error: Failed to insert symbol '%s' (line %d)\n", $2, yylineno);
@@ -447,70 +446,65 @@ const
 ;
 
 member
-    : lvalue DOT IDENTIFIER { 
-          expr* result = newexpr(tableitem_e);
-          result->sym = newtemp();
-          result->index = newexpr_conststring($3);
-          emit(tablegetelem, $1, result->index, result, 0, yylineno);
-          $$ = result;
-          print_rule("member -> lvalue . IDENTIFIER"); 
-      }
-    | lvalue LEFT_BRACKET expr RIGHT_BRACKET { 
-          expr* result = newexpr(tableitem_e);
-          result->sym = newtemp();
-          result->index = $3;
-          emit(tablegetelem, $1, result->index, result, 0, yylineno);
-          $$ = result;
-          print_rule("member -> lvalue [ expr ]"); 
-      }
-    | call_member { $$ = $1; print_rule("member -> call_member"); 
-      }
+    : lvalue DOT IDENTIFIER 
+    { 
+        expr* result = newexpr(tableitem_e);
+        result->sym = newtemp();
+        result->index = newexpr_conststring($3);
+        emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        $$ = result;
+        print_rule("member -> lvalue . IDENTIFIER"); 
+    }
+    | lvalue LEFT_BRACKET expr RIGHT_BRACKET 
+    { 
+        expr* result = newexpr(tableitem_e);
+        result->sym = newtemp();
+        result->index = $3;
+        emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        $$ = result;
+        print_rule("member -> lvalue [ expr ]"); 
+    }
+    | call_member { $$ = $1; print_rule("member -> call_member"); }
     ;
 
 /* Helpful for member */
 call_member
-    : call DOT IDENTIFIER { 
-          expr* result = newexpr(tableitem_e);
-          result->sym = newtemp();
-          result->index = newexpr_conststring($3);
-          emit(tablegetelem, $1, result->index, result, 0, yylineno);
-          $$ = result;
-          print_rule("call_member -> call . IDENTIFIER"); 
-      }
-    | call LEFT_BRACKET expr RIGHT_BRACKET { 
-          expr* result = newexpr(tableitem_e);
-          result->sym = newtemp();
-          result->index = $3;
-          emit(tablegetelem, $1, result->index, result, 0, yylineno);
-          $$ = result;
-          print_rule("call_member -> call [ expr ]"); 
-      }
+    : call DOT IDENTIFIER 
+    { 
+            expr* result = newexpr(tableitem_e);
+            result->sym = newtemp();
+            result->index = newexpr_conststring($3);
+            emit(tablegetelem, $1, result->index, result, 0, yylineno);
+            $$ = result;
+            print_rule("call_member -> call . IDENTIFIER"); 
+    }
+    | call LEFT_BRACKET expr RIGHT_BRACKET 
+    { 
+            expr* result = newexpr(tableitem_e);
+            result->sym = newtemp();
+            result->index = $3;
+            emit(tablegetelem, $1, result->index, result, 0, yylineno);
+            $$ = result;
+            print_rule("call_member -> call [ expr ]"); 
+    }
     ;
 
 call
-    : call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
+    : call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS 
+    { 
         $$ = make_call_expr($1, $3); // $1 = previous call expr, $3 = argument list
         print_rule("call -> call (elist)"); 
-      }
+        }
     | lvalue {
         is_calling = 1;
-      } callsuffix { 
+        } callsuffix { 
         is_calling = 0;
         $$ = make_call_expr($1, $3);
         print_rule("call -> lvalue callsuffix"); 
-      }
-    /*
-    | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
-        // Add safety check for anonymous function calls
-        if (!$2) {
-            debug(1, "Warning: Invalid function definition at line %d\n", yylineno);
-            $$ = newexpr(nil_e); // Return a safe nil expression
-        } else {
-            $$ = make_call_expr($2, $5);
-        }
-        print_rule("call -> ( funcdef ) ( elist )"); 
-    }    
-    */
+    }
+    /*    | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
+        if (!$2) { debug(1, "Warning: Invalid function definition at line %d\n", yylineno); $$ = newexpr(nil_e); // Return a safe nil expression
+        } else { $$ = make_call_expr($2, $5); } print_rule("call -> ( funcdef ) ( elist )"); }    */
     ;
 
 immediately_invoked_func_expr
@@ -540,110 +534,115 @@ methodcall
     ;
 
 elist
-    : expr { 
+    : expr 
+    { 
         if ($1 && !$1->sym && $1->type != constnum_e && $1->type != conststring_e && $1->type != constbool_e)
             $1->sym = newtemp();
         $$ = $1;
         print_rule("elist -> expr"); 
-      }
+        }
     | expr COMMA elist { 
         if ($1 && !$1->sym && $1->type != constnum_e && $1->type != conststring_e && $1->type != constbool_e)
             $1->sym = newtemp();
         $$ = create_expr_list($1, $3);
         print_rule("elist -> expr , elist"); 
-      }
+        }
     | /* empty */ { 
         $$ = NULL;
         print_rule("elist -> epsilon");
-      }
+    }
 ;
 
 objectdef
-    : LEFT_BRACKET elist RIGHT_BRACKET { 
-          expr* t = newexpr(newtable_e);
-          t->sym = newtemp();
-          emit(tablecreate, NULL, NULL, t, 0, yylineno);
-          
-          // Add elements from elist
-          int i = 0;
-          expr* curr = $2;
-          while(curr) {
-              // --- NEW CODE: Ensure curr has a symbol! ---
-              if (!curr->sym) curr->sym = newtemp();
+    : LEFT_BRACKET elist RIGHT_BRACKET 
+    { 
+        expr* t = newexpr(newtable_e);
+        t->sym = newtemp();
+        emit(tablecreate, NULL, NULL, t, 0, yylineno);
+        
+        // Add elements from elist
+        int i = 0;
+        expr* curr = $2;
+        while(curr) {
+            // --- NEW CODE: Ensure curr has a symbol! ---
+            if (!curr->sym) curr->sym = newtemp();
 
-              expr* index = newexpr_constnum(i++);
-              emit(tablesetelem, curr, index, t, 0, yylineno);
-              curr = curr->next;
-          }
-          
-          $$ = t;
-          print_rule("objectdef -> [ elist ]"); 
-      }
-    | LEFT_BRACKET indexed RIGHT_BRACKET { 
-          expr* t = newexpr(newtable_e);
-          t->sym = newtemp();
-          emit(tablecreate, NULL, NULL, t, 0, yylineno);
+            expr* index = newexpr_constnum(i++);
+            emit(tablesetelem, curr, index, t, 0, yylineno);
+            curr = curr->next;
+        }
+        
+        $$ = t;
+        print_rule("objectdef -> [ elist ]"); 
+    }
+    | LEFT_BRACKET indexed RIGHT_BRACKET 
+    { 
+        expr* t = newexpr(newtable_e);
+        t->sym = newtemp();
+        emit(tablecreate, NULL, NULL, t, 0, yylineno);
 
-          // Process indexed elements
-          expr* curr = $2;
-          while(curr) {
-              // --- NEW CODE: Defensive checks ---
-              if (!curr->args) {
-                  fprintf(stderr, "ERROR: indexedelem->args is NULL at line %d\n", yylineno);
-                  curr = curr->next;
-                  continue;
-              }
-              if (!curr->index) {
-                  fprintf(stderr, "ERROR: indexedelem->index is NULL at line %d\n", yylineno);
-                  curr = curr->next;
-                  continue;
-              }
-              // --- Ensure both have symbols! ---
-              if (!curr->args->sym) curr->args->sym = newtemp();
-              if (!curr->index->sym && curr->index->type != constnum_e && curr->index->type != conststring_e) curr->index->sym = newtemp();
+        // Process indexed elements
+        expr* curr = $2;
+        while(curr) {
+            // --- NEW CODE: Defensive checks ---
+            if (!curr->args) {
+                fprintf(stderr, "ERROR: indexedelem->args is NULL at line %d\n", yylineno);
+                curr = curr->next;
+                continue;
+            }
+            if (!curr->index) {
+                fprintf(stderr, "ERROR: indexedelem->index is NULL at line %d\n", yylineno);
+                curr = curr->next;
+                continue;
+            }
+            // --- Ensure both have symbols! ---
+            if (!curr->args->sym) curr->args->sym = newtemp();
+            if (!curr->index->sym && curr->index->type != constnum_e && curr->index->type != conststring_e) curr->index->sym = newtemp();
 
-              emit(tablesetelem, curr->args, curr->index, t, 0, yylineno);
-              curr = curr->next;
-          }
-          
-          $$ = t;
-          print_rule("objectdef -> [ indexed ]"); 
-      }
+            emit(tablesetelem, curr->args, curr->index, t, 0, yylineno);
+            curr = curr->next;
+        }
+        
+        $$ = t;
+        print_rule("objectdef -> [ indexed ]"); 
+    }
 ;
 
 indexed
     : indexedelem { $$ = $1; print_rule("indexed -> indexedelem"); }
-    | indexedelem COMMA indexed { 
-          // Link the current indexedelem with the rest of the indexed list
-          $1->next = $3;
-          $$ = $1;
-          print_rule("indexed -> indexedelem, indexed"); 
-      }
+    | indexedelem COMMA indexed 
+    { 
+        // Link the current indexedelem with the rest of the indexed list
+        $1->next = $3;
+        $$ = $1;
+        print_rule("indexed -> indexedelem, indexed"); 
+    }
     ;
 
 indexedelem
-    : LEFT_BRACE expr COLON expr RIGHT_BRACE { 
-          expr* elem = newexpr(var_e);
-          elem->sym = newtemp();
-          elem->index = $2;
-          elem->args = $4;
-          elem->next = NULL;
+    : LEFT_BRACE expr COLON expr RIGHT_BRACE 
+    { 
+        expr* elem = newexpr(var_e);
+        elem->sym = newtemp();
+        elem->index = $2;
+        elem->args = $4;
+        elem->next = NULL;
 
-          // --- New: Make sure $2 and $4 have sym ---
-          if (elem->index && !elem->index->sym &&
-              elem->index->type != constnum_e &&
-              elem->index->type != conststring_e) {
-              elem->index->sym = newtemp();
-          }
-          if (elem->args && 
-            elem->args->type != constnum_e &&
-            elem->args->type != conststring_e &&
-            elem->args->type != constbool_e &&
-            !elem->args->sym) { elem->args->sym = newtemp();
-          }
-          $$ = elem;
-          print_rule("indexedelem -> { expr : expr }"); 
-      }
+        // --- New: Make sure $2 and $4 have sym ---
+        if (elem->index && !elem->index->sym &&
+            elem->index->type != constnum_e &&
+            elem->index->type != conststring_e) {
+            elem->index->sym = newtemp();
+        }
+        if (elem->args && 
+        elem->args->type != constnum_e &&
+        elem->args->type != conststring_e &&
+        elem->args->type != constbool_e &&
+        !elem->args->sym) { elem->args->sym = newtemp();
+        }
+        $$ = elem;
+        print_rule("indexedelem -> { expr : expr }"); 
+    }
 ;
 
 formal_arguments
@@ -652,60 +651,38 @@ formal_arguments
 
 funcdef
   : FUNCTION IDENTIFIER
-      {
-          SymbolTableEntry *func_sym = insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
-          expr* f = newexpr(programfunc_e);
-          f->sym = func_sym;
-	  current_function_expr = f;
-          //$<expression>3 = e;
-
-          enter_scope();
-          ++inside_function_depth;
-          inside_function_scope = 1;
-          first_brace_of_func = 1;  // Indicates the first brace of the function
-
-	  enter_function_scope();   // for loop
-      }
-      LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
-      {
-          // we insert the formal arguments here for normal functions
-          formal_argument_node* arg = $5;
-          while (arg != NULL) {
-              insert_symbol(symbol_table, arg->name, ARGUMENT, yylineno, checkScope);
-              arg = arg->next;
-          }
-      }
-      block
-      {
-          --inside_function_depth;
-          exit_scope();
-	  exit_function_scope(); // for loop
-          $$ = $<expression>3;      // use previously stored expr*
-      }
-
-    | FUNCTION
     {
-        /*
-        char *anonymous_name = malloc(32);
-        if (!anonymous_name) {
-            fprintf(stderr, "Memory allocation failed\n");
-            exit(EXIT_FAILURE);
-        }
-        sprintf(anonymous_name, "$%d", anonymus_function_counter++);
-        SymbolTableEntry *func_sym = insert_symbol(symbol_table, anonymous_name, USER_FUNCTION, yylineno, checkScope);
-        
-        // Only free if insert_symbol makes a deep copy of the name
-        free(anonymous_name);
-
-        $<expression>$ = newexpr(programfunc_e);
-        $<expression>$->sym = func_sym;
+        SymbolTableEntry *func_sym = insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
+        expr* f = newexpr(programfunc_e);
+        f->sym = func_sym;
+	    current_function_expr = f;
+        //$<expression>3 = e;
 
         enter_scope();
         ++inside_function_depth;
-        first_brace_of_func = 1;
-        enter_function_scope(); // for loop
-        */
+        inside_function_scope = 1;
+        first_brace_of_func = 1;  // Indicates the first brace of the function
 
+	    enter_function_scope();   // for loop
+    }
+    LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
+    {
+        // we insert the formal arguments here for normal functions
+        formal_argument_node* arg = $5;
+        while (arg != NULL) {
+            insert_symbol(symbol_table, arg->name, ARGUMENT, yylineno, checkScope);
+            arg = arg->next;
+        }
+    }
+    block
+    {
+        --inside_function_depth;
+        exit_scope();
+        exit_function_scope();      // for loop
+        $$ = $<expression>3;        // use previously stored expr*
+    }
+    | FUNCTION
+    {
         char *anonymous_name = malloc(32);
         if (!anonymous_name) {
             fprintf(stderr, "Memory allocation failed\n");
@@ -741,14 +718,6 @@ funcdef
     }
     block
     {
-        /*
-        --inside_function_depth;
-	    exit_function_scope();  // for loop
-        exit_scope();
-        $$ = $<expression>2;
-        print_rule("funcdef -> function ( idlist ) block");
-        */
-
         --inside_function_depth;
 	    exit_function_scope();  // for loop
         exit_scope();
@@ -756,7 +725,6 @@ funcdef
         emit(funcend, $<expression>2, NULL, NULL, 0, yylineno); // emit funcend after block
         $$ = $<expression>2;    // rtrn func_expr
         print_rule("funcdef -> function ( idlist ) block");
-        
     }
     ;
 
@@ -776,22 +744,22 @@ idlist
 
 ifstmt
     : ifprefix stmt %prec LOWER_THAN_ELSE
-      {
+        {
         patchlabel($1, nextquad());
         print_rule("ifstmt -> if ( expr ) stmt");
-      }
+        }
     | ifprefix stmt elseprefix stmt
-      {
+        {
         patchlabel($1, $3);
         //patchlabel($2, nextquad()); // $2 is stmt not a quad number so we use $3
-	    patchlabel($3, nextquad());
+        patchlabel($3, nextquad());
         print_rule("ifstmt -> if ( expr ) stmt else stmt");
-      }
+        }
     ;
 
 ifprefix
     : IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS
-      {
+    {
 
 	    // we ensure the expression is in boolean form
         if ($3->type != boolexpr_e) {
@@ -805,108 +773,102 @@ ifprefix
         emit(jump, NULL, NULL, NULL, 0, yylineno);
         $$ = nextquad() - 1;
 
-      }
+    }
 
 elseprefix
     : ELSE
-      {
+    {
         $$ = nextquad();
         emit(jump, NULL, NULL, NULL, 0, yylineno);
-      }
+    }
     ;
 
 whilestmt
     : WHILE LEFT_PARENTHESIS expr RIGHT_PARENTHESIS 
-        { 
-            //checkLoopDepth++; 
-            push_loopcounter(); // we enter loop scope
+    { 
+        //checkLoopDepth++; 
+        push_loopcounter(); // we enter loop scope
 
-            /* ----------------------- new ------------------------ */
-            int loop_start = nextquad(); 
-	        emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
+        int loop_start = nextquad(); 
+        emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
 
-            int jump_false = nextquad();
-	        emit(jump, NULL, NULL, NULL, 0, yylineno);
+        int jump_false = nextquad();
+        emit(jump, NULL, NULL, NULL, 0, yylineno);
 
-            int loop_body = nextquad();
-            $<intValue>$ = loop_start;
-            /* --------------------- end new ---------------------- */
-        } 
-        stmt 
-        { 
-            /* ----------------------- new ------------------------ */
-            emit(jump, NULL, NULL, NULL, $<intValue>1, yylineno);  
-       	    patchlabel($<intValue>4, nextquad());
-	        /* --------------------- end new ---------------------- */
+        int loop_body = nextquad();
+        $<intValue>$ = loop_start;
+    } 
+    stmt 
+    { 
+        emit(jump, NULL, NULL, NULL, $<intValue>1, yylineno);  
+        patchlabel($<intValue>4, nextquad());
 
-            // checkLoopDepth--; 
-	        pop_loopcounter();  // we exit loop scope
-            print_rule("whilestmt -> while ( expr ) stmt"); 
-        }
-    ;
+        // checkLoopDepth--; 
+        pop_loopcounter();  // we exit loop scope
+        print_rule("whilestmt -> while ( expr ) stmt"); 
+    }
+;
 
 forstmt
     : FOR
-        {
-            // checkLoopDepth++;
-            push_loopcounter(); // we start loop
-            enter_scope();
-        }
-        LEFT_PARENTHESIS elist SEMICOLON expr SEMICOLON elist RIGHT_PARENTHESIS
-        stmt
-        {
-            exit_scope();
-            // checkLoopDepth--;
-            pop_loopcounter(); // and then end the loop
-            print_rule("forstmt -> for ( elist ; expr ; elist ) stmt");
-        }
+    {
+        // checkLoopDepth++;
+        push_loopcounter(); // we start loop
+        enter_scope();
+    }
+    LEFT_PARENTHESIS elist SEMICOLON expr SEMICOLON elist RIGHT_PARENTHESIS
+    stmt
+    {
+        exit_scope();
+        // checkLoopDepth--;
+        pop_loopcounter(); // and then end the loop
+        print_rule("forstmt -> for ( elist ; expr ; elist ) stmt");
+    }
     ;
 
 returnstmt
     : RETURN SEMICOLON
-        {
-            if (inside_function_depth < 1) {
-                fprintf(stderr, "Error: 'return' used outside of any function (line %d)\n", yylineno);
-		        semantic_errors++;
-            }
-            print_rule("returnstmt -> return ;");
+    {
+        if (inside_function_depth < 1) {
+            fprintf(stderr, "Error: 'return' used outside of any function (line %d)\n", yylineno);
+            semantic_errors++;
         }
+        print_rule("returnstmt -> return ;");
+    }
     | RETURN expr SEMICOLON
-        {
-            if (inside_function_depth < 1) {
-                fprintf(stderr, "Error: 'return' used outside of any function (line %d)\n", yylineno);
-		        semantic_errors++;
-            }
-	        expr *val = convert_to_value($2);
-            emit(ret, val, NULL, NULL, 0, yylineno);
-            print_rule("returnstmt -> return expr ;");
+    {
+        if (inside_function_depth < 1) {
+            fprintf(stderr, "Error: 'return' used outside of any function (line %d)\n", yylineno);
+            semantic_errors++;
         }
+        expr *val = convert_to_value($2);
+        emit(ret, val, NULL, NULL, 0, yylineno);
+        print_rule("returnstmt -> return expr ;");
+    }
     ;
 
 break_stmt
     : BREAK SEMICOLON 
-        {
-	        //printf("DEBUG: break_stmt rule matched at line %d\n", yylineno); 
-            //if (checkLoopDepth < 1) { 
-	        if (loopcounter() == 0) {
-                fprintf(stderr, "Error: 'break' used outside of any loop (line %d)\n", yylineno);
-		        semantic_errors++;
-            } 
-            print_rule("break_stmt -> break ;"); 
-        }
+    {
+        //if (checkLoopDepth < 1) { 
+        if (loopcounter() == 0) {
+            fprintf(stderr, "Error: 'break' used outside of any loop (line %d)\n", yylineno);
+            semantic_errors++;
+        } 
+        print_rule("break_stmt -> break ;"); 
+    }
     ;
 
 continue_stmt
     : CONTINUE SEMICOLON 
-        { 
-	        //printf("DEBUG: continue_stmt rule matched at line %d\n", yylineno);
-            //if (checkLoopDepth < 1) { 
-	        if (loopcounter() == 0) {
-                fprintf(stderr, "Error: 'continue' used outside of any loop (line %d)\n", yylineno);
-		        semantic_errors++;
-            } 
-            print_rule("continue_stmt -> continue ;"); 
-        }
+    { 
+        //if (checkLoopDepth < 1) { 
+        if (loopcounter() == 0) {
+            fprintf(stderr, "Error: 'continue' used outside of any loop (line %d)\n", yylineno);
+            semantic_errors++;
+        } 
+        print_rule("continue_stmt -> continue ;"); 
+    }
     ;
 
 block
@@ -923,8 +885,9 @@ block
     }
     stmt_list RIGHT_BRACE
     {
-        if ( $<intValue>2 )
+        if ( $<intValue>2 ) {
             exit_scope();
+        }
     }
   ;
 
