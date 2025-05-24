@@ -36,7 +36,7 @@
     char* current_function_char = NULL;
     int semantic_errors = 0;
     static unsigned checkFuncDepth = 0;
-
+    unsigned int returnlist = 0;
 
 
     typedef struct formal_argument_node {
@@ -652,7 +652,7 @@ formal_arguments
 funcdef
   : FUNCTION IDENTIFIER
     {
-        SymbolTableEntry *func_sym = insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
+        /*SymbolTableEntry *func_sym = insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
         expr* f = newexpr(programfunc_e);
         f->sym = func_sym;
 	    current_function_expr = f;
@@ -662,8 +662,26 @@ funcdef
         ++inside_function_depth;
         inside_function_scope = 1;
         first_brace_of_func = 1;  // Indicates the first brace of the function
+	    enter_function_scope();   // for loop */
 
+        SymbolTableEntry *func_sym = insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
+        expr* f = newexpr(programfunc_e);
+        f->sym = func_sym;
+	    current_function_expr = f;
+        //$<expression>3 = e;
+
+        emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
+        emit(funcstart, f, NULL, NULL, 0, yylineno);
+
+	    returnlist = 0;
+
+        enter_scope();
+        ++inside_function_depth;
+        inside_function_scope = 1;
+        first_brace_of_func = 1;  // Indicates the first brace of the function
 	    enter_function_scope();   // for loop
+
+        $<expression>$ = f;
     }
     LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
     {
@@ -676,9 +694,20 @@ funcdef
     }
     block
     {
+        /*--inside_function_depth;
+        exit_scope();
+        exit_function_scope();      // for loop
+        $$ = $<expression>3;        // use previously stored expr*
+        */
+
         --inside_function_depth;
         exit_scope();
         exit_function_scope();      // for loop
+        emit(funcend, $<expression>3, NULL, NULL, 0, yylineno); // emit funcend
+
+        // new
+        patchlist(returnlist, nextquad());
+
         $$ = $<expression>3;        // use previously stored expr*
     }
     | FUNCTION
@@ -699,6 +728,9 @@ funcdef
 
         emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
         emit(funcstart, func_expr, NULL, NULL, 0, yylineno);
+
+        // new
+        returnlist = 0;
 
         current_function_expr = func_expr;  // we save this function as current
         enter_scope();
@@ -723,6 +755,10 @@ funcdef
         exit_scope();
 
         emit(funcend, $<expression>2, NULL, NULL, 0, yylineno); // emit funcend after block
+
+	    // new
+        patchlist(returnlist, nextquad());
+
         $$ = $<expression>2;    // rtrn func_expr
         print_rule("funcdef -> function ( idlist ) block");
     }
@@ -843,6 +879,12 @@ returnstmt
         }
         expr *val = convert_to_value($2);
         emit(ret, val, NULL, NULL, 0, yylineno);
+
+ 	    // new
+        emit(jump, NULL, NULL, NULL, 0, yylineno);  // label to patch later
+        returnlist = mergelist(returnlist, newlist(nextquad() - 1));
+        // new end
+
         print_rule("returnstmt -> return expr ;");
     }
     ;
