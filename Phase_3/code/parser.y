@@ -668,6 +668,7 @@ funcdef
 
     | FUNCTION
     {
+        /*
         char *anonymous_name = malloc(32);
         if (!anonymous_name) {
             fprintf(stderr, "Memory allocation failed\n");
@@ -686,6 +687,32 @@ funcdef
         ++inside_function_depth;
         first_brace_of_func = 1;
         enter_function_scope(); // for loop
+        */
+
+        char *anonymous_name = malloc(32);
+        if (!anonymous_name) {
+            fprintf(stderr, "Memory allocation failed\n");
+            exit(EXIT_FAILURE);
+        }
+        sprintf(anonymous_name, "$%d", anonymus_function_counter++);
+        SymbolTableEntry *func_sym = insert_symbol(symbol_table, anonymous_name, USER_FUNCTION, yylineno, checkScope);
+        
+        // Only free if insert_symbol makes a deep copy of the name
+        free(anonymous_name);
+
+        expr* func_expr = newexpr(programfunc_e);
+        func_expr->sym = func_sym;
+
+        emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
+        emit(funcstart, func_expr, NULL, NULL, 0, yylineno);
+
+        current_function_expr = func_expr;  // we save this function as current
+        enter_scope();
+        ++inside_function_depth;
+        first_brace_of_func = 1;
+        enter_function_scope();             // for loop
+        $<expression>$ = func_expr;         // and then pass it to later rules
+
     }
     LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
     {
@@ -697,11 +724,22 @@ funcdef
     }
     block
     {
+        /*
         --inside_function_depth;
 	    exit_function_scope();  // for loop
         exit_scope();
         $$ = $<expression>2;
         print_rule("funcdef -> function ( idlist ) block");
+        */
+
+        --inside_function_depth;
+	    exit_function_scope();  // for loop
+        exit_scope();
+
+        emit(funcend, $<expression>2, NULL, NULL, 0, yylineno); // emit funcend after block
+        $$ = $<expression>2;    // rtrn func_expr
+        print_rule("funcdef -> function ( idlist ) block");
+        
     }
     ;
 
