@@ -556,7 +556,7 @@ expr *emit_iftableitem(expr *e) {
         return newexpr(nil_e); // Return safe nil instead of exiting
     }
 
-    if (e->type != tableitem_e){
+    if (e->type != tableitem_e) {
         return e;
     }
 
@@ -565,9 +565,15 @@ expr *emit_iftableitem(expr *e) {
         return newexpr(nil_e); // Return safe nil instead of exiting
     }
 
+    if (e->next) {  // to avoid duplicate quad // added this 
+        return e->next;
+    }
+
     expr *result = newexpr(var_e);
     result->sym = newtemp();
     emit(tablegetelem, e, e->index, result, 0, yylineno);
+
+    e->next = result; // added this 
     return result;
 }
 

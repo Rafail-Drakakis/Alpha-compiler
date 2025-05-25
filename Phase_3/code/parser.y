@@ -189,7 +189,6 @@ stmt
 expr
     : expr PLUS expr
     {
-        // Direct operation for both variables and constants
         expr *r = newexpr(arithexpr_e);
         r->sym = newtemp();
         emit(add, $1, $3, r, 0, yylineno);
@@ -227,6 +226,7 @@ expr
     {
         expr *r = newexpr(boolexpr_e);
         r->sym = newtemp();
+
         if (!$1) $1 = newexpr(nil_e);
         if (!$3) $3 = newexpr(nil_e);
         // Check if either operand is NULL or nil
@@ -282,7 +282,7 @@ expr
         $$ = r;
     }
     | expr EQUAL_EQUAL expr { $$ = make_eq_neq($1, $3, if_eq); }
-    | expr NOT_EQUAL expr { $$ = make_eq_neq($1, $3, if_noteq); }
+    | expr NOT_EQUAL expr { $$ = make_eq_neq($1, $3, if_noteq);  }
     | expr OR expr { $$ = make_or($1, $3); }
     | expr AND expr { $$ = make_and($1, $3); }
     | assignexpr { $$ = $1; }
@@ -290,6 +290,7 @@ expr
     | term       { $$ = $1; } 
     | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); $$ = newexpr(nil_e);}
     ;
+
 
 assignexpr
     : lvalue ASSIGNMENT expr
@@ -305,6 +306,13 @@ assignexpr
             // emit: a[3] := rhs
             //emit(tablesetelem, rhs, $1->index, $1, 0, yylineno);
             emit(tablesetelem, rhs, $1->index, $1->table, 0, yylineno);
+
+            /* new start */
+            expr* result = newexpr(var_e);
+            result->sym = newtemp();
+            emit(tablegetelem, $1->table, $1->index, result, 0, yylineno);
+            /* new end */
+
             $$ = rhs;
         } else {
             // emit: a := rhs
@@ -359,7 +367,8 @@ term
         expr *r = newexpr(arithexpr_e); 
         r->sym = newtemp(); 
         emit(uminus, $2, NULL, r, 0, yylineno); 
-        $$ = r; print_rule("term -> - expr"); 
+        $$ = r; 
+        print_rule("term -> - expr"); 
     }
     | NOT expr { $$ = make_not($2); }
     | PLUS_PLUS lvalue 
