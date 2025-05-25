@@ -150,8 +150,6 @@ stmt_list
     | /* empty */ { print_rule("stmt_list -> epsilon"); }
     ;
 
-
-
 stmt
     : expr SEMICOLON 
         {
@@ -161,12 +159,18 @@ stmt
                 temp->sym = newtemp();
                 emit(add, newexpr_constnum($1->numConst), NULL, temp, 0, yylineno); 
             }
+            /* 
 
+            NOTE:   turns out this is WRONG because then tests like this one: 
+                    [   (function four(four){four=4;});   ]
+                    fail with extra assign anonymous
+            
             if ($1 && $1->type != nil_e && $1->type != constnum_e && $1->type != conststring_e && $1->type != constbool_e) {
                 expr *temp = newexpr(var_e);
                 temp->sym = newtemp();
                 emit(assign, $1, NULL, temp, 0, yylineno);
             }
+            */
 
             print_rule("stmt -> expr ;"); 
         }
@@ -946,7 +950,7 @@ block
             exit_scope();
         }
     }
-  ;
+    ;
 
 %%
 
