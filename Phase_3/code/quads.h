@@ -48,6 +48,7 @@ typedef struct expr {
     expr_t type;
     SymbolTableEntry* sym;
     struct expr* index;
+    struct expr* table;   
     double numConst;
     char* strConst;
     unsigned char boolConst;

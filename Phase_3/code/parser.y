@@ -301,15 +301,22 @@ assignexpr
                     $1->sym->name, yylineno);
         }
 
-	    // Regular variable assignment - assign expr to lvalue
-        emit(assign, rhs, NULL, $1, 0, yylineno);
-        
-        // Create a new temporary (_t1) and assign lvalue to it
-        expr *final = newexpr(var_e);
-        final->sym = newtemp(); // This will be _t1
-        emit(assign, $1, NULL, final, 0, yylineno);
-        
-        $$ = final;
+        if ($1->type == tableitem_e) {
+            // emit: a[3] := rhs
+            //emit(tablesetelem, rhs, $1->index, $1, 0, yylineno);
+            emit(tablesetelem, rhs, $1->index, $1->table, 0, yylineno);
+            $$ = rhs;
+        } else {
+            // emit: a := rhs
+            // regular var assing
+            emit(assign, rhs, NULL, $1, 0, yylineno);
+
+            // create a temp to hold the result
+            expr *final = newexpr(var_e);
+            final->sym = newtemp();
+            emit(assign, $1, NULL, final, 0, yylineno);
+            $$ = final;
+        }
     }
 ;
 
@@ -463,6 +470,7 @@ member
         expr* result = newexpr(tableitem_e);
         result->sym = newtemp();
         result->index = newexpr_conststring($3);
+        result->table = $1; // new
         emit(tablegetelem, $1, result->index, result, 0, yylineno);
         $$ = result;
         print_rule("member -> lvalue . IDENTIFIER"); 
@@ -472,6 +480,7 @@ member
         expr* result = newexpr(tableitem_e);
         result->sym = newtemp();
         result->index = $3;
+        result->table = $1; // new
         emit(tablegetelem, $1, result->index, result, 0, yylineno);
         $$ = result;
         print_rule("member -> lvalue [ expr ]"); 
@@ -483,21 +492,23 @@ member
 call_member
     : call DOT IDENTIFIER 
     { 
-            expr* result = newexpr(tableitem_e);
-            result->sym = newtemp();
-            result->index = newexpr_conststring($3);
-            emit(tablegetelem, $1, result->index, result, 0, yylineno);
-            $$ = result;
-            print_rule("call_member -> call . IDENTIFIER"); 
+        expr* result = newexpr(tableitem_e);
+        result->sym = newtemp();
+        result->index = newexpr_conststring($3);
+        result->table = $1; // new
+        emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        $$ = result;
+        print_rule("call_member -> call . IDENTIFIER"); 
     }
     | call LEFT_BRACKET expr RIGHT_BRACKET 
     { 
-            expr* result = newexpr(tableitem_e);
-            result->sym = newtemp();
-            result->index = $3;
-            emit(tablegetelem, $1, result->index, result, 0, yylineno);
-            $$ = result;
-            print_rule("call_member -> call [ expr ]"); 
+        expr* result = newexpr(tableitem_e);
+        result->sym = newtemp();
+        result->index = $3;
+        result->table = $1;  // new
+        emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        $$ = result;
+        print_rule("call_member -> call [ expr ]"); 
     }
     ;
 
@@ -514,7 +525,7 @@ call
         $$ = make_call_expr($1, $3);
         print_rule("call -> lvalue callsuffix"); 
     }
-    /*    | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
+    /*  | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
         if (!$2) { debug(1, "Warning: Invalid function definition at line %d\n", yylineno); $$ = newexpr(nil_e); // Return a safe nil expression
         } else { $$ = make_call_expr($2, $5); } print_rule("call -> ( funcdef ) ( elist )"); }    */
     ;
