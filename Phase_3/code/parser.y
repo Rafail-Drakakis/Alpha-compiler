@@ -151,6 +151,7 @@ stmt_list
     ;
 
 
+
 stmt
     : expr SEMICOLON 
         {
@@ -160,6 +161,13 @@ stmt
                 temp->sym = newtemp();
                 emit(add, newexpr_constnum($1->numConst), NULL, temp, 0, yylineno); 
             }
+
+            if ($1 && $1->type != nil_e && $1->type != constnum_e && $1->type != conststring_e && $1->type != constbool_e) {
+                expr *temp = newexpr(var_e);
+                temp->sym = newtemp();
+                emit(assign, $1, NULL, temp, 0, yylineno);
+            }
+
             print_rule("stmt -> expr ;"); 
         }
     | error SEMICOLON { print_rule("stmt -> error ;"); yyerrok; }
@@ -514,11 +522,18 @@ immediately_invoked_func_expr
             debug(1, "Warning: Invalid function definition at line %d\n", yylineno);
             $$ = newexpr(nil_e); // Return a safe nil expression
         } else {
+
+            // ensure funcdef has a symbol
+            if (!$2->sym) {
+                $2->sym = newtemp();
+            }
+
             $$ = make_call_expr($2, $5);
         }
         print_rule("call -> ( funcdef ) ( elist )"); 
     }
 ;
+
 
 callsuffix
     : normcall { print_rule("callsuffix -> normcall"); }

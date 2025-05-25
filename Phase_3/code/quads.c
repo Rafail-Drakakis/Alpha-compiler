@@ -254,6 +254,11 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
         case or:
         case not:
         case getretval:
+            if (result == NULL) {
+                debug(1, "Error: NULL result in emit() for opcode that requires result (line %d)\n", line);
+                return;
+            }
+            break;
         case tablecreate:
         case tablegetelem:
             if (result == NULL) {
@@ -487,7 +492,6 @@ expr *lvalue_expr(SymbolTableEntry *sym) {
 }
 
 /* added make_call_expr & create_expr_list (not sure if they can be replaced by existing functions) */
-
 expr *make_call_expr(expr *func_expr, expr *args) {
     // Defensive check for NULL function expression
     if (!func_expr) {
@@ -509,8 +513,27 @@ expr *make_call_expr(expr *func_expr, expr *args) {
     
     // Safely handle arguments
     call_expr->args = args;
+
+    /* ---------------- new ---------------- */
+
+    // Emit param quads (if any)
+    expr *arg = args;
+    while (arg) {
+        emit(param, arg, NULL, NULL, 0, yylineno);
+        arg = arg->next;
+    }
     
-    return call_expr;
+    emit(call, func_expr, NULL, NULL, 0, yylineno);     // emit call quad
+
+    // generate a temp to hold the return value
+    expr *retval = newexpr(var_e);
+    retval->sym = newtemp();
+
+    emit(getretval, retval, NULL, NULL, 0, yylineno);   // emit getretval quad
+    /* -------------- end new -------------- */
+    
+    // return call_expr;
+    return retval;
 }
 
 expr *create_expr_list(expr *head, expr *tail) {
@@ -830,7 +853,6 @@ void print_quads(FILE *f) {
         );
     }
 }
-
 
 expr* convert_to_value(expr* bool_expr) {
     if (bool_expr->type != boolexpr_e){
