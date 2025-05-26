@@ -191,35 +191,40 @@ expr
     {
         expr *r = newexpr(arithexpr_e);
         r->sym = newtemp();
-        emit(add, $1, $3, r, 0, yylineno);
+        // emit(add, $1, $3, r, 0, yylineno);
+        emit(add, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
     }
     | expr MINUS expr
     {
         expr *r = newexpr(arithexpr_e);
         r->sym = newtemp();
-        emit(sub, $1, $3, r, 0, yylineno);
+        // emit(sub, $1, $3, r, 0, yylineno);
+        emit(sub, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
     }
     | expr MULTIPLY expr
     {
         expr *r = newexpr(arithexpr_e);
         r->sym = newtemp();
-        emit(mul, $1, $3, r, 0, yylineno);
+        // emit(mul, $1, $3, r, 0, yylineno);
+        emit(mul, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
     }
     | expr DIVIDE expr
     {
         expr *r = newexpr(arithexpr_e);
         r->sym = newtemp();
-        emit(idiv, $1, $3, r, 0, yylineno);
+        // emit(idiv, $1, $3, r, 0, yylineno);
+        emit(idiv, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
     }
     | expr MODULO expr
     {
         expr *r = newexpr(arithexpr_e);
         r->sym = newtemp();
-        emit(mod, $1, $3, r, 0, yylineno);
+        // emit(mod, $1, $3, r, 0, yylineno);
+        emit(mod, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
     }
     | expr GREATER_THAN expr
@@ -234,7 +239,11 @@ expr
            
             emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         } else {
-            emit(if_greater, $1, $3, NULL, nextquad()+2, yylineno);
+            // emit(if_greater, $1, $3, NULL, nextquad()+2, yylineno);
+            expr *left = emit_iftableitem($1);
+            expr *right = emit_iftableitem($3);
+            emit(if_greater, left, right, NULL, nextquad()+2, yylineno);
+
             emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
         }
         $$ = r;
@@ -248,7 +257,11 @@ expr
         if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
             emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         } else {
-            emit(if_less, $1, $3, NULL, nextquad()+2, yylineno);
+            // emit(if_less, $1, $3, NULL, nextquad()+2, yylineno);
+            expr *left = emit_iftableitem($1);
+            expr *right = emit_iftableitem($3);
+            emit(if_less, left, right, NULL, nextquad()+2, yylineno);
+            
             emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
         }
         $$ = r;
@@ -262,7 +275,11 @@ expr
         if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
             emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         } else {
-            emit(if_greatereq, $1, $3, NULL, nextquad()+2, yylineno);
+            // emit(if_greatereq, $1, $3, NULL, nextquad()+2, yylineno);
+            expr *left = emit_iftableitem($1);
+            expr *right = emit_iftableitem($3);
+            emit(if_greatereq, left, right, NULL, nextquad()+2, yylineno);
+
             emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
         }
         $$ = r;
@@ -276,7 +293,11 @@ expr
         if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
             emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         } else {
-            emit(if_lesseq, $1, $3, NULL, nextquad()+2, yylineno);
+            // emit(if_lesseq, $1, $3, NULL, nextquad()+2, yylineno);
+            expr *left = emit_iftableitem($1);
+            expr *right = emit_iftableitem($3);
+            emit(if_lesseq, left, right, NULL, nextquad()+2, yylineno);
+
             emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
         }
         $$ = r;
@@ -302,6 +323,8 @@ assignexpr
                     $1->sym->name, yylineno);
         }
 
+	rhs = emit_iftableitem(rhs);
+
         if ($1->type == tableitem_e) {
             // emit: a[3] := rhs
             //emit(tablesetelem, rhs, $1->index, $1, 0, yylineno);
@@ -313,7 +336,9 @@ assignexpr
             emit(tablegetelem, $1->table, $1->index, result, 0, yylineno);
             /* new end */
 
-            $$ = rhs;
+            // $$ = rhs;
+            $$ = result;
+        
         } else {
             // emit: a := rhs
             // regular var assing
@@ -480,7 +505,7 @@ member
         result->sym = newtemp();
         result->index = newexpr_conststring($3);
         result->table = $1; // new
-        emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        //emit(tablegetelem, $1, result->index, result, 0, yylineno);
         $$ = result;
         print_rule("member -> lvalue . IDENTIFIER"); 
     }
@@ -490,7 +515,7 @@ member
         result->sym = newtemp();
         result->index = $3;
         result->table = $1; // new
-        emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        //emit(tablegetelem, $1, result->index, result, 0, yylineno);
         $$ = result;
         print_rule("member -> lvalue [ expr ]"); 
     }
@@ -505,7 +530,7 @@ call_member
         result->sym = newtemp();
         result->index = newexpr_conststring($3);
         result->table = $1; // new
-        emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        //emit(tablegetelem, $1, result->index, result, 0, yylineno);
         $$ = result;
         print_rule("call_member -> call . IDENTIFIER"); 
     }
@@ -515,7 +540,7 @@ call_member
         result->sym = newtemp();
         result->index = $3;
         result->table = $1;  // new
-        emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        //emit(tablegetelem, $1, result->index, result, 0, yylineno);
         $$ = result;
         print_rule("call_member -> call [ expr ]"); 
     }

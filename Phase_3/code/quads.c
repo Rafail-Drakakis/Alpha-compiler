@@ -569,11 +569,15 @@ expr *emit_iftableitem(expr *e) {
         return e->next;
     }
 
+    expr *table = emit_iftableitem(e->table);   // for nested tableitem_e
+
     expr *result = newexpr(var_e);
     result->sym = newtemp();
-    emit(tablegetelem, e, e->index, result, 0, yylineno);
+    // emit(tablegetelem, e, e->index, result, 0, yylineno);
+    emit(tablegetelem, table, e->index, result, 0, yylineno);
 
-    e->next = result; // added this 
+
+    e->next = result; // added this to memoize
     return result;
 }
 
