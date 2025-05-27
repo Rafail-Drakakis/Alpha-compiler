@@ -497,48 +497,53 @@ expr *lvalue_expr(SymbolTableEntry *sym) {
     return e;
 }
 
+/* Helper function to emit PARAM quads right-to-left */
+static void emit_params_rev(expr *p) {
+    if (!p) return;
+    emit_params_rev(p->next);           /* go to list tail first */
+    emit(param, p, NULL, NULL, 0, yylineno);
+}
+
 /* added make_call_expr & create_expr_list (not sure if they can be replaced by existing functions) */
 expr *make_call_expr(expr *func_expr, expr *args) {
-    // Defensive check for NULL function expression
+    
+    func_expr = emit_iftableitem(func_expr);
+
+    /* Defensive check for NULL function expression */
     if (!func_expr) {
         fprintf(stderr, "Warning: NULL function expression in make_call_expr\n");
         return newexpr(nil_e);
     }
-    
-    // Create a new call expression
+
+    /* Create a new call expression */
     expr *call_expr = newexpr(call_e);
-    
-    // Safely copy the symbol if available
+
+    /* Safely copy the symbol if available */
     if (func_expr->sym) {
         call_expr->sym = func_expr->sym;
     } else {
-        // Create a temporary symbol if none exists
+        /* Create a temporary symbol if none exists */
         call_expr->sym = newtemp();
         fprintf(stderr, "Warning: Function expression has no symbol, created temp\n");
     }
-    
-    // Safely handle arguments
+
+    /* Safely handle arguments */
     call_expr->args = args;
 
-    /* ---------------- new ---------------- */
+    /* ---------------------- new -------------------------- */
+    emit_params_rev(args);
 
-    // Emit param quads (if any)
-    expr *arg = args;
-    while (arg) {
-        emit(param, arg, NULL, NULL, 0, yylineno);
-        arg = arg->next;
-    }
-    
-    emit(call, func_expr, NULL, NULL, 0, yylineno);     // emit call quad
+    emit(call, func_expr, NULL, NULL, 0, yylineno);   /* emit CALL quad */
 
-    // generate a temp to hold the return value
+    /* generate a temp to hold the return value */
     expr *retval = newexpr(var_e);
-    retval->sym = newtemp();
+    retval->sym  = newtemp();
 
-    emit(getretval, retval, NULL, NULL, 0, yylineno);   // emit getretval quad
-    /* -------------- end new -------------- */
-    
-    // return call_expr;
+    emit(getretval, NULL, NULL, retval, 0, yylineno); /* emit GETRETVAL quad */
+
+    /* ------------------------------------------------------------ */
+
+    /* return the expression that represents the call’s value */
     return retval;
 }
 
