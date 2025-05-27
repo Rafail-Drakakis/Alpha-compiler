@@ -86,6 +86,22 @@
         checkFuncDepth--;
     }
 
+    // Helper function to ensure an expression has a valid symbol
+    expr* ensure_expr_has_symbol(expr* e) {
+        if (!e) return NULL;
+        
+        // Skip constant types that don't need symbols
+        if (e->type == constnum_e || e->type == conststring_e || e->type == constbool_e) {
+            return e;
+        }
+        
+        // Ensure the expression has a symbol
+        if (!e->sym) {
+            e->sym = newtemp();
+        }
+        
+        return e;
+    }
 
 %}
 
@@ -117,6 +133,8 @@
 %type <intValue>    whilestmt
 %type <expression> immediately_invoked_func_expr
 
+%type <intValue> MP
+
 %right ASSIGNMENT        /* = has less priority in compare with all the other */
 %left OR
 %left AND
@@ -140,6 +158,8 @@
 %start program
 
 %%
+
+MP : /* empty */ { $$ = nextquad(); }
 
 program
     : stmt_list { print_rule("program -> stmt_list"); }
@@ -486,14 +506,14 @@ lvalue
             $$ = lvalue_expr(sym);
         }
     }
-    | member
-;
+    | member { print_rule("lvalue -> member"); }
+    ;
 
 const
-    : INTCONST   { $$ = newexpr_constnum($1);         }
-    | REALCONST  { $$ = newexpr_constnum($1);         }
-    | STRING     { $$ = newexpr_conststring($1);      }
-    | NIL        { $$ = newexpr(nil_e);               }
+    : INTCONST    { $$ = newexpr_constnum($1);         }
+    | REALCONST   { $$ = newexpr_constnum($1);         }
+    | STRING      { $$ = newexpr_conststring($1);      }
+    | NIL         { $$ = newexpr(nil_e);               }
     | TRUE       { $$ = newexpr_constbool(1);         }
     | FALSE      { $$ = newexpr_constbool(0);         }
 ;
@@ -860,6 +880,8 @@ ifstmt
 ifprefix
     : IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS
     {
+        // Ensure expr has a symbol
+        $3 = ensure_expr_has_symbol($3);
 
 	    // we ensure the expression is in boolean form
         if ($3->type != boolexpr_e) {
@@ -884,47 +906,86 @@ elseprefix
     ;
 
 whilestmt
-    : WHILE LEFT_PARENTHESIS expr RIGHT_PARENTHESIS 
-    { 
-        //checkLoopDepth++; 
-        push_loopcounter(); // we enter loop scope
+    : WHILE MP
+      LEFT_PARENTHESIS expr RIGHT_PARENTHESIS
+      {
+          push_loopcounter();
 
-        int loop_start = nextquad(); 
-        emit(if_eq, $3, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
+          // Ensure expr has a symbol
+          $4 = ensure_expr_has_symbol($4);
 
-        int jump_false = nextquad();
-        emit(jump, NULL, NULL, NULL, 0, yylineno);
+          /* IF cond == TRUE jump somewhere (patch later) */
+          emit(if_eq, $4, newexpr_constbool(1), NULL, 0, yylineno);
+          emit(jump , NULL, NULL, NULL,0, yylineno);  /* JFALSE */
 
-        int loop_body = nextquad();
-        $<intValue>$ = loop_start;
-    } 
-    stmt 
-    { 
-        emit(jump, NULL, NULL, NULL, $<intValue>1, yylineno);  
-        patchlabel($<intValue>4, nextquad());
+          $<intValue>$ = nextquad() - 2; /* $6 : IF-quad id */
+      }
+      MP                                         
+      stmt
+      {
+          emit(jump, NULL, NULL, NULL, $2, yylineno);      /* back-edge  */
 
-        // checkLoopDepth--; 
-        pop_loopcounter();  // we exit loop scope
-        print_rule("whilestmt -> while ( expr ) stmt"); 
-    }
-;
+          /* patch IF-TRUE  → body, IF-FALSE → exit */
+          patchlabel($<intValue>6    , $7);
+          patchlabel($<intValue>6 + 1, nextquad());
+
+          lc_stack_t *loop = current_loop();
+          if (loop) {
+              patchlist(loop->breaklist, nextquad());  /* break    → exit */
+              patchlist(loop->contlist, $2);           /* continue */
+          }
+
+          pop_loopcounter();
+      }
+    ;
+
+
 
 forstmt
     : FOR
-    {
-        // checkLoopDepth++;
-        push_loopcounter(); // we start loop
-        enter_scope();
-    }
-    LEFT_PARENTHESIS elist SEMICOLON expr SEMICOLON elist RIGHT_PARENTHESIS
-    stmt
-    {
-        exit_scope();
-        // checkLoopDepth--;
-        pop_loopcounter(); // and then end the loop
-        print_rule("forstmt -> for ( elist ; expr ; elist ) stmt");
-    }
+        { push_loopcounter(); enter_scope(); }     /* housekeeping     */
+      LEFT_PARENTHESIS
+      elist SEMICOLON                              /* expr1 (init)     */
+      MP
+      expr                                         /* expr2 (cond)     */
+        {
+            // Ensure expr has a symbol
+            $7 = ensure_expr_has_symbol($7);
+
+            emit(if_eq, $7, newexpr_constbool(1), NULL, 0, yylineno);
+            emit(jump , NULL, NULL, NULL,           0, yylineno);  /* JFALSE */
+
+            $<intValue>$ = nextquad() - 2; /* $8 : IF-quad id */
+        }
+      SEMICOLON
+      MP                                       
+      elist                                      
+        {
+            emit(jump, NULL, NULL, NULL, $6, yylineno);   
+        }
+      RIGHT_PARENTHESIS
+      MP                                          
+      stmt
+            {
+          int ifQuad = $<intValue>8;              /* saved IF-quad   */
+
+          patchlabel(ifQuad    , $<intValue>12);  /* TRUE  → body    */
+          patchlabel(ifQuad + 1, nextquad());     /* FALSE → exit    */
+
+          emit(jump, NULL, NULL, NULL, $<intValue>9, yylineno); 
+
+          lc_stack_t *loop = current_loop();
+          if (loop) {
+              patchlist(loop->breaklist, nextquad()); /* break  → exit   */
+              patchlist(loop->contlist,  $<intValue>9);/* cont */
+          }
+
+          exit_scope();
+          pop_loopcounter();
+      }
     ;
+
+
 
 returnstmt
     : RETURN SEMICOLON
@@ -963,11 +1024,24 @@ break_stmt
         } 
         print_rule("break_stmt -> break ;"); 
     }
+    {
+        if (loopcounter() == 0) {
+            // Skip patching if not in a loop
+            fprintf(stderr, "Error: 'break' used outside of any loop (line %d)\n", yylineno);
+            semantic_errors++;
+        } else {
+            emit(jump, NULL, NULL, NULL, 0, yylineno); // emit jump to break
+            struct lc_stack_t *n = current_loop();
+            if (n) { // Add safety check
+                n->breaklist = mergelist(n->breaklist, newlist(nextquad() - 1));
+            }
+        }
+    }
     ;
 
 continue_stmt
     : CONTINUE SEMICOLON 
-    { 
+    {
         //if (checkLoopDepth < 1) { 
         if (loopcounter() == 0) {
             fprintf(stderr, "Error: 'continue' used outside of any loop (line %d)\n", yylineno);
@@ -975,32 +1049,30 @@ continue_stmt
         } 
         print_rule("continue_stmt -> continue ;"); 
     }
+    {
+        if (loopcounter() == 0) {
+            // Skip patching if not in a loop
+            fprintf(stderr, "Error: 'continue' used outside of any loop (line %d)\n", yylineno);
+            semantic_errors++;
+        } else {
+            emit(jump, NULL, NULL, NULL, 0, yylineno); // emit jump to break
+            struct lc_stack_t *n = current_loop();
+            if (n) { // Add safety check
+                n->contlist = mergelist(n->contlist, newlist(nextquad() - 1));
+            }
+        }
+    }
     ;
 
 block
-  : LEFT_BRACE
-    {
-        int opened = 0;
-        if (first_brace_of_func)
-            first_brace_of_func = 0;
-        else {
-            enter_scope();
-            opened = 1;
-        }
-        $<intValue>$ = opened;
-    }
-    stmt_list RIGHT_BRACE
-    {
-        if ( $<intValue>2 ) {
-            exit_scope();
-        }
-    }
+    : LEFT_BRACE { enter_scope(); } stmt_list RIGHT_BRACE { exit_scope(); print_rule("block -> { stmt_list }"); }
     ;
 
 %%
 
-int yyerror(char* yaccProvidedMessage) {
-    fprintf(stderr, "%s: at line %d, before token: %s\n", yaccProvidedMessage, yylineno, yytext);
+int yyerror (char* yaccProvidedMessage)
+{
+    fprintf(stderr, "%s: at line %d, before token: '%s'\n", yaccProvidedMessage, yylineno, yytext);
     fprintf(stderr, "unexpected token: %s with ascii: %d\n", yytext, yytext[0]);
     fprintf(stderr, "INPUT NOT VALID\n");
     return 1;

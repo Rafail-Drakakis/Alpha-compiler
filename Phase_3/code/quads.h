@@ -67,6 +67,23 @@ typedef struct quad {
     unsigned line;
 } quad;
 
+
+/* quads.h – put this just after the #includes */
+#ifndef LC_STACK_DEFINED
+#define LC_STACK_DEFINED
+
+typedef struct lc_stack_t {
+        struct lc_stack_t *next;
+        unsigned           counter;     /* for nested-loop depth (any value is fine) */
+        int                breaklist;   /* list-head of pending ‘break’ jumps */
+        int                contlist;    /* list-head of pending ‘continue’ jumps */
+} lc_stack_t;
+
+#endif    /* LC_STACK_DEFINED */
+
+/* helper that the parser uses */
+lc_stack_t *current_loop(void);
+
 // Scope and offset management
 extern unsigned programVarOffset;
 extern unsigned functionLocalOffset;

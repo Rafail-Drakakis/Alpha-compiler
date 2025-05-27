@@ -13,6 +13,11 @@
 #include "quads.h"
 #include "symbol_table.h"
 
+/* ── forward declarations for helpers used later ── */
+static void print_number_to_buf(char *buf, size_t sz, double n);
+static const char *bool_str(unsigned char b);
+/* ------------------------------------------------------ */
+
 unsigned programVarOffset = 0;
 unsigned functionLocalOffset = 0;
 unsigned formalArgOffset = 0;
@@ -25,10 +30,6 @@ extern unsigned int checkScope;
 extern int yyparse();
 extern FILE *yyin;
 
-struct lc_stack_t {
-   struct lc_stack_t* next;
-   unsigned counter;
-};
 
 static struct lc_stack_t *lcs_top = 0;
 static struct lc_stack_t *lcs_bottom = 0;
@@ -50,6 +51,7 @@ unsigned loopcounter(void) {
  * in enter_function_scope()
  */
 
+
 void push_loopcounter(void) {
     struct lc_stack_t* new_node = malloc(sizeof(struct lc_stack_t));
     if (!new_node) {
@@ -57,6 +59,8 @@ void push_loopcounter(void) {
         exit(EXIT_FAILURE);
     }
     new_node->counter = loop_id_counter++;
+    new_node->breaklist = 0;
+    new_node->contlist = 0;
     new_node->next = lcs_top;
     lcs_top = new_node;
 }
@@ -67,6 +71,8 @@ void pop_loopcounter(void) {
     lcs_top = lcs_top->next;
     free(temp);
 }
+
+struct lc_stack_t *current_loop(void) { return lcs_top; }
 
 unsigned int currscope(void) {
     return checkScope;
@@ -118,13 +124,13 @@ static const char *expr_to_str_buf(expr *e, char *buf, size_t bufsize) {
     /* 1. Types that do not depend on sym */
     switch (e->type) {
         case constnum_e:
-            snprintf(buf, bufsize, "%.2f", e->numConst);
+            print_number_to_buf(buf, bufsize, e->numConst);
             return buf;
         case conststring_e:
             snprintf(buf, bufsize, "\"%s\"", e->strConst);
             return buf;
         case constbool_e:
-            snprintf(buf, bufsize, "%s", e->boolConst ? "TRUE" : "FALSE");
+            snprintf(buf, bufsize, "%s", bool_str(e->boolConst));
             return buf;
         case nil_e:
             snprintf(buf, bufsize, "NIL");
@@ -435,7 +441,7 @@ expr *newexpr_constbool(unsigned int b) {
 
 char *newtempname(void) {
     char *name = malloc(16);
-    sprintf(name, "_%u", tempcounter++);
+    sprintf(name, "_t%u", tempcounter++);
     return name;
 }
 
@@ -615,6 +621,31 @@ void make_stmt(stmt_t *s) {
     s->breaklist = s->contlist = 0;
 }
 
+
+static void print_number(FILE *f, double n) {
+    double diff = n - (long)n;          /* cheap fabs */
+    if (diff < 0) diff = -diff;
+
+    if (diff < 0.0000001)
+        fprintf(f, "%ld", (long)n);
+    else
+        fprintf(f, "%.2f", n);
+}
+
+static void print_number_to_buf(char *buf, size_t sz, double n) {
+    double diff = n - (long)n;
+    if (diff < 0) diff = -diff;
+
+    if (diff < 0.0000001)
+        snprintf(buf, sz, "%ld", (long)n);
+    else
+        snprintf(buf, sz, "%.2f", n);
+}
+
+static const char *bool_str(unsigned char b) {   /* inlineable */
+    return b ? "TRUE" : "FALSE";
+}
+
 static void print_expr(FILE *f, expr *e) {
     if (!e) {
         fprintf(f, "nil");
@@ -630,13 +661,13 @@ static void print_expr(FILE *f, expr *e) {
     /* 2. Types that do not depend on sym */
     switch (e->type) {
     case constnum_e:
-        fprintf(f, "%.2f", e->numConst);
+        print_number(f, e->numConst);
         return;
     case conststring_e:
         fprintf(f, "\"%s\"", e->strConst);
         return;
     case constbool_e:
-        fprintf(f, "%s", e->boolConst ? "TRUE" : "FALSE");
+        fprintf(f, "%s", bool_str(e->boolConst));
         return;
     case nil_e:
         fprintf(f, "NIL");
@@ -679,7 +710,7 @@ void print_quads(FILE *f) {
 
     for (unsigned i = 0; i < currQuad; ++i) {
         quad *q = quads + i;
-        fprintf(f, "%-3u: ", i);
+        fprintf(f, "%-3u: ", i + 1);
 
         switch (q->op) {
             case assign:
@@ -751,42 +782,48 @@ void print_quads(FILE *f) {
                 print_expr(f, q->arg1);
                 fprintf(f, " == ");
                 print_expr(f, q->arg2);
-                fprintf(f, " THEN jump to %u", q->label);
+                fprintf(f, " THEN jump to %u", q->label + 1);
+
                 break;
             case if_noteq:
                 fprintf(f, "IF ");
                 print_expr(f, q->arg1);
                 fprintf(f, " != ");
                 print_expr(f, q->arg2);
-                fprintf(f, " THEN jump to %u", q->label);
+                fprintf(f, " THEN jump to %u", q->label + 1);
+
                 break;
             case if_lesseq:
                 fprintf(f, "IF ");
                 print_expr(f, q->arg1);
                 fprintf(f, " <= ");
                 print_expr(f, q->arg2);
-                fprintf(f, " THEN jump to %u", q->label);
+                fprintf(f, " THEN jump to %u", q->label + 1);
+
                 break;
             case if_greatereq:
                 fprintf(f, "IF ");
                 print_expr(f, q->arg1);
                 fprintf(f, " >= ");
                 print_expr(f, q->arg2);
-                fprintf(f, " THEN jump to %u", q->label);
+                fprintf(f, " THEN jump to %u", q->label + 1);
+
                 break;
             case if_less:
                 fprintf(f, "IF ");
                 print_expr(f, q->arg1);
                 fprintf(f, " < ");
                 print_expr(f, q->arg2);
-                fprintf(f, " THEN jump to %u", q->label);
+                fprintf(f, " THEN jump to %u", q->label + 1);
+
                 break;
             case if_greater:
                 fprintf(f, "IF ");
                 print_expr(f, q->arg1);
                 fprintf(f, " > ");
                 print_expr(f, q->arg2);
-                fprintf(f, " THEN jump to %u", q->label);
+                fprintf(f, " THEN jump to %u", q->label + 1);
+
                 break;
             case call:
                 fprintf(f, "CALL ");
@@ -832,7 +869,7 @@ void print_quads(FILE *f) {
                 print_expr(f, q->result);
                 break;
             case jump:
-                fprintf(f, "jump to %u", q->label);
+                fprintf(f, "jump to %u", q->label + 1);
                 break;
             default:
                 fprintf(f, "[Unknown opcode]");
@@ -858,7 +895,7 @@ void print_quads(FILE *f) {
             res_str,
             arg1_str,
             arg2_str,
-            q->label,
+            q->label ? q->label + 1 : 0,
             q->line
         );
     }
