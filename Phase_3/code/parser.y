@@ -389,17 +389,14 @@ assignexpr
 	rhs = emit_iftableitem(rhs);
 
         if ($1->type == tableitem_e) {
-            // emit: a[3] := rhs
-            //emit(tablesetelem, rhs, $1->index, $1, 0, yylineno);
-            emit(tablesetelem, rhs, $1->index, $1->table, 0, yylineno);
+            /* Evaluate the TABLE part once, cache in temp */
+            expr *tbl = emit_iftableitem($1->table);
+           /*  tbl[index] := rhs  */
+            emit(tablesetelem, tbl, $1->index, rhs, 0, yylineno);
 
-            /* new start */
-            expr* result = newexpr(var_e);
-            result->sym = newtemp();
-            emit(tablegetelem, $1->table, $1->index, result, 0, yylineno);
-            /* new end */
-
-            // $$ = rhs;
+            /*  result = tbl[index]  (so the assignment is an expression) */
+            expr *result = newexpr(var_e);  result->sym = newtemp();
+            emit(tablegetelem, tbl, $1->index, result, 0, yylineno);
             $$ = result;
         
         } else {
