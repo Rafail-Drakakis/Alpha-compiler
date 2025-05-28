@@ -3,6 +3,11 @@
 
 #include "quads.h"
 
+extern double*    numConsts;
+extern unsigned   totalNumConsts;
+extern char**     stringConsts;
+extern unsigned   totalStringConsts;
+
 /* VM-style argument kinds */
 typedef enum {
     label_a

@@ -1,8 +1,17 @@
 #include "codegen.h"
+#include "symbol_table.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #define INSTRUCTION_ARRAY_SIZE 1024 
+#define GLOBAL_BASE  0
+#define TOP          vm_stack_top     
+#define TOPSP        vm_stack_topsp  
+
+double*  numConsts       = NULL; 
+unsigned totalNumConsts  = 0;
+char**   stringConsts    = NULL;
+unsigned totalStringConsts = 0;
 
 instruction instructions[INSTRUCTION_ARRAY_SIZE];
 unsigned int currInstruction = 0;
@@ -38,6 +47,173 @@ void generate_TABLEGETELM  (quad *q) { generate(op_tablegetelem,  q); }
 void generate_TABLESETELEM (quad *q) { generate(op_tablesetelem,  q); }
 void generate_ASSIGN       (quad *q) { generate(op_assign,        q); }
 void generate_NOP          (void)   { instruction t = { .opcode = op_nop }; emit_instruction(t); }
+
+static unsigned add_numconst(double x) {
+  for (unsigned i=0; i<totalNumConsts; ++i)
+    if (numConsts[i]==x) return i;
+  numConsts = realloc(numConsts, (totalNumConsts+1)*sizeof *numConsts);
+  numConsts[totalNumConsts] = x;
+  return totalNumConsts++;
+}
+
+static unsigned add_strconst(const char* s) {
+  for (unsigned i=0; i<totalStringConsts; ++i)
+    if (strcmp(stringConsts[i],s)==0) return i;
+  stringConsts = realloc(stringConsts,(totalStringConsts+1)*sizeof *stringConsts);
+  stringConsts[totalStringConsts] = strdup(s);
+  return totalStringConsts++;
+}
+
+void make_operand(expr *e, vmarg *arg) {
+    if (!e) { arg->type = label_a; arg->value = 0; return; }
+
+    switch (e->type) {
+      case constnum_e:
+        arg->type  = number_a;
+        arg->value = add_numconst(e->numConst);
+        break;
+      case conststring_e:
+        arg->type  = string_a;
+        arg->value = add_strconst(e->strConst);
+        break;
+      case constbool_e:
+        arg->type  = bool_a;
+        arg->value = e->boolConst;
+        break;
+      case var_e:
+      case tableitem_e: {
+        SymbolTableEntry *sym = e->sym;
+        unsigned       offset = sym->offset;
+        switch (sym->space) {
+          case programvar:
+            arg->type  = global_a;
+            arg->value = GLOBAL_BASE + offset;
+            break;
+          case formalarg:
+            arg->type  = formal_a;
+            arg->value = TOPSP - offset - 1;
+            break;
+          case functionlocal:
+            arg->type  = local_a;
+            arg->value = TOP + offset + 1;
+            break;
+        }
+        break;
+      }
+      case call_e:
+        arg->type  = retval_a;
+        arg->value = 0;   
+        break;
+      default:
+        arg->type  = label_a;
+        arg->value = 0;
+    }
+}
+
+void generate_FUNCSTART(quad *q) {
+    q->taddress = nextinstructionlabel();
+
+    /* 1) push old TOPSP */
+    instruction t1 = { .opcode = op_pusharg };
+    make_retvaloperand(&t1.arg1);           /* encode old TOPSP */
+    emit_instruction(t1);
+
+    /* 2) set TOPSP = TOP */
+    instruction t2 = { .opcode = op_assign };
+    make_operand(NULL, &t2.arg1);           /* no-op src */
+    make_retvaloperand(&t2.arg2);            /* dest = old retval slot */
+    emit_instruction(t2);
+
+    unsigned locals = (unsigned)q->arg1->numConst;
+    for (unsigned i = 0; i < locals; ++i) {
+        instruction t = { .opcode = op_nop };
+        emit_instruction(t);  
+    }
+}
+
+void generate_FUNCEND(quad *q) {
+    q->taddress = nextinstructionlabel();
+
+    /* 1) restore TOP = TOPSP */
+    instruction t1 = { .opcode = op_assign };
+    make_retvaloperand(&t1.arg1);      /* arg1 = old TOPSP value */
+    reset_operand(&t1.arg2);
+    emit_instruction(t1);
+
+    /* 2) pop old TOPSP (incomplete jump back address) */
+    instruction t2 = { .opcode = op_nop }; 
+    emit_instruction(t2);              /* or op_poptops if defined */
+
+    /* 3) return via incomplete jump */
+    instruction t3 = { .opcode = op_jne }; /* any conditional unused */
+    t3.result.type  = label_a;
+    if (q->label < nextinstructionlabel()) {
+        t3.result.value = quads[q->label].taddress;
+    } else {
+        add_incomplete_jump(nextinstructionlabel(), q->label);
+    }
+    emit_instruction(t3);
+}
+
+void generate_CODE(void) {
+    for (unsigned i = 0; i < currQuad; ++i) {
+        quad *q = &quads[i];
+        switch (q->op) {
+          /* Arithmetic */
+          case add:     generate_ADD(q);  break;
+          case sub:     generate_SUB(q);  break;
+          case mul:     generate_MUL(q);  break;
+          case idiv:    generate_DIV(q);  break;
+          case mod:     generate_MOD(q);  break;
+          /* Table / Assign */
+          case tablecreate:
+            generate_NEWTABLE(q); break;
+          case tablegetelem:
+            generate_TABLEGETELM(q); break;
+          case tablesetelem:
+            generate_TABLESETELEM(q); break;
+          case assign:
+            generate_ASSIGN(q); break;
+          /* Jumps & Relational */
+          case jump:
+            generate_JUMP(q); break;
+          case if_eq:
+            generate_IF_EQ(q); break;
+          case if_noteq:
+            generate_IF_NOTEQ(q); break;
+          case if_greater:
+            generate_IF_GREATER(q); break;
+          case if_greatereq:
+            generate_IF_GREATEREQ(q); break;
+          case if_less:
+            generate_IF_LESS(q); break;
+          case if_lesseq:
+            generate_IF_LESSEQ(q); break;
+          /* Boolean */
+          case and:
+            generate_AND(q); break;
+          case or:
+            generate_OR(q); break;
+          case not:
+            generate_NOT(q); break;
+          /* Calls */
+          case param:
+            generate_PARAM(q); break;
+          case call:
+            generate_CALL(q); break;
+          case getretval:
+            generate_GETRETVAL(q); break;
+          /* Functions */
+          case funcstart:
+            generate_FUNCSTART(q); break;
+          case funcend:
+            generate_FUNCEND(q);   break;
+          default:
+            generate_NOP();
+        }
+    }
+    patch_incomplete_jumps();
+}
 
 /* Relational and unconditional jumps */
 void generate_relational(opcode_t op, quad *q) {
