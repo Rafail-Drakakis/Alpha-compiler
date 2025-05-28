@@ -103,6 +103,49 @@
         return e;
     }
 
+    /*  is_inc    : 1 → ++   , 0 → --   */
+    /*  is_prefix : 1 → ++x  , 0 → x++  */
+    static expr *incdec_lvalue(expr *lv, int is_inc, int is_prefix)
+    {
+        expr *one = newexpr_constnum(1);
+        expr *ret = newexpr(var_e);      ret->sym = newtemp();
+
+        /* -------------------- table element -------------------- */
+        if (lv->type == tableitem_e) {
+            expr *table = emit_iftableitem(lv->table);      /* may nest  */
+            expr *index = lv->index;                        /* already OK */
+
+            expr *old  = newexpr(var_e); old ->sym = newtemp();
+            expr *newv = newexpr(var_e); newv->sym = newtemp();
+
+            /* fetch current value */
+            emit(tablegetelem, table, index, old , 0, yylineno);
+
+            if (!is_prefix) /*  x++ / x--  -> result = old  */
+                emit(assign, old , NULL, ret , 0, yylineno);
+
+            /* compute new value  */
+            emit(is_inc ? add : sub, old , one, newv, 0, yylineno);
+            /* store it back */
+            emit(tablesetelem, newv, index, table, 0, yylineno);
+
+            if (is_prefix) /* ++x / --x  -> result = newv  */
+                emit(assign, newv, NULL, ret , 0, yylineno);
+
+            return ret;
+        }
+
+        /* -------------------- plain variable ------------------- */
+        if (is_prefix) {  /* ++x / --x */
+            emit(is_inc ? add : sub, lv, one, lv , 0, yylineno);
+            emit(assign, lv , NULL, ret, 0, yylineno);
+        } else {          /* x++ / x-- */
+            emit(assign, lv , NULL, ret, 0, yylineno);
+            emit(is_inc ? add : sub, lv, one, lv , 0, yylineno);
+        }
+        return ret;
+    }
+
 %}
 
 %union {
@@ -405,6 +448,8 @@ op
     or_op:              OR { print_rule("op -> or"); };
 */
 
+
+
 term
     : LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { print_rule("term -> ( expr )"); }
     | MINUS expr %prec UMINUS 
@@ -418,39 +463,51 @@ term
     | NOT expr { $$ = make_not($2); }
     | PLUS_PLUS lvalue 
     { 
+        /*
         if ($2->type == programfunc_e || $2->type == libraryfunc_e) fprintf(stderr,"Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->sym->name, yylineno); 
         expr *r = newexpr(var_e); 
         r->sym = newtemp(); 
         emit(assign, $2, NULL, r, 0, yylineno); 
         emit(add, $2, newexpr_constnum(1), $2, 0, yylineno); 
         $$ = r; 
+        */
+        $$ = incdec_lvalue($2, 1, 1);
     }
     | lvalue PLUS_PLUS 
     { 
+        /*
         if ($1->type == programfunc_e || $1->type == libraryfunc_e) fprintf(stderr,"Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->sym->name, yylineno); 
         expr *r = newexpr(var_e); 
         r->sym = newtemp(); 
         emit(assign, $1, NULL, r, 0, yylineno); 
         emit(add, $1, newexpr_constnum(1), $1, 0, yylineno); 
         $$ = r; 
+        */
+        $$ = incdec_lvalue($1, 1, 0); 
     }
     | MINUS_MINUS lvalue 
     { 
+        /*
         if ($2->type == programfunc_e || $2->type == libraryfunc_e) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->sym->name, yylineno);
         expr *r = newexpr(var_e); 
         r->sym = newtemp(); 
         emit(assign, $2, NULL, r, 0, yylineno); 
         emit(sub, $2, newexpr_constnum(1), $2, 0, yylineno); 
         $$ = r; 
+        */
+        $$ = incdec_lvalue($2, 0, 1);
     }
     | lvalue MINUS_MINUS 
     { 
+        /*
         if ($1->type == programfunc_e || $1->type == libraryfunc_e) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->sym->name, yylineno); 
         expr *r = newexpr(var_e); 
         r->sym = newtemp(); 
         emit(assign, $1, NULL, r, 0, yylineno); 
         emit(sub, $1, newexpr_constnum(1), $1, 0, yylineno); 
-        $$ = r; 
+        $$ = r;
+        */
+        $$ = incdec_lvalue($1, 0, 0); 
     }
     | primary 
     { 
