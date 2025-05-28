@@ -951,24 +951,29 @@ expr* make_not(expr* e) {
     return r;
 }
 
-expr* make_or(expr* e1, expr* e2) {
-    patchlist(e1->falselist, nextquad());  // If e1 is false, evaluate e2
+expr *make_or(expr *e1, expr *e2) {
+    /* ensure operands carry truelist / falselist */
+    if (e1->type != boolexpr_e)  e1 = convert_to_bool(e1);
+    if (e2->type != boolexpr_e)  e2 = convert_to_bool(e2);
 
-    expr* result = newexpr(boolexpr_e);
-    result->truelist = mergelist(e1->truelist, e2->truelist);
-    result->falselist = e2->falselist;
+    patchlist(e1->falselist, nextquad());   /* e1 false → evaluate e2 */
 
-    return result;
+    expr *r = newexpr(boolexpr_e);
+    r->truelist  = mergelist(e1->truelist, e2->truelist);
+    r->falselist = e2->falselist;
+    return r;
 }
 
-expr* make_and(expr* e1, expr* e2) {
-    patchlist(e1->truelist, nextquad());
+expr *make_and(expr *e1, expr *e2) {
+    if (e1->type != boolexpr_e)  e1 = convert_to_bool(e1);
+    if (e2->type != boolexpr_e)  e2 = convert_to_bool(e2);
 
-    expr* result = newexpr(boolexpr_e);
-    result->truelist = e2->truelist;
-    result->falselist = mergelist(e1->falselist, e2->falselist);
+    patchlist(e1->truelist, nextquad());    /* e1 true  → evaluate e2 */
 
-    return result;
+    expr *r = newexpr(boolexpr_e);
+    r->truelist  = e2->truelist;
+    r->falselist = mergelist(e1->falselist, e2->falselist);
+    return r;
 }
 
 expr* make_eq_neq(expr* e1, expr* e2, iopcode op) {
