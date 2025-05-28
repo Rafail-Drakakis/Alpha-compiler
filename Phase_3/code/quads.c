@@ -906,6 +906,25 @@ void print_quads(FILE *f) {
     }
 }
 
+static expr *lower_if_not(expr *e) {
+    if (e->type == not_e) {
+        expr *inner_bool = convert_to_bool(e->index);
+        expr *r = newexpr(boolexpr_e);
+        r->truelist  = inner_bool->falselist;
+        r->falselist = inner_bool->truelist;
+        return r;
+    }
+    return convert_to_bool(e);
+}
+
+static unsigned emit_bool_test(expr *e) {
+    e = emit_iftableitem(e);
+    unsigned if_quad = currQuad;                   // grab the index *before* emitting
+    emit(if_eq, e, newexpr_constbool(1), NULL, 0, yylineno);
+    emit(jump,   NULL, NULL,   NULL, 0, yylineno); // at if_quad+1
+    return if_quad;
+}
+
 expr* convert_to_value(expr* bool_expr) {
     if (bool_expr->type != boolexpr_e){
         return bool_expr;
@@ -929,50 +948,45 @@ expr* convert_to_value(expr* bool_expr) {
     return result;
 }
 
-expr* convert_to_bool(expr* e) {
-    if (e->type == boolexpr_e) return e;
-
-    expr* bool_expr = newexpr(boolexpr_e);
-    emit(if_eq, e, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
-    emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
-
-    bool_expr->truelist = newlist(nextquad() - 2);
-    bool_expr->falselist = newlist(nextquad() - 1);
-    return bool_expr;
-}
-
-expr* make_not(expr* e) {
-    if (e->type != boolexpr_e){
-        e = convert_to_bool(e);  // emits if_eq/jump to produce true/false lists
+expr* convert_to_bool(expr *e) {
+    if (e->type == boolexpr_e) {
+        return e;
     }
-    expr* r = newexpr(boolexpr_e);
-    r->truelist = e->falselist;
-    r->falselist = e->truelist;
+    expr *b = newexpr(boolexpr_e);
+    emit(if_eq, e, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
+    emit(jump,   NULL, NULL,   NULL, nextquad() + 2, yylineno);
+    b->truelist  = newlist(nextquad() - 2);
+    b->falselist = newlist(nextquad() - 1);
+    return b;
+}
+
+expr* make_not(expr *e) {
+    e = convert_to_bool(e);
+    expr *b = newexpr(boolexpr_e);
+    b->truelist  = e->falselist;
+    b->falselist = e->truelist;
+    return b;
+}
+
+expr *make_and(expr *lhs, expr *rhs) {
+    unsigned test = emit_bool_test(lhs);
+    patchlabel(test + 1, nextquad());
+    expr *rb = lower_if_not(rhs);
+    expr *r = newexpr(boolexpr_e);
+    r->truelist  = newlist(test);
+    r->truelist  = mergelist(r->truelist, rb->truelist);
+    r->falselist = mergelist(newlist(test + 1), rb->falselist);
     return r;
 }
 
-expr *make_or(expr *e1, expr *e2) {
-    /* ensure operands carry truelist / falselist */
-    if (e1->type != boolexpr_e)  e1 = convert_to_bool(e1);
-    if (e2->type != boolexpr_e)  e2 = convert_to_bool(e2);
-
-    patchlist(e1->falselist, nextquad());   /* e1 false → evaluate e2 */
-
+expr *make_or(expr *lhs, expr *rhs) {
+    unsigned test = emit_bool_test(lhs);
+    patchlabel(test, nextquad());
+    expr *rb = lower_if_not(rhs);
     expr *r = newexpr(boolexpr_e);
-    r->truelist  = mergelist(e1->truelist, e2->truelist);
-    r->falselist = e2->falselist;
-    return r;
-}
-
-expr *make_and(expr *e1, expr *e2) {
-    if (e1->type != boolexpr_e)  e1 = convert_to_bool(e1);
-    if (e2->type != boolexpr_e)  e2 = convert_to_bool(e2);
-
-    patchlist(e1->truelist, nextquad());    /* e1 true  → evaluate e2 */
-
-    expr *r = newexpr(boolexpr_e);
-    r->truelist  = e2->truelist;
-    r->falselist = mergelist(e1->falselist, e2->falselist);
+    r->truelist  = rb->truelist;
+    r->falselist = newlist(test + 1);     // LHS-false → evaluate RHS
+    r->falselist = mergelist(r->falselist, rb->falselist);
     return r;
 }
 

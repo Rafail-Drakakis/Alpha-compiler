@@ -457,7 +457,11 @@ term
         $$ = r; 
         print_rule("term -> - expr"); 
     }
-    | NOT expr { $$ = make_not($2); }
+    | NOT expr {
+        expr *e = newexpr(not_e);
+        e->index = $2;      /* store the operand */
+        $$ = e;
+    }
     | PLUS_PLUS lvalue 
     { 
         /*
