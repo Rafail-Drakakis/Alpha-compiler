@@ -667,11 +667,11 @@ callsuffix
     ;
 
 normcall
-    : LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("normcall -> ( elist )"); }
+    : LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { $$ = $2; print_rule("normcall -> ( elist )"); }
     ;
 
 methodcall
-    : lvalue DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { print_rule("methodcall -> lvalue .. IDENTIFIER ( elist )"); }
+    : lvalue DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { $$ = create_expr_list($1 , $5); print_rule("methodcall -> lvalue .. IDENTIFIER ( elist )"); }
     ;
 
 elist
