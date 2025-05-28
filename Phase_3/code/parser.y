@@ -969,11 +969,14 @@ whilestmt
       {
           push_loopcounter();
 
-          // Ensure expr has a symbol
-          $4 = ensure_expr_has_symbol($4);
+          expr *cond = $4;
+          if (cond->type == boolexpr_e)        /* a chain of or/and/not           */
+            cond = convert_to_value(cond);     /* generate t := true/false      */
+          else
+            cond = emit_iftableitem(cond);     /* still handle tableitem         */
 
           /* IF cond == TRUE jump somewhere (patch later) */
-          emit(if_eq, $4, newexpr_constbool(1), NULL, 0, yylineno);
+          emit(if_eq, cond, newexpr_constbool(1), NULL, 0, yylineno);
           emit(jump , NULL, NULL, NULL,0, yylineno);  /* JFALSE */
 
           $<intValue>$ = nextquad() - 2; /* $6 : IF-quad id */
