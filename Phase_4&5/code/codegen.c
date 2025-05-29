@@ -3,6 +3,10 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+
+unsigned vm_stack_top    = 0;
+unsigned vm_stack_topsp  = 0;
+
 #define INSTRUCTION_ARRAY_SIZE 1024 
 #define GLOBAL_BASE  0
 #define TOP          vm_stack_top     
@@ -65,48 +69,58 @@ static unsigned add_strconst(const char* s) {
 }
 
 void make_operand(expr *e, vmarg *arg) {
-    if (!e) { arg->type = label_a; arg->value = 0; return; }
-
-    switch (e->type) {
-      case constnum_e:
-        arg->type  = number_a;
-        arg->value = add_numconst(e->numConst);
-        break;
-      case conststring_e:
-        arg->type  = string_a;
-        arg->value = add_strconst(e->strConst);
-        break;
-      case constbool_e:
-        arg->type  = bool_a;
-        arg->value = e->boolConst;
-        break;
-      case var_e:
-      case tableitem_e: {
-        SymbolTableEntry *sym = e->sym;
-        unsigned       offset = sym->offset;
-        switch (sym->space) {
-          case programvar:
-            arg->type  = global_a;
-            arg->value = GLOBAL_BASE + offset;
-            break;
-          case formalarg:
-            arg->type  = formal_a;
-            arg->value = TOPSP - offset - 1;
-            break;
-          case functionlocal:
-            arg->type  = local_a;
-            arg->value = TOP + offset + 1;
-            break;
-        }
-        break;
-      }
-      case call_e:
-        arg->type  = retval_a;
-        arg->value = 0;   
-        break;
-      default:
+    if (!e) {
         arg->type  = label_a;
         arg->value = 0;
+        return;
+    }
+
+    switch (e->type) {
+        case constnum_e:
+            arg->type  = number_a;
+            arg->value = add_numconst(e->numConst);
+            break;
+        case conststring_e:
+            arg->type  = string_a;
+            arg->value = add_strconst(e->strConst);
+            break;
+        case constbool_e:
+            arg->type  = bool_a;
+            arg->value = e->boolConst;
+            break;
+        case var_e:
+        case tableitem_e: {
+            /* guard against missing symbol */
+            if (!e->sym) {
+                arg->type  = label_a;
+                arg->value = 0;
+                break;
+            }
+            SymbolTableEntry *sym = e->sym;
+            unsigned offset = sym->offset;
+            switch (sym->space) {
+                case programvar:
+                    arg->type  = global_a;
+                    arg->value = GLOBAL_BASE + offset;
+                    break;
+                case formalarg:
+                    arg->type  = formal_a;
+                    arg->value = TOPSP - offset - 1;
+                    break;
+                case functionlocal:
+                    arg->type  = local_a;
+                    arg->value = TOP + offset + 1;
+                    break;
+            }
+            break;
+        }
+        case call_e:
+            arg->type  = retval_a;
+            arg->value = 0;
+            break;
+        default:
+            arg->type  = label_a;
+            arg->value = 0;
     }
 }
 
@@ -155,7 +169,9 @@ void generate_FUNCEND(quad *q) {
     emit_instruction(t3);
 }
 
-void generate_CODE(void) {
+void generate_target_code(void) {
+    currInstruction = 0;   /* clear out any old instructions */
+    ijumps_head   = NULL; 
     for (unsigned i = 0; i < currQuad; ++i) {
         quad *q = &quads[i];
         switch (q->op) {
@@ -373,11 +389,6 @@ int nextinstructionlabel(void) {
 void emit_instruction(instruction t) {
     assert(currInstruction < INSTRUCTION_ARRAY_SIZE);
     instructions[currInstruction++] = t;
-}
-
-void make_operand(void *expr, vmarg *arg) {
-    arg->type = label_a;
-    arg->value = 0;
 }
 
 void reset_operand(vmarg *arg) {

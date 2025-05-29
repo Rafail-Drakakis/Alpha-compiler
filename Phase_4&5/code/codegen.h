@@ -8,9 +8,15 @@ extern unsigned   totalNumConsts;
 extern char**     stringConsts;
 extern unsigned   totalStringConsts;
 
-/* VM-style argument kinds */
 typedef enum {
-    label_a
+    label_a,    /* branch targets & fallbacks */
+    number_a,   /* constant number */
+    string_a,   /* constant string */
+    bool_a,     /* constant boolean */
+    global_a,   /* global variable */
+    formal_a,   /* function formal argument */
+    local_a,    /* function-local var */
+    retval_a    /* function return-value slot */
 } vmarg_t;
 
 /* One VM argument */
@@ -49,11 +55,11 @@ extern unsigned int currInstruction;
 /* Helper routines */
 int  nextinstructionlabel(void);
 void emit_instruction(instruction t);
-void make_operand(void *expr, vmarg *arg);
 void reset_operand(vmarg *arg);
 void make_booloperand(vmarg *arg, int boolean);
 void make_retvaloperand(vmarg *arg);
 void add_incomplete_jump(int instrNo, int iaddress);
+void make_operand(expr *e, vmarg *arg);
 
 /* Entry points */
 void patch_incomplete_jumps(void);
@@ -90,6 +96,7 @@ void generate_AND(quad *q);
 void generate_PARAM    (quad *q);
 void generate_CALL     (quad *q);
 void generate_GETRETVAL(quad *q);
+void generate_target_code(void);
 
 /* Print/write */
 void print_instructions(FILE* out);
