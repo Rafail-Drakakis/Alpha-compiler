@@ -103,46 +103,50 @@
         return e;
     }
 
-    /*  is_inc    : 1 → ++   , 0 → --   */
-    /*  is_prefix : 1 → ++x  , 0 → x++  */
+    /*  is_inc    : 1 → ++   , 0 → --                         */
+    /*  is_prefix : 1 → ++x  , 0 → x++                        */
     static expr *incdec_lvalue(expr *lv, int is_inc, int is_prefix)
     {
         expr *one = newexpr_constnum(1);
-        expr *ret = newexpr(var_e);      ret->sym = newtemp();
 
-        /* -------------------- table element -------------------- */
         if (lv->type == tableitem_e) {
-            expr *table = emit_iftableitem(lv->table);      /* may nest  */
-            expr *index = lv->index;                        /* already OK */
-
-            expr *old  = newexpr(var_e); old ->sym = newtemp();
-            expr *newv = newexpr(var_e); newv->sym = newtemp();
+            expr *table = emit_iftableitem(lv->table);      /* may be nested  */
+            expr *index = lv->index;                        /* already ok     */
 
             /* fetch current value */
-            emit(tablegetelem, table, index, old , 0, yylineno);
+            expr *old  = newexpr(var_e); old ->sym = newtemp();
+            emit(tablegetelem, table, index, old, 0, yylineno);
 
-            if (!is_prefix) /*  x++ / x--  -> result = old  */
-                emit(assign, old , NULL, ret , 0, yylineno);
+            expr *ret  = NULL;                              /* value to return */
 
-            /* compute new value  */
-            emit(is_inc ? add : sub, old , one, newv, 0, yylineno);
+            /*  x++ / x--  – save the *original* value BEFORE we change it */
+            if (!is_prefix) {
+                ret = newexpr(var_e); ret->sym = newtemp();
+                emit(assign, old, NULL, ret, 0, yylineno);  /* ret = old      */
+            }
+
+            /* compute updated value */
+            expr *newv = newexpr(var_e); newv->sym = newtemp();
+            emit(is_inc ? add : sub, old, one, newv, 0, yylineno);
+
             /* store it back */
             emit(tablesetelem, newv, index, table, 0, yylineno);
 
-            if (is_prefix) /* ++x / --x  -> result = newv  */
-                emit(assign, newv, NULL, ret , 0, yylineno);
-
-            return ret;
+            /* ++x / --x -> result is the updated value, x++ / x-- -> old  */
+            return is_prefix ? newv : ret;
         }
 
-        /* -------------------- plain variable ------------------- */
-        if (is_prefix) {  /* ++x / --x */
+        /* ────────────────  PLAIN VARIABLE  ─────────────── */
+        expr *ret = newexpr(var_e); ret->sym = newtemp();
+
+        if (is_prefix) {                     /* ++x / --x   */
             emit(is_inc ? add : sub, lv, one, lv , 0, yylineno);
-            emit(assign, lv , NULL, ret, 0, yylineno);
-        } else {          /* x++ / x-- */
-            emit(assign, lv , NULL, ret, 0, yylineno);
+            emit(assign, lv , NULL, ret, 0, yylineno);      /* result = new   */
+        } else {                             /* x++ / x--   */
+            emit(assign, lv , NULL, ret, 0, yylineno);      /* result = old   */
             emit(is_inc ? add : sub, lv, one, lv , 0, yylineno);
         }
+
         return ret;
     }
 
