@@ -87,6 +87,8 @@ int main(int argc, char **argv) {
         generate_target_code();
         printf("\n------ Target VM Instructions ------\n");
         print_instructions(stdout);
+        write_text("out_instructions.txt", currInstruction);
+        write_binary("out_instructions.bin", currInstruction);
     } else {
         fprintf(stderr, "No quads to print or empty quads array\n");
     }
