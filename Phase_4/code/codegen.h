@@ -31,7 +31,7 @@ typedef enum {
     op_newtable, op_tablegetelem, op_tablesetelem,
     op_assign, op_nop,
     op_jeq, op_jne, op_jgt, op_jge, op_jlt, op_jle,
-    op_pusharg, op_callfunc
+    op_pusharg, op_callfunc, op_getretval
 } opcode_t;
 
 /* One final instruction */
@@ -103,4 +103,7 @@ void print_instructions(FILE* out);
 void write_text(const char *filename, unsigned int instr_count);
 void write_binary(const char *filename, unsigned int instr_count);
 
+void write_numConsts(const char *filename);
+void write_stringConsts(const char *filename);
+void write_vmarg(FILE *out, vmarg *arg);
 #endif /* CODEGEN_H */

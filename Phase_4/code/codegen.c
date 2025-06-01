@@ -3,6 +3,8 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <stdint.h>
 
 unsigned vm_stack_top    = 0;
 unsigned vm_stack_topsp  = 0;
@@ -167,6 +169,28 @@ void generate_FUNCEND(quad *q) {
         add_incomplete_jump(nextinstructionlabel(), q->label);
     }
     emit_instruction(t3);
+}
+
+void write_numConsts(const char *filename) {
+    FILE *fp = fopen(filename,"wb");
+    if (!fp) { perror("Cannot open numConsts file"); exit(1); }
+    uint32_t count = totalNumConsts;
+    fwrite(&count, sizeof(count), 1, fp);
+    fwrite(numConsts, sizeof(double), totalNumConsts, fp);
+    fclose(fp);
+}
+
+void write_stringConsts(const char *filename) {
+    FILE *fp = fopen(filename,"wb");
+    if (!fp) { perror("Cannot open stringConsts file"); exit(1); }
+    uint32_t count = totalStringConsts;
+    fwrite(&count, sizeof(count), 1, fp);
+    for (uint32_t i = 0; i < count; ++i) {
+        uint32_t len = (uint32_t)strlen(stringConsts[i]);
+        fwrite(&len, sizeof(len), 1, fp);
+        fwrite(stringConsts[i], sizeof(char), len, fp);
+    }
+    fclose(fp);
 }
 
 void generate_target_code(void) {

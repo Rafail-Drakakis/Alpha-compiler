@@ -14,6 +14,7 @@
 #include "quads.h"
 #include "symbol_table.h"
 #include "codegen.h" 
+#include "vm.h"
 
 extern unsigned int checkScope;
 extern int yyparse();        
@@ -89,10 +90,16 @@ int main(int argc, char **argv) {
         print_instructions(stdout);
         write_text("out_instructions.txt", currInstruction);
         write_binary("out_instructions.bin", currInstruction);
+        write_numConsts("out_numConsts.bin"); 
+        write_stringConsts("out_stringConsts.bin");
     } else {
         fprintf(stderr, "No quads to print or empty quads array\n");
     }
- 
+
+    vm_init();
+    vm_run();
+    avm_destroy();
+
     free_symbol_table(symbol_table);
     if (argc == 2 && yyin) {
         fclose(yyin);
