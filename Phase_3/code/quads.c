@@ -524,7 +524,7 @@ expr *make_call_expr(expr *func_expr, expr *args) {
     } else {
         /* Create a temporary symbol if none exists */
         call_expr->sym = newtemp();
-        fprintf(stderr, "Warning: Function expression has no symbol, created temp\n");
+        debug(1, "Warning: Function expression has no symbol, created temp\n");
     }
 
     /* Safely handle arguments */
