@@ -1,0 +1,24 @@
+local a = 10;
+local b = 20;
+local c = a + b;
+local d = a * b - 5 / 2;
+
+local flag = true and false or not false;
+
+local greeting = "Hello\nWorld";
+
+function factorial(n) {
+    if (n == 0) {
+        return 1;
+    } else {
+        return n * factorial(n - 1);
+    }
+}
+
+local result = factorial(5);
+
+local t = [1, 2, 3];
+local x = t[0];
+t[1] = 42;
+
+print(t[1]);
