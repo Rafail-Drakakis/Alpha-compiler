@@ -145,25 +145,25 @@ static const char *expr_to_str_buf(expr *e, char *buf, size_t bufsize) {
     }
 
     switch (e->type) {
-    case var_e:
-    case tableitem_e:
-    case arithexpr_e:
-    case assignexpr_e:
-        snprintf(buf, bufsize, "%s", e->sym->name);
-        break;
-    case programfunc_e:
-    case libraryfunc_e:
-        // snprintf(buf, bufsize, "%s()", e->sym->name);
-        snprintf(buf, bufsize, "%s", e->sym->name);
-        break;
-    case newtable_e:
-        snprintf(buf, bufsize, "[table]");
-        break;
-    default:
-        snprintf(buf, bufsize, "UNKNOWN");
-        break;
-    }
-    return buf;
+        case var_e:
+        case tableitem_e:
+        case arithexpr_e:
+        case assignexpr_e:
+            snprintf(buf, bufsize, "%s", e->sym->name);
+            break;
+        case programfunc_e:
+        case libraryfunc_e:
+            // snprintf(buf, bufsize, "%s()", e->sym->name);
+            snprintf(buf, bufsize, "%s", e->sym->name);
+            break;
+        case newtable_e:
+            snprintf(buf, bufsize, "[table]");
+            break;
+        default:
+            snprintf(buf, bufsize, "UNKNOWN");
+            break;
+        }
+        return buf;
 }
 
 void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsigned line) {
@@ -584,9 +584,7 @@ expr *emit_iftableitem(expr *e) {
 
     expr *result = newexpr(var_e);
     result->sym = newtemp();
-    // emit(tablegetelem, e, e->index, result, 0, yylineno);
     emit(tablegetelem, table, e->index, result, 0, yylineno);
-
 
     e->next = result; // added this to memoize
     return result;

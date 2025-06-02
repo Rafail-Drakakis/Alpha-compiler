@@ -220,6 +220,12 @@ stmt_list
 stmt
     : expr SEMICOLON 
         {
+
+        // for a[3];
+        if ($1 && $1->type == tableitem_e) {
+            emit_iftableitem($1);
+        }
+
 	    expr *val = convert_to_value($1);
             if($1->type == constnum_e) { 
                 expr *temp = newexpr(var_e); 
@@ -393,16 +399,17 @@ assignexpr
 	rhs = emit_iftableitem(rhs);
 
         if ($1->type == tableitem_e) {
-            /* Evaluate the TABLE part once, cache in temp */
             expr *tbl = emit_iftableitem($1->table);
-           /*  tbl[index] := rhs  */
-            emit(tablesetelem, tbl, $1->index, rhs, 0, yylineno);
+            expr *idx = $1->index;
 
-            /*  result = tbl[index]  (so the assignment is an expression) */
-            expr *result = newexpr(var_e);  result->sym = newtemp();
-            emit(tablegetelem, tbl, $1->index, result, 0, yylineno);
+            emit(tablesetelem, rhs, idx, tlb, 0, yylineno); // changed order
+
+            expr *result = newexpr(var_e);
+            result->sym = newtemp();
+            
+            emit(tablegetelem, tbl, idx, result, 0, yylineno);
+            
             $$ = result;
-        
         } else {
             // emit: a := rhs
             // regular var assing
