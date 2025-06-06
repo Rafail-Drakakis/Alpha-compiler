@@ -494,7 +494,7 @@ op
 
 
 term
-    : LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { print_rule("term -> ( expr )"); }
+    : LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { $$ = $2; print_rule("term -> ( expr )"); }
     | MINUS expr %prec UMINUS 
     { 
         expr *r = newexpr(arithexpr_e); 
