@@ -145,25 +145,25 @@ static const char *expr_to_str_buf(expr *e, char *buf, size_t bufsize) {
     }
 
     switch (e->type) {
-        case var_e:
-        case tableitem_e:
-        case arithexpr_e:
-        case assignexpr_e:
-            snprintf(buf, bufsize, "%s", e->sym->name);
-            break;
-        case programfunc_e:
-        case libraryfunc_e:
-            // snprintf(buf, bufsize, "%s()", e->sym->name);
-            snprintf(buf, bufsize, "%s", e->sym->name);
-            break;
-        case newtable_e:
-            snprintf(buf, bufsize, "[table]");
-            break;
-        default:
-            snprintf(buf, bufsize, "UNKNOWN");
-            break;
-        }
-        return buf;
+    case var_e:
+    case tableitem_e:
+    case arithexpr_e:
+    case assignexpr_e:
+        snprintf(buf, bufsize, "%s", e->sym->name);
+        break;
+    case programfunc_e:
+    case libraryfunc_e:
+        // snprintf(buf, bufsize, "%s()", e->sym->name);
+        snprintf(buf, bufsize, "%s", e->sym->name);
+        break;
+    case newtable_e:
+        snprintf(buf, bufsize, "[table]");
+        break;
+    default:
+        snprintf(buf, bufsize, "UNKNOWN");
+        break;
+    }
+    return buf;
 }
 
 void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsigned line) {
@@ -524,7 +524,7 @@ expr *make_call_expr(expr *func_expr, expr *args) {
     } else {
         /* Create a temporary symbol if none exists */
         call_expr->sym = newtemp();
-        debug(1, "Warning: Function expression has no symbol, created temp\n");
+        fprintf(stderr, "Warning: Function expression has no symbol, created temp\n");
     }
 
     /* Safely handle arguments */
@@ -584,7 +584,9 @@ expr *emit_iftableitem(expr *e) {
 
     expr *result = newexpr(var_e);
     result->sym = newtemp();
+    // emit(tablegetelem, e, e->index, result, 0, yylineno);
     emit(tablegetelem, table, e->index, result, 0, yylineno);
+
 
     e->next = result; // added this to memoize
     return result;
@@ -613,7 +615,9 @@ int mergelist(int l1, int l2) {
 }
 
 void patchlist(int list, int label) {
+    printf("TEST_1: label %d\n", label);
     while (list) {
+        printf("\tlist %d\n", list);
         int next = quads[list].label;
         quads[list].label = label;
         list = next;
@@ -706,6 +710,28 @@ static void print_expr(FILE *f, expr *e) {
         fprintf(f, "UNKNOWN");
         break;
     }
+}
+
+
+static inline unsigned shown_label(const quad *q)
+{
+    /* real label is 0 → means "no label yet"  */
+    if (q->label == 0) {
+        /* Show "1" only for jumps or IF-quads so that
+           the printed text never says "jump to 0". */
+        switch (q->op) {
+        case jump:
+        case if_eq:        case if_noteq:
+        case if_less:      case if_greater:
+        case if_lesseq:    case if_greatereq:
+            return 1; 
+        default:
+            return 0; 
+        }
+    }
+
+    /* any other label → add 1 because quad indices are 0-based  */
+    return q->label + 1;
 }
 
 void print_quads(FILE *f) {
@@ -898,7 +924,7 @@ void print_quads(FILE *f) {
             res_str,
             arg1_str,
             arg2_str,
-            q->label ? q->label + 1 : 0,
+            shown_label(q),
             q->line
         );
     }
