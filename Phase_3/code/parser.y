@@ -979,7 +979,8 @@ ifstmt
         }
     | ifprefix stmt elseprefix stmt
         {
-        patchlabel($1, $3);
+        //printf("IF-LABEL: %d , %d\n",$1, $3);
+        patchlabel($1, $3 + 1);
         //patchlabel($2, nextquad()); // $2 is stmt not a quad number so we use $3
         patchlabel($3, nextquad());
         print_rule("ifstmt -> if ( expr ) stmt else stmt");
@@ -1035,6 +1036,7 @@ whilestmt
       MP                                         
       stmt
       {
+          //printf("EMIT-LABEL-2: %d\n", $2);
           emit(jump, NULL, NULL, NULL, $2, yylineno);      /* back-edge  */
 
           /* patch IF-TRUE  → body, IF-FALSE → exit */
@@ -1064,8 +1066,8 @@ forstmt
             // Ensure expr has a symbol
             $7 = ensure_expr_has_symbol($7);
 
-            emit(if_eq, $7, newexpr_constbool(1), NULL, 0, yylineno);
-            emit(jump , NULL, NULL, NULL,           0, yylineno);  /* JFALSE */
+            emit(if_eq, $7, newexpr_constbool(1), NULL, nextquad() + 1, yylineno);
+            emit(jump , NULL, NULL, NULL, nextquad() + 3, yylineno);  /* JFALSE */
 
             $<intValue>$ = nextquad() - 2; /* $8 : IF-quad id */
         }
@@ -1079,22 +1081,24 @@ forstmt
       MP                                          
       stmt
             {
-          int ifQuad = $<intValue>8;              /* saved IF-quad   */
+        int ifQuad = $<intValue>8;
 
-          patchlabel(ifQuad    , $<intValue>12);  /* TRUE  → body    */
-          patchlabel(ifQuad + 1, nextquad());     /* FALSE → exit    */
+        emit(jump, NULL, NULL, NULL, $10, yylineno);
 
-          emit(jump, NULL, NULL, NULL, $<intValue>9, yylineno); 
+        patchlabel(ifQuad, $14);
 
-          lc_stack_t *loop = current_loop();
-          if (loop) {
-              patchlist(loop->breaklist, nextquad()); /* break  → exit   */
-              patchlist(loop->contlist,  $<intValue>9);/* cont */
-          }
+        patchlabel(ifQuad + 1, nextquad());
 
-          exit_scope();
-          pop_loopcounter();
-      }
+        lc_stack_t *loop = current_loop();
+        if (loop) {
+            // 4. Patch any 'break' statements to also exit the loop.
+            patchlist(loop->breaklist, nextquad());
+            // 5. Patch any 'continue' statements to go to the increment part ($10).
+            patchlist(loop->contlist, $10);
+        }
+        exit_scope();
+        pop_loopcounter();
+    }
     ;
 
 
