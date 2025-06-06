@@ -175,10 +175,10 @@
 %type <expression>  funcdef
 %type <arglist>     idlist formal_arguments
 %type <expression> 	expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
-%type <intValue>	ifprefix elseprefix ifstmt stmt
+%type <intValue>	ifprefix elseprefix ifstmt
 %type <expression>  call_member indexed indexedelem objectdef
 %type <intValue>    whilestmt
-%type <expression> immediately_invoked_func_expr
+%type <expression> immediately_invoked_func_expr stmt
 
 %type <intValue> MP
 
@@ -245,25 +245,34 @@ stmt
             }
             */
 
-            print_rule("stmt -> expr ;"); 
+            print_rule("stmt -> expr ;");
+            $$ = $1;
+            resettemp(); 
         }
-    | error SEMICOLON { print_rule("stmt -> error ;"); yyerrok; }
-    | ifstmt { print_rule("stmt -> ifstmt"); }
-    | whilestmt { print_rule("stmt -> whilestmt"); }
-    | forstmt { print_rule("stmt -> forstmt"); }
-    | returnstmt { print_rule("stmt -> returnstmt"); }
-    | break_stmt { print_rule("stmt -> break ;"); }
-    | continue_stmt { print_rule("stmt -> continue ;"); }
-    | block { print_rule("stmt -> block"); }
-    | funcdef { print_rule("stmt -> funcdef"); }
-    | error ';' { print_rule("stmt -> error ;"); yyerrok; }
+    | error SEMICOLON { print_rule("stmt -> error ;"); yyerrok; resettemp(); }
+    | ifstmt { print_rule("stmt -> ifstmt"); resettemp(); }
+    | whilestmt { print_rule("stmt -> whilestmt"); resettemp(); }
+    | forstmt { print_rule("stmt -> forstmt"); resettemp(); }
+    | returnstmt { print_rule("stmt -> returnstmt"); resettemp(); }
+    | break_stmt { print_rule("stmt -> break ;"); resettemp(); }
+    | continue_stmt { print_rule("stmt -> continue ;"); resettemp(); }
+    | block { print_rule("stmt -> block"); resettemp(); }
+    | funcdef { print_rule("stmt -> funcdef"); resettemp(); }
+    | error ';' { print_rule("stmt -> error ;"); yyerrok; resettemp(); }
     ;
 
 expr
     : expr PLUS expr
     {
         expr *r = newexpr(arithexpr_e);
-        r->sym = newtemp();
+        
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp();
+
         // emit(add, $1, $3, r, 0, yylineno);
         emit(add, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
@@ -271,23 +280,42 @@ expr
     | expr MINUS expr
     {
         expr *r = newexpr(arithexpr_e);
-        r->sym = newtemp();
-        // emit(sub, $1, $3, r, 0, yylineno);
+
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp(); 
+
         emit(sub, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
     }
     | expr MULTIPLY expr
     {
         expr *r = newexpr(arithexpr_e);
-        r->sym = newtemp();
-        // emit(mul, $1, $3, r, 0, yylineno);
+
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp();
+
         emit(mul, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
     }
     | expr DIVIDE expr
     {
         expr *r = newexpr(arithexpr_e);
-        r->sym = newtemp();
+    
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp();
+    
         // emit(idiv, $1, $3, r, 0, yylineno);
         emit(idiv, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
@@ -295,7 +323,14 @@ expr
     | expr MODULO expr
     {
         expr *r = newexpr(arithexpr_e);
-        r->sym = newtemp();
+        
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp();
+
         // emit(mod, $1, $3, r, 0, yylineno);
         emit(mod, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
@@ -463,7 +498,12 @@ term
     | MINUS expr %prec UMINUS 
     { 
         expr *r = newexpr(arithexpr_e); 
-        r->sym = newtemp(); 
+        if ($2 && $2->sym && istempname($2->sym->name)) {
+            r->sym = $2->sym;
+        } else {
+            r->sym = newtemp();
+        }
+        printf("%d %s\n", $2->type, $2->sym ? $2->sym->name : "NULL");
         emit(uminus, $2, NULL, r, 0, yylineno); 
         $$ = r; 
         print_rule("term -> - expr"); 
