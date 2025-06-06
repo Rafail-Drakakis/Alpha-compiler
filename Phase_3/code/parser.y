@@ -402,7 +402,7 @@ assignexpr
             expr *tbl = emit_iftableitem($1->table);
             expr *idx = $1->index;
 
-            emit(tablesetelem, rhs, idx, tlb, 0, yylineno); // changed order
+            emit(tablesetelem, rhs, idx, tbl, 0, yylineno); // changed order
 
             expr *result = newexpr(var_e);
             result->sym = newtemp();
