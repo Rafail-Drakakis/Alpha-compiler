@@ -429,13 +429,11 @@ expr* newexpr_conststring(char* s) {
 }
 
 
-expr *newexpr_constbool(unsigned int b) {
+expr *newexpr_constbool(unsigned int b)
+{
     expr *e = newexpr(constbool_e);
     e->boolConst = !!b;
-    // make sure it has a symbol to prevent issues
-    if (!e->sym) {
-        e->sym = newtemp();
-    }
+    /* constants never need a symbol */
     return e;
 }
 
@@ -726,7 +724,7 @@ static inline unsigned shown_label(const quad *q)
         case if_lesseq:    case if_greatereq:
             return 1; 
         default:
-            return 0; 
+            return 0;                       /* keep the zero */
         }
     }
 
