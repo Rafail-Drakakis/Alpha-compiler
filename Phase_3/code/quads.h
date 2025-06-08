@@ -122,7 +122,6 @@ expr* make_call_expr(expr* func_expr, expr* args);
 expr* create_expr_list(expr* head, expr* tail);
 
 expr* emit_iftableitem(expr* e);
-unsigned emit_bool_test(expr* e);
 void print_quads(FILE* f);
 
 // Statement list structure for break/continue
