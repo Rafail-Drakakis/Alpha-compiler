@@ -37,7 +37,7 @@
     int semantic_errors = 0;
     static unsigned checkFuncDepth = 0;
     unsigned int returnlist = 0;
-
+    static unsigned func_jump_to_patch = 0;
 
     typedef struct formal_argument_node {
         char *name;
@@ -174,7 +174,7 @@
 
 %type <expression>  funcdef
 %type <arglist>     idlist formal_arguments
-%type <expression> 	expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
+%type <expression> 	expr term primary const lvalue member assignexpr call elist /*normcall methodcall callsuffix*/
 %type <intValue>	ifprefix elseprefix ifstmt
 %type <expression>  call_member indexed indexedelem objectdef
 %type <intValue>    whilestmt
@@ -570,6 +570,22 @@ term
 primary
     : lvalue { print_rule("primary -> lvalue"); }
     | call { print_rule("primary -> call"); }
+    | lvalue DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
+    {
+        // 1. Get the method (e.g., 'f') from the table (e.g., 'a')
+        expr* table = $1;
+        expr* method_name_str = newexpr_conststring($3);
+        expr* method_func = newexpr(var_e);
+        method_func->sym = newtemp();
+        emit(tablegetelem, table, method_name_str, method_func, 0, yylineno);
+
+        // 2. Prepend the table object as the first argument ("self")
+        expr* full_arg_list = create_expr_list(table, $5);
+
+        // 3. Call the fetched method with the complete argument list.
+        $$ = make_call_expr(method_func, full_arg_list);
+        print_rule("primary -> lvalue .. IDENTIFIER ( elist )");
+    }
     | objectdef { print_rule("primary -> objectdef"); }
     | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS { print_rule("primary -> ( funcdef )"); $$ = $2;}
     | const { print_rule("primary -> const"); }
@@ -676,22 +692,14 @@ call_member
     ;
 
 call
-    : call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS 
-    { 
-        $$ = make_call_expr($1, $3); // $1 = previous call expr, $3 = argument list
-        print_rule("call -> call (elist)"); 
-        }
-    | lvalue {
-        is_calling = 1;
-        } callsuffix { 
-        is_calling = 0;
-        $$ = make_call_expr($1, $3);
-        print_rule("call -> lvalue callsuffix"); 
-    }
-    /*  | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
-        if (!$2) { debug(1, "Warning: Invalid function definition at line %d\n", yylineno); $$ = newexpr(nil_e); // Return a safe nil expression
-        } else { $$ = make_call_expr($2, $5); } print_rule("call -> ( funcdef ) ( elist )"); }    */
-    ;
+  : lvalue LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
+      { $$ = make_call_expr($1,$3); }
+  | call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
+      { $$ = make_call_expr($1,$3); }
+  /* + your immediately-invoked rule, etc. */
+  ;
+
+
 
 immediately_invoked_func_expr
     : LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS {
@@ -712,19 +720,24 @@ immediately_invoked_func_expr
     }
 ;
 
-
+/*
 callsuffix
     : normcall { print_rule("callsuffix -> normcall"); }
     | methodcall { print_rule("callsuffix -> methodcall"); }
     ;
+*/
 
+/*
 normcall
     : LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { $$ = $2; print_rule("normcall -> ( elist )"); }
     ;
+*/
 
+/*
 methodcall
     : lvalue DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { $$ = create_expr_list($1 , $5); print_rule("methodcall -> lvalue .. IDENTIFIER ( elist )"); }
     ;
+*/
 
 elist
     : expr 
@@ -848,31 +861,32 @@ funcdef
         /*SymbolTableEntry *func_sym = insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
         expr* f = newexpr(programfunc_e);
         f->sym = func_sym;
-	    current_function_expr = f;
+        current_function_expr = f;
         //$<expression>3 = e;
 
         enter_scope();
         ++inside_function_depth;
         inside_function_scope = 1;
         first_brace_of_func = 1;  // Indicates the first brace of the function
-	    enter_function_scope();   // for loop */
+        enter_function_scope();   // for loop */
 
         SymbolTableEntry *func_sym = insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
         expr* f = newexpr(programfunc_e);
         f->sym = func_sym;
-	    current_function_expr = f;
+        current_function_expr = f;
         //$<expression>3 = e;
 
-        emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
-        emit(funcstart, f, NULL, NULL, 0, yylineno);
+        func_jump_to_patch = nextquad();
+        emit(jump, NULL, NULL, NULL, 0, yylineno);
+        emit(funcstart, NULL, NULL, f, 0, yylineno);
 
-	    returnlist = 0;
+        returnlist = 0;
 
         enter_scope();
         ++inside_function_depth;
         inside_function_scope = 1;
         first_brace_of_func = 1;  // Indicates the first brace of the function
-	    enter_function_scope();   // for loop
+        enter_function_scope();   // for loop
 
         $<expression>$ = f;
     }
@@ -896,14 +910,14 @@ funcdef
         --inside_function_depth;
         exit_scope();
         exit_function_scope();      // for loop
-        emit(funcend, $<expression>3, NULL, NULL, 0, yylineno); // emit funcend
+        emit(funcend, NULL, NULL, $<expression>3, 0, yylineno);
 
-        // new
+        patchlabel(func_jump_to_patch, nextquad());
         patchlist(returnlist, nextquad());
 
         $$ = $<expression>3;        // use previously stored expr*
     }
-    | FUNCTION
+  | FUNCTION
     {
         char *anonymous_name = malloc(32);
         if (!anonymous_name) {
@@ -919,8 +933,9 @@ funcdef
         expr* func_expr = newexpr(programfunc_e);
         func_expr->sym = func_sym;
 
-        emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
-        emit(funcstart, func_expr, NULL, NULL, 0, yylineno);
+        func_jump_to_patch = nextquad();
+        emit(jump, NULL, NULL, NULL, 0, yylineno);
+        emit(funcstart, NULL, NULL, func_expr, 0, yylineno);
 
         // new
         returnlist = 0;
@@ -929,8 +944,8 @@ funcdef
         enter_scope();
         ++inside_function_depth;
         first_brace_of_func = 1;
-        enter_function_scope();             // for loop
-        $<expression>$ = func_expr;         // and then pass it to later rules
+        enter_function_scope();           // for loop
+        $<expression>$ = func_expr;       // and then pass it to later rules
 
     }
     LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
@@ -944,12 +959,12 @@ funcdef
     block
     {
         --inside_function_depth;
-	    exit_function_scope();  // for loop
+        exit_function_scope();  // for loop
         exit_scope();
 
-        emit(funcend, $<expression>2, NULL, NULL, 0, yylineno); // emit funcend after block
+        emit(funcend, NULL, NULL, $<expression>2, 0, yylineno);
 
-	    // new
+        patchlabel(func_jump_to_patch, nextquad());
         patchlist(returnlist, nextquad());
 
         $$ = $<expression>2;    // rtrn func_expr
