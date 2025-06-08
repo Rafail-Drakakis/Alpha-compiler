@@ -939,7 +939,7 @@ static expr *lower_if_not(expr *e) {
     return convert_to_bool(e);
 }
 
-static unsigned emit_bool_test(expr *e) {
+unsigned emit_bool_test(expr *e) {
     e = emit_iftableitem(e);
     unsigned if_quad = currQuad;                   // grab the index *before* emitting
     emit(if_eq, e, newexpr_constbool(1), NULL, 0, yylineno);
@@ -990,25 +990,40 @@ expr* make_not(expr *e) {
     return b;
 }
 
-expr *make_and(expr *lhs, expr *rhs) {
-    unsigned test = emit_bool_test(lhs);
-    patchlabel(test + 1, nextquad());
+expr *make_and(expr *lhs, expr *rhs, unsigned test)
+{
+    /* new:  patch the TRUE edge        */
+    patchlabel(test, nextquad());       /* E1.True  →  start of E2 */
+
     expr *rb = lower_if_not(rhs);
-    expr *r = newexpr(boolexpr_e);
-    r->truelist  = newlist(test);
-    r->truelist  = mergelist(r->truelist, rb->truelist);
-    r->falselist = mergelist(newlist(test + 1), rb->falselist);
+    expr *r  = newexpr(boolexpr_e);
+
+    /* new: E.True is only what comes from the RHS                    */
+    r->truelist  = rb->truelist;
+
+    r->falselist = mergelist(newlist(test + 1), rb->falselist);  /* same */
     return r;
 }
 
-expr *make_or(expr *lhs, expr *rhs) {
-    unsigned test = emit_bool_test(lhs);
-    patchlabel(test, nextquad());
+expr *make_or(expr *lhs, expr *rhs, unsigned test)
+{
+    // Print the lhs expression for debugging
+    printf("make_or: lhs = ");
+    print_expr(stdout, lhs);
+    printf("\n");
+
+    /* Patch the FALSE edge of LHS to the start of RHS */
+    patchlabel(test + 1, nextquad()); /* LHS.False → start of RHS */
+
     expr *rb = lower_if_not(rhs);
     expr *r = newexpr(boolexpr_e);
-    r->truelist  = rb->truelist;
-    r->falselist = newlist(test + 1);     // LHS-false → evaluate RHS
-    r->falselist = mergelist(r->falselist, rb->falselist);
+
+    /* The TRUE list is the merge of LHS.True and RHS.True */
+    r->truelist = mergelist(newlist(test), rb->truelist);
+
+    /* The FALSE list is just the RHS's FALSE list */
+    r->falselist = rb->falselist;
+
     return r;
 }
 

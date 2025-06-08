@@ -122,6 +122,7 @@ expr* make_call_expr(expr* func_expr, expr* args);
 expr* create_expr_list(expr* head, expr* tail);
 
 expr* emit_iftableitem(expr* e);
+unsigned emit_bool_test(expr* e);
 void print_quads(FILE* f);
 
 // Statement list structure for break/continue
@@ -140,8 +141,8 @@ void patchlist(int list, int label);
 expr* convert_to_value(expr* e);
 expr* convert_to_bool(expr* e);
 expr* make_not(expr* e);
-expr* make_or(expr* e1, expr* e2);
-expr* make_and(expr* e1, expr* e2);
+expr* make_or(expr* e1, expr* e2, unsigned test);
+expr* make_and(expr* e1, expr* e2, unsigned test);
 expr* make_eq_neq(expr* e1, expr* e2, iopcode op);
 
 #endif
