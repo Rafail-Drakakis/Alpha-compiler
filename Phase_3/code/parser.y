@@ -181,7 +181,6 @@
 %type <expression> immediately_invoked_func_expr stmt
 
 %type <intValue> MP
-%type <intValue> LP
 
 %right ASSIGNMENT        /* = has less priority in compare with all the other */
 %left OR
@@ -208,7 +207,6 @@
 %%
 
 MP : /* empty */ { $$ = nextquad(); }
-LP : /* empty */ {  }
 
 program
     : stmt_list { print_rule("program -> stmt_list"); }
@@ -414,8 +412,8 @@ expr
     }
     | expr EQUAL_EQUAL expr { $$ = make_eq_neq($1, $3, if_eq); }
     | expr NOT_EQUAL expr { $$ = make_eq_neq($1, $3, if_noteq);  }
-    | expr LP {$2 = emit_bool_test($1); } OR expr { $$ = make_or($1, $5, $2); }
-    | expr LP {$2 = emit_bool_test($1); } AND expr { $$ = make_and($1, $5, $2); }
+    | expr OR expr { $$ = make_or($1, $3); }
+    | expr AND expr { $$ = make_and($1, $3); }
     | assignexpr { $$ = $1; }
     | immediately_invoked_func_expr { $$ = $1; }
     | term       { $$ = $1; } 

@@ -939,7 +939,7 @@ static expr *lower_if_not(expr *e) {
     return convert_to_bool(e);
 }
 
-unsigned emit_bool_test(expr *e) {
+static unsigned emit_bool_test(expr *e) {
     e = emit_iftableitem(e);
     unsigned if_quad = currQuad;                   // grab the index *before* emitting
     emit(if_eq, e, newexpr_constbool(1), NULL, 0, yylineno);
@@ -990,27 +990,26 @@ expr* make_not(expr *e) {
     return b;
 }
 
-expr *make_and(expr *lhs, expr *rhs, unsigned test)
+expr *make_and(expr *lhs, expr *rhs)
 {
-    /* new:  patch the TRUE edge        */
-    patchlabel(test, nextquad());       /* E1.True  →  start of E2 */
+    unsigned test = emit_bool_test(lhs);
+
+   /* new:  patch the TRUE edge        */
+   patchlabel(test, nextquad());       /* E1.True  →  start of E2 */
 
     expr *rb = lower_if_not(rhs);
     expr *r  = newexpr(boolexpr_e);
 
-    /* new: E.True is only what comes from the RHS                    */
-    r->truelist  = rb->truelist;
+   /* new: E.True is only what comes from the RHS                    */
+   r->truelist  = rb->truelist;
 
-    r->falselist = mergelist(newlist(test + 1), rb->falselist);  /* same */
+   r->falselist = mergelist(newlist(test + 1), rb->falselist);  /* same */
     return r;
 }
 
-expr *make_or(expr *lhs, expr *rhs, unsigned test)
+expr *make_or(expr *lhs, expr *rhs)
 {
-    // Print the lhs expression for debugging
-    printf("make_or: lhs = ");
-    print_expr(stdout, lhs);
-    printf("\n");
+    unsigned test = emit_bool_test(lhs);
 
     /* Patch the FALSE edge of LHS to the start of RHS */
     patchlabel(test + 1, nextquad()); /* LHS.False → start of RHS */
