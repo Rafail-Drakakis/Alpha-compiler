@@ -37,7 +37,9 @@
     int semantic_errors = 0;
     static unsigned checkFuncDepth = 0;
     unsigned int returnlist = 0;
-    static unsigned func_jump_to_patch = 0;
+
+    expr *call_lhs;
+
 
     typedef struct formal_argument_node {
         char *name;
@@ -174,7 +176,7 @@
 
 %type <expression>  funcdef
 %type <arglist>     idlist formal_arguments
-%type <expression> 	expr term primary const lvalue member assignexpr call elist /*normcall methodcall callsuffix*/
+%type <expression> 	expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
 %type <intValue>	ifprefix elseprefix ifstmt
 %type <expression>  call_member indexed indexedelem objectdef
 %type <intValue>    whilestmt
@@ -417,7 +419,7 @@ expr
     | assignexpr { $$ = $1; }
     | immediately_invoked_func_expr { $$ = $1; }
     | term       { $$ = $1; } 
-    | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); $$ = newexpr(nil_e);}
+    //| expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); $$ = newexpr(nil_e);}
     ;
 
 
@@ -570,22 +572,6 @@ term
 primary
     : lvalue { print_rule("primary -> lvalue"); }
     | call { print_rule("primary -> call"); }
-    | lvalue DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
-    {
-        // 1. Get the method (e.g., 'f') from the table (e.g., 'a')
-        expr* table = $1;
-        expr* method_name_str = newexpr_conststring($3);
-        expr* method_func = newexpr(var_e);
-        method_func->sym = newtemp();
-        emit(tablegetelem, table, method_name_str, method_func, 0, yylineno);
-
-        // 2. Prepend the table object as the first argument ("self")
-        expr* full_arg_list = create_expr_list(table, $5);
-
-        // 3. Call the fetched method with the complete argument list.
-        $$ = make_call_expr(method_func, full_arg_list);
-        print_rule("primary -> lvalue .. IDENTIFIER ( elist )");
-    }
     | objectdef { print_rule("primary -> objectdef"); }
     | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS { print_rule("primary -> ( funcdef )"); $$ = $2;}
     | const { print_rule("primary -> const"); }
@@ -692,13 +678,22 @@ call_member
     ;
 
 call
-  : lvalue LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
-      { $$ = make_call_expr($1,$3); }
+  : lvalue
+    {
+      call_lhs = $1;
+    }
+    callsuffix
+      {
+        /* now callsuffix can safely use call_lhs */
+        $$ = $3;
+      }
   | call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
-      { $$ = make_call_expr($1,$3); }
-  /* + your immediately-invoked rule, etc. */
+      {
+        /* chaining: f(...)(...) */
+        $$ = make_call_expr($1, $3);
+        print_rule("call -> call ( elist )");
+      }
   ;
-
 
 
 immediately_invoked_func_expr
@@ -720,24 +715,44 @@ immediately_invoked_func_expr
     }
 ;
 
-/*
+
 callsuffix
-    : normcall { print_rule("callsuffix -> normcall"); }
-    | methodcall { print_rule("callsuffix -> methodcall"); }
-    ;
-*/
+  : normcall
+      {
+        $$ = $1;
+        print_rule("callsuffix -> ( elist )");
+      }
+  | methodcall
+      {
+        $$ = $1;
+        print_rule("callsuffix -> .. IDENTIFIER ( elist )");
+      }
+  ;
 
-/*
+
+/* normal call:  ( elist ) */
 normcall
-    : LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { $$ = $2; print_rule("normcall -> ( elist )"); }
-    ;
-*/
+  : LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
+      {
+        $$ = make_call_expr(call_lhs, $2);
+      }
+  ;
 
-/*
+/* method call: ..IDENTIFIER(elist) */
 methodcall
-    : lvalue DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { $$ = create_expr_list($1 , $5); print_rule("methodcall -> lvalue .. IDENTIFIER ( elist )"); }
-    ;
-*/
+  : DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
+      {
+        /* look up the method in the table */
+        expr *mname   = newexpr_conststring($2);
+        expr *method  = newexpr(tableitem_e);
+        method->sym   = newtemp();
+        emit(tablegetelem, call_lhs, mname, method, 0, yylineno);
+
+        /* prepend self and call */
+        expr *full_args = create_expr_list(call_lhs, $4);
+        $$ = make_call_expr(method, full_args);
+      }
+  ;
 
 elist
     : expr 
@@ -861,32 +876,31 @@ funcdef
         /*SymbolTableEntry *func_sym = insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
         expr* f = newexpr(programfunc_e);
         f->sym = func_sym;
-        current_function_expr = f;
+	    current_function_expr = f;
         //$<expression>3 = e;
 
         enter_scope();
         ++inside_function_depth;
         inside_function_scope = 1;
         first_brace_of_func = 1;  // Indicates the first brace of the function
-        enter_function_scope();   // for loop */
+	    enter_function_scope();   // for loop */
 
         SymbolTableEntry *func_sym = insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
         expr* f = newexpr(programfunc_e);
         f->sym = func_sym;
-        current_function_expr = f;
+	    current_function_expr = f;
         //$<expression>3 = e;
 
-        func_jump_to_patch = nextquad();
-        emit(jump, NULL, NULL, NULL, 0, yylineno);
-        emit(funcstart, NULL, NULL, f, 0, yylineno);
+        emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
+        emit(funcstart, f, NULL, NULL, 0, yylineno);
 
-        returnlist = 0;
+	    returnlist = 0;
 
         enter_scope();
         ++inside_function_depth;
         inside_function_scope = 1;
         first_brace_of_func = 1;  // Indicates the first brace of the function
-        enter_function_scope();   // for loop
+	    enter_function_scope();   // for loop
 
         $<expression>$ = f;
     }
@@ -910,14 +924,14 @@ funcdef
         --inside_function_depth;
         exit_scope();
         exit_function_scope();      // for loop
-        emit(funcend, NULL, NULL, $<expression>3, 0, yylineno);
+        emit(funcend, $<expression>3, NULL, NULL, 0, yylineno); // emit funcend
 
-        patchlabel(func_jump_to_patch, nextquad());
+        // new
         patchlist(returnlist, nextquad());
 
         $$ = $<expression>3;        // use previously stored expr*
     }
-  | FUNCTION
+    | FUNCTION
     {
         char *anonymous_name = malloc(32);
         if (!anonymous_name) {
@@ -933,9 +947,8 @@ funcdef
         expr* func_expr = newexpr(programfunc_e);
         func_expr->sym = func_sym;
 
-        func_jump_to_patch = nextquad();
-        emit(jump, NULL, NULL, NULL, 0, yylineno);
-        emit(funcstart, NULL, NULL, func_expr, 0, yylineno);
+        emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
+        emit(funcstart, func_expr, NULL, NULL, 0, yylineno);
 
         // new
         returnlist = 0;
@@ -944,8 +957,8 @@ funcdef
         enter_scope();
         ++inside_function_depth;
         first_brace_of_func = 1;
-        enter_function_scope();           // for loop
-        $<expression>$ = func_expr;       // and then pass it to later rules
+        enter_function_scope();             // for loop
+        $<expression>$ = func_expr;         // and then pass it to later rules
 
     }
     LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
@@ -959,12 +972,12 @@ funcdef
     block
     {
         --inside_function_depth;
-        exit_function_scope();  // for loop
+	    exit_function_scope();  // for loop
         exit_scope();
 
-        emit(funcend, NULL, NULL, $<expression>2, 0, yylineno);
+        emit(funcend, $<expression>2, NULL, NULL, 0, yylineno); // emit funcend after block
 
-        patchlabel(func_jump_to_patch, nextquad());
+	    // new
         patchlist(returnlist, nextquad());
 
         $$ = $<expression>2;    // rtrn func_expr
