@@ -429,13 +429,11 @@ expr* newexpr_conststring(char* s) {
 }
 
 
-expr *newexpr_constbool(unsigned int b) {
+expr *newexpr_constbool(unsigned int b)
+{
     expr *e = newexpr(constbool_e);
     e->boolConst = !!b;
-    // make sure it has a symbol to prevent issues
-    if (!e->sym) {
-        e->sym = newtemp();
-    }
+    /* constants never need a symbol */
     return e;
 }
 
@@ -524,7 +522,7 @@ expr *make_call_expr(expr *func_expr, expr *args) {
     } else {
         /* Create a temporary symbol if none exists */
         call_expr->sym = newtemp();
-        debug(1, "Warning: Function expression has no symbol, created temp\n");
+        fprintf(stderr, "Warning: Function expression has no symbol, created temp\n");
     }
 
     /* Safely handle arguments */
@@ -615,7 +613,9 @@ int mergelist(int l1, int l2) {
 }
 
 void patchlist(int list, int label) {
+    printf("TEST_1: label %d\n", label);
     while (list) {
+        printf("\tlist %d\n", list);
         int next = quads[list].label;
         quads[list].label = label;
         list = next;
@@ -708,6 +708,28 @@ static void print_expr(FILE *f, expr *e) {
         fprintf(f, "UNKNOWN");
         break;
     }
+}
+
+
+static inline unsigned shown_label(const quad *q)
+{
+    /* real label is 0 → means "no label yet"  */
+    if (q->label == 0) {
+        /* Show "1" only for jumps or IF-quads so that
+           the printed text never says "jump to 0". */
+        switch (q->op) {
+        case jump:
+        case if_eq:        case if_noteq:
+        case if_less:      case if_greater:
+        case if_lesseq:    case if_greatereq:
+            return 1; 
+        default:
+            return 0;                       /* keep the zero */
+        }
+    }
+
+    /* any other label → add 1 because quad indices are 0-based  */
+    return q->label + 1;
 }
 
 void print_quads(FILE *f) {
@@ -900,7 +922,7 @@ void print_quads(FILE *f) {
             res_str,
             arg1_str,
             arg2_str,
-            q->label ? q->label + 1 : 0,
+            shown_label(q),
             q->line
         );
     }
@@ -968,25 +990,39 @@ expr* make_not(expr *e) {
     return b;
 }
 
-expr *make_and(expr *lhs, expr *rhs) {
+expr *make_and(expr *lhs, expr *rhs)
+{
     unsigned test = emit_bool_test(lhs);
-    patchlabel(test + 1, nextquad());
+
+   /* new:  patch the TRUE edge        */
+   patchlabel(test, nextquad());       /* E1.True  →  start of E2 */
+
     expr *rb = lower_if_not(rhs);
-    expr *r = newexpr(boolexpr_e);
-    r->truelist  = newlist(test);
-    r->truelist  = mergelist(r->truelist, rb->truelist);
-    r->falselist = mergelist(newlist(test + 1), rb->falselist);
+    expr *r  = newexpr(boolexpr_e);
+
+   /* new: E.True is only what comes from the RHS                    */
+   r->truelist  = rb->truelist;
+
+   r->falselist = mergelist(newlist(test + 1), rb->falselist);  /* same */
     return r;
 }
 
-expr *make_or(expr *lhs, expr *rhs) {
+expr *make_or(expr *lhs, expr *rhs)
+{
     unsigned test = emit_bool_test(lhs);
-    patchlabel(test, nextquad());
+
+    /* Patch the FALSE edge of LHS to the start of RHS */
+    patchlabel(test + 1, nextquad()); /* LHS.False → start of RHS */
+
     expr *rb = lower_if_not(rhs);
     expr *r = newexpr(boolexpr_e);
-    r->truelist  = rb->truelist;
-    r->falselist = newlist(test + 1);     // LHS-false → evaluate RHS
-    r->falselist = mergelist(r->falselist, rb->falselist);
+
+    /* The TRUE list is the merge of LHS.True and RHS.True */
+    r->truelist = mergelist(newlist(test), rb->truelist);
+
+    /* The FALSE list is just the RHS's FALSE list */
+    r->falselist = rb->falselist;
+
     return r;
 }
 

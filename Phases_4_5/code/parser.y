@@ -175,10 +175,10 @@
 %type <expression>  funcdef
 %type <arglist>     idlist formal_arguments
 %type <expression> 	expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
-%type <intValue>	ifprefix elseprefix ifstmt stmt
+%type <intValue>	ifprefix elseprefix ifstmt
 %type <expression>  call_member indexed indexedelem objectdef
 %type <intValue>    whilestmt
-%type <expression> immediately_invoked_func_expr
+%type <expression> immediately_invoked_func_expr stmt
 
 %type <intValue> MP
 
@@ -220,6 +220,12 @@ stmt_list
 stmt
     : expr SEMICOLON 
         {
+
+        // for a[3];
+        if ($1 && $1->type == tableitem_e) {
+            emit_iftableitem($1);
+        }
+
 	    expr *val = convert_to_value($1);
             if($1->type == constnum_e) { 
                 expr *temp = newexpr(var_e); 
@@ -239,25 +245,34 @@ stmt
             }
             */
 
-            print_rule("stmt -> expr ;"); 
+            print_rule("stmt -> expr ;");
+            $$ = $1;
+            resettemp(); 
         }
-    | error SEMICOLON { print_rule("stmt -> error ;"); yyerrok; }
-    | ifstmt { print_rule("stmt -> ifstmt"); }
-    | whilestmt { print_rule("stmt -> whilestmt"); }
-    | forstmt { print_rule("stmt -> forstmt"); }
-    | returnstmt { print_rule("stmt -> returnstmt"); }
-    | break_stmt { print_rule("stmt -> break ;"); }
-    | continue_stmt { print_rule("stmt -> continue ;"); }
-    | block { print_rule("stmt -> block"); }
-    | funcdef { print_rule("stmt -> funcdef"); }
-    | error ';' { print_rule("stmt -> error ;"); yyerrok; }
+    | error SEMICOLON { print_rule("stmt -> error ;"); yyerrok; resettemp(); }
+    | ifstmt { print_rule("stmt -> ifstmt"); resettemp(); }
+    | whilestmt { print_rule("stmt -> whilestmt"); resettemp(); }
+    | forstmt { print_rule("stmt -> forstmt"); resettemp(); }
+    | returnstmt { print_rule("stmt -> returnstmt"); resettemp(); }
+    | break_stmt { print_rule("stmt -> break ;"); resettemp(); }
+    | continue_stmt { print_rule("stmt -> continue ;"); resettemp(); }
+    | block { print_rule("stmt -> block"); resettemp(); }
+    | funcdef { print_rule("stmt -> funcdef"); resettemp(); }
+    | error ';' { print_rule("stmt -> error ;"); yyerrok; resettemp(); }
     ;
 
 expr
     : expr PLUS expr
     {
         expr *r = newexpr(arithexpr_e);
-        r->sym = newtemp();
+        
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp();
+
         // emit(add, $1, $3, r, 0, yylineno);
         emit(add, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
@@ -265,23 +280,42 @@ expr
     | expr MINUS expr
     {
         expr *r = newexpr(arithexpr_e);
-        r->sym = newtemp();
-        // emit(sub, $1, $3, r, 0, yylineno);
+
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp(); 
+
         emit(sub, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
     }
     | expr MULTIPLY expr
     {
         expr *r = newexpr(arithexpr_e);
-        r->sym = newtemp();
-        // emit(mul, $1, $3, r, 0, yylineno);
+
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp();
+
         emit(mul, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
     }
     | expr DIVIDE expr
     {
         expr *r = newexpr(arithexpr_e);
-        r->sym = newtemp();
+    
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp();
+    
         // emit(idiv, $1, $3, r, 0, yylineno);
         emit(idiv, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
@@ -289,7 +323,14 @@ expr
     | expr MODULO expr
     {
         expr *r = newexpr(arithexpr_e);
-        r->sym = newtemp();
+        
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp();
+
         // emit(mod, $1, $3, r, 0, yylineno);
         emit(mod, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
@@ -393,16 +434,17 @@ assignexpr
 	rhs = emit_iftableitem(rhs);
 
         if ($1->type == tableitem_e) {
-            /* Evaluate the TABLE part once, cache in temp */
             expr *tbl = emit_iftableitem($1->table);
-           /*  tbl[index] := rhs  */
-            emit(tablesetelem, tbl, $1->index, rhs, 0, yylineno);
+            expr *idx = $1->index;
 
-            /*  result = tbl[index]  (so the assignment is an expression) */
-            expr *result = newexpr(var_e);  result->sym = newtemp();
-            emit(tablegetelem, tbl, $1->index, result, 0, yylineno);
+            emit(tablesetelem, rhs, idx, tbl, 0, yylineno); // changed order
+
+            expr *result = newexpr(var_e);
+            result->sym = newtemp();
+            
+            emit(tablegetelem, tbl, idx, result, 0, yylineno);
+            
             $$ = result;
-        
         } else {
             // emit: a := rhs
             // regular var assing
@@ -452,11 +494,16 @@ op
 
 
 term
-    : LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { print_rule("term -> ( expr )"); }
+    : LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { $$ = $2; print_rule("term -> ( expr )"); }
     | MINUS expr %prec UMINUS 
     { 
         expr *r = newexpr(arithexpr_e); 
-        r->sym = newtemp(); 
+        if ($2 && $2->sym && istempname($2->sym->name)) {
+            r->sym = $2->sym;
+        } else {
+            r->sym = newtemp();
+        }
+        printf("%d %s\n", $2->type, $2->sym ? $2->sym->name : "NULL");
         emit(uminus, $2, NULL, r, 0, yylineno); 
         $$ = r; 
         print_rule("term -> - expr"); 
@@ -932,7 +979,8 @@ ifstmt
         }
     | ifprefix stmt elseprefix stmt
         {
-        patchlabel($1, $3);
+        //printf("IF-LABEL: %d , %d\n",$1, $3);
+        patchlabel($1, $3 + 1);
         //patchlabel($2, nextquad()); // $2 is stmt not a quad number so we use $3
         patchlabel($3, nextquad());
         print_rule("ifstmt -> if ( expr ) stmt else stmt");
@@ -988,6 +1036,7 @@ whilestmt
       MP                                         
       stmt
       {
+          //printf("EMIT-LABEL-2: %d\n", $2);
           emit(jump, NULL, NULL, NULL, $2, yylineno);      /* back-edge  */
 
           /* patch IF-TRUE  → body, IF-FALSE → exit */
@@ -1017,8 +1066,8 @@ forstmt
             // Ensure expr has a symbol
             $7 = ensure_expr_has_symbol($7);
 
-            emit(if_eq, $7, newexpr_constbool(1), NULL, 0, yylineno);
-            emit(jump , NULL, NULL, NULL,           0, yylineno);  /* JFALSE */
+            emit(if_eq, $7, newexpr_constbool(1), NULL, nextquad() + 1, yylineno);
+            emit(jump , NULL, NULL, NULL, nextquad() + 3, yylineno);  /* JFALSE */
 
             $<intValue>$ = nextquad() - 2; /* $8 : IF-quad id */
         }
@@ -1032,22 +1081,24 @@ forstmt
       MP                                          
       stmt
             {
-          int ifQuad = $<intValue>8;              /* saved IF-quad   */
+        int ifQuad = $<intValue>8;
 
-          patchlabel(ifQuad    , $<intValue>12);  /* TRUE  → body    */
-          patchlabel(ifQuad + 1, nextquad());     /* FALSE → exit    */
+        emit(jump, NULL, NULL, NULL, $10, yylineno);
 
-          emit(jump, NULL, NULL, NULL, $<intValue>9, yylineno); 
+        patchlabel(ifQuad, $14);
 
-          lc_stack_t *loop = current_loop();
-          if (loop) {
-              patchlist(loop->breaklist, nextquad()); /* break  → exit   */
-              patchlist(loop->contlist,  $<intValue>9);/* cont */
-          }
+        patchlabel(ifQuad + 1, nextquad());
 
-          exit_scope();
-          pop_loopcounter();
-      }
+        lc_stack_t *loop = current_loop();
+        if (loop) {
+            // 4. Patch any 'break' statements to also exit the loop.
+            patchlist(loop->breaklist, nextquad());
+            // 5. Patch any 'continue' statements to go to the increment part ($10).
+            patchlist(loop->contlist, $10);
+        }
+        exit_scope();
+        pop_loopcounter();
+    }
     ;
 
 

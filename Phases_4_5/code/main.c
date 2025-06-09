@@ -1,4 +1,4 @@
-/**
+/*
  * HY-340 Project Phase 3 2024-2025
  *
  * Members:
@@ -10,10 +10,11 @@
 #include <stdio.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <string.h>
 
 #include "quads.h"
 #include "symbol_table.h"
-#include "codegen.h" 
+#include "codegen.h"
 #include "vm.h"
 
 extern unsigned int checkScope;
@@ -22,10 +23,10 @@ extern FILE* yyin;
 extern int semantic_errors;
 extern unsigned total;
 extern unsigned int currQuad;
- 
+
 SymbolTable *symbol_table;
 quad* quads = (quad*) 0;
- 
+
 void debug(int level, const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
@@ -43,7 +44,7 @@ void segfault_handler(int sig) {
     fprintf(stderr, "Caught segmentation fault! Current quad: %d\n", currQuad);
     exit(EXIT_FAILURE);
 }
- 
+
 int main(int argc, char **argv) {
     // Add signal handler for segmentation faults
     signal(SIGSEGV, segfault_handler);
@@ -52,7 +53,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Usage: %s [inputfile]\n", argv[0]);
         return 1;
     }
- 
+
     if (argc == 2) {
         yyin = fopen(argv[1], "r");
         if (!yyin) {
@@ -71,7 +72,26 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Failed to create symbol table\n");
         return 1;
     }
- 
+
+    // Register built-in library functions in global scope
+    const char *builtins[] = { "typeof", "totalarguments", "argument", "print" };
+    for (size_t i = 0; i < sizeof(builtins)/sizeof(*builtins); ++i) {
+        SymbolTableEntry *sym = insert_symbol(
+            symbol_table,
+            builtins[i],
+            LIBRARY_FUNCTION,   
+            0,                  // line 0 (predefined)
+            0                   // scope 0 = global
+        );
+        if (!sym) {
+            fprintf(stderr, "Warning: could not register builtin %s\n", builtins[i]);
+        } else {
+            // Place it as a true global at the next available slot
+            sym->space  = programvar;
+            sym->offset = programVarOffset++;
+        }
+    }
+
     if (yyparse() == 0) {
         if (semantic_errors > 0) {
             fprintf(stderr, "\nParsing completed with %d semantic error(s).\n", semantic_errors);
@@ -106,4 +126,4 @@ int main(int argc, char **argv) {
     }
  
     return 0;
-} 
+}

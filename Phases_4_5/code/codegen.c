@@ -1,5 +1,7 @@
 #include "codegen.h"
 #include "symbol_table.h"
+#include "quads.h"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -120,6 +122,13 @@ void make_operand(expr *e, vmarg *arg) {
             arg->type  = retval_a;
             arg->value = 0;
             break;
+        case programfunc_e:
+        case libraryfunc_e: {
+          SymbolTableEntry *sym = e->sym;
+          arg->type  = global_a;
+          arg->value = GLOBAL_BASE + sym->offset;
+          break;
+        }
         default:
             arg->type  = label_a;
             arg->value = 0;

@@ -106,4 +106,6 @@ void write_binary(const char *filename, unsigned int instr_count);
 void write_numConsts(const char *filename);
 void write_stringConsts(const char *filename);
 void write_vmarg(FILE *out, vmarg *arg);
+void emit_params_rev(expr *args);
+
 #endif /* CODEGEN_H */

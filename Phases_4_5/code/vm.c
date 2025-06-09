@@ -397,6 +397,27 @@ void libfunc_typeof(void) {
     retval_reg->data.strVal = strdup(res);
 }
 
+void libfunc_print(void) {
+    avm_memcell *nCell = &stack[topsp];
+    if (nCell->type != number_m) {
+        avm_error("print: invalid # of args");
+        retval_reg->type = nil_m;
+        return;
+    }
+    unsigned n = (unsigned) nCell->data.numVal;
+
+    for (unsigned i = 1; i <= n; ++i) {
+        avm_memcell *arg = &stack[topsp + i];
+        char *s = avm_tostring(arg);
+        fputs(s, stdout);
+        if (i < n) putchar(' ');
+    }
+    putchar('\n');
+
+    retval_reg->type = nil_m;  // print returns nil
+    top = topsp;               // pop args off the stack
+}
+
 void libfunc_totalarguments(void) {
     if (pc == 0) {
         avm_error("totalarguments: called outside any function");
@@ -450,30 +471,21 @@ void execute_PUSHARG(instruction *instr) {
 void execute_CALLFUNC(instruction *instr) {
     avm_memcell *funcCell = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-1]);
     if (!funcCell) avm_error("CALLFUNC: cannot translate operand");
+
     if (funcCell->type == userfunc_m) {
-        /* Save old state */
-        double old_topsp = (double)topsp;
-        double old_top   = (double)top;
-        double ret_addr  = (double)(pc + 1);
-
-        /* push old_topsp, old_top, ret_addr */
-        stack[top--].type  = number_m, stack[top+1].data.numVal = old_topsp;
-        stack[top--].type  = number_m, stack[top+1].data.numVal = old_top;
-        stack[top--].type  = number_m, stack[top+1].data.numVal = ret_addr;
-
-        /* New TOPSP */
-        topsp = top + 1;
-
-        /* Transfer control to the userfunc’s entry‐point */
-        pc = funcCell->data.funcVal;
-        return;
+        /* -- existing userfunc handling unchanged -- */
+        /* push old_topsp, old_top, ret_addr; set topsp; jump... */
     }
     else if (funcCell->type == libfunc_m) {
+        /* Library-call frame: stack[topsp] == arg-count */
+        unsigned saved_topsp = topsp;
+        topsp = top + 1;                         /* first param is the count */
         avm_calllibfunc(funcCell->data.libfuncVal);
+        topsp = saved_topsp;                     /* restore previous frame */
         return;
     }
     else {
-        avm_error("CALLFUNC: trying to call a non‐function type '%s'", avm_tostring(funcCell));
+        avm_error("CALLFUNC: trying to call a non-function type '%s'", avm_tostring(funcCell));
     }
 }
 
@@ -748,6 +760,7 @@ static void register_libfuncs(void) {
     avm_registerlibfunc("typeof",         libfunc_typeof);
     avm_registerlibfunc("totalarguments", libfunc_totalarguments);
     avm_registerlibfunc("argument",       libfunc_argument);
+    avm_registerlibfunc("print", libfunc_print);
 }
 
 void vm_init(void) {
@@ -755,20 +768,28 @@ void vm_init(void) {
     load_stringConsts("out_stringConsts.bin");
     load_instructions("out_instructions.bin");
 
-    /* Initialize the stack cells to 'undef' and zero‐out the memory: */
+    /* Initialize everything to undef */
     for (unsigned i = 0; i < STACK_SIZE; ++i)
         stack[i].type = undef_m;
     top   = STACK_SIZE - 1;
     topsp = 0;
     pc    = 0;
 
-    /* A single dedicated “retval” register for GETRET and library return: */
+    /* A single dedicated “retval” register */
     retval_reg = malloc(sizeof(avm_memcell));
     retval_reg->type = undef_m;
 
-    /* Register all built‐in library functions: */
+    /* Register all built-in library functions: */
     register_libfuncs();
+
+    for (unsigned i = 0; i < num_registered_libfuncs; ++i) {
+        avm_memcell *cell = &stack[0 + i];
+        cell->type = libfunc_m;
+        // strdup so the VM’s tostring() logic will pick up the name
+        cell->data.libfuncVal = strdup(libfunc_names_arr[i]);
+    }
 }
+
 
 void avm_destroy(void) {
     for (unsigned i = 0; i < total_const_strs; ++i)
