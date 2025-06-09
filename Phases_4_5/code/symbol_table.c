@@ -102,7 +102,7 @@ SymbolTableEntry *lookup_symbol(SymbolTable *symbol_table, const char *name, uns
                 if (current->type == USER_FUNCTION || current->type == LIBRARY_FUNCTION)
                     return current;
 
-                if (current->type == GLOBAL || current->type == LOCAL_VAR || current->type == ARGUMENT) {
+                if (current->type == GLOBAL || current->type == LOCAL_VAR || current->type == ARGUMENT || current->type == TEMP_VAR) {
 
                     if (scope == (int)current_scope || scope == 0)
                         return current;
@@ -185,8 +185,8 @@ void deactivate_entries_from_curr_scope(SymbolTable *symbol_table, unsigned int 
             if (!previous) symbol_table->head = current->next;
             else previous->next = current->next;
             current = current->next;
-            free(entry_to_delete->name); 
-            free(entry_to_delete);
+            //free(entry_to_delete->name); 
+            //free(entry_to_delete);
         } else { previous = current; current = current->next; }
     }
 }
