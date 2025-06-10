@@ -7,7 +7,7 @@
  *      csd5082 Theologos Kokkinellis
  */
 
- #ifndef QUADS_H
+#ifndef QUADS_H
 #define QUADS_H
 
 #include <assert.h>
@@ -24,7 +24,6 @@ extern int yylineno;
 #define EXPAND_SIZE 1024
 #define CURR_SIZE (total * sizeof(quad))
 #define NEW_SIZE (EXPAND_SIZE * sizeof(quad) + CURR_SIZE)
-
 
 void debug(int level, const char* fmt, ...);
 

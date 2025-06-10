@@ -32,7 +32,8 @@ typedef enum {
     op_newtable, op_tablegetelem, op_tablesetelem,
     op_assign, op_nop,
     op_jeq, op_jne, op_jgt, op_jge, op_jlt, op_jle,
-    op_pusharg, op_callfunc, op_getretval
+    op_pusharg, op_callfunc, op_getretval,
+    op_uminus
 } opcode_t;
 
 /* One final instruction */

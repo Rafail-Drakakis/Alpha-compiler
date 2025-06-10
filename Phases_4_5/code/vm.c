@@ -573,8 +573,10 @@ void execute_DIV(instruction *instr) {
 
 void execute_MOD(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-3]);
-    avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
-    avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
+    // avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
+    // avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
+    avm_memcell *l  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
+    avm_memcell *r  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
     if (l->type != number_m || r->type != number_m)
         avm_error("MOD: non‐numeric operands '%s' %% '%s'", avm_tostring(l), avm_tostring(r));
     if (r->data.numVal == 0)
@@ -723,6 +725,18 @@ void execute_NOT(instruction *instr) {
     if (!l->data.boolVal) pc = instr->result.value - 1;
 }
 
+void execute_NEG(instruction *instr) {
+    static avm_memcell lv_temp, rv_temp;
+    avm_memcell *lv = avm_translate_operand(&instr->result, &lv_temp);
+    avm_memcell *rv = avm_translate_operand(&instr->arg1, &rv_temp);
+    if (rv->type != number_m) {
+        avm_error("NEG: operand is not a number '%s'", avm_tostring(rv));
+        return;
+    }
+    lv->type = number_m;
+    lv->data.numVal = -rv->data.numVal;
+}
+
 static void load_numConsts(const char *filename) {
     FILE *fp = fopen(filename, "rb");
     if (!fp) avm_error("Cannot open %s", filename);
@@ -868,6 +882,7 @@ void vm_run(void) {
             case op_pusharg:        execute_PUSHARG(instr);       break;
             case op_callfunc:       execute_CALLFUNC(instr);      break;
             case op_getretval:      execute_GETRET(instr);        break;
+            case op_uminus:         execute_NEG(instr);           break;
             default:
                 avm_error("Unknown opcode %d at pc=%u", instr->opcode, pc-1);
         }
