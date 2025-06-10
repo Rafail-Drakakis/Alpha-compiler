@@ -66,4 +66,6 @@ void deactivate_entries_from_curr_scope(SymbolTable*, unsigned int scope);
 void comperror(char* format, ...);
 void check_arith(struct expr* e, const char* context);
 
+void assign_space_and_offset(SymbolTableEntry* sym);
+
 #endif

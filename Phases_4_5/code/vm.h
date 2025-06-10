@@ -99,6 +99,7 @@ void libfunc_typeof(void);
 void libfunc_totalarguments(void);
 void libfunc_argument(void);
 void libfunc_print(void);
+unsigned totalactuals(void);
 
 avm_memcell* avm_translate_operand(vmarg *arg, avm_memcell *reg);
 

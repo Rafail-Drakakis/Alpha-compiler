@@ -502,6 +502,28 @@ static void emit_params_rev(expr *p) {
     emit(param, p, NULL, NULL, 0, yylineno);
 }
 
+// static void emit_params_rev(expr *p) {
+//     if (!p) return;
+
+//     emit_params_rev(p->next); // recurse to emit right-to-left
+
+//     expr *e = emit_iftableitem(p); // ensure tables are handled
+
+//     expr *evaled;
+
+//     // Constants and variables can be used directly
+//     if (e->type == constnum_e || e->type == constbool_e || e->type == conststring_e || e->type == nil_e || e->type == var_e) {
+//         evaled = e;
+//     } else {
+//         // Otherwise, evaluate into a new temp
+//         evaled = newexpr(var_e);
+//         evaled->sym = newtemp();
+//         emit(assign, e, NULL, evaled, 0, yylineno);
+//     }
+
+//     emit(param, evaled, NULL, NULL, 0, yylineno);
+// }
+
 /* added make_call_expr & create_expr_list (not sure if they can be replaced by existing functions) */
 expr *make_call_expr(expr *func_expr, expr *args) {
     
@@ -531,7 +553,14 @@ expr *make_call_expr(expr *func_expr, expr *args) {
     /* ---------------------- new -------------------------- */
     emit_params_rev(args);
 
-    emit(call, func_expr, NULL, NULL, 0, yylineno);   /* emit CALL quad */
+    unsigned cnt = 0;
+    for (expr *tmp = args; tmp; tmp = tmp->next)
+        ++cnt;
+
+    expr *cnt_expr = newexpr_constnum(cnt);          /* const number expr  */
+    emit(param, cnt_expr, NULL, NULL, 0, yylineno);
+   // emit_params_rev(args);
+    emit(call, func_expr, NULL, NULL, 0, yylineno);
 
     /* generate a temp to hold the return value */
     expr *retval = newexpr(var_e);
@@ -544,6 +573,7 @@ expr *make_call_expr(expr *func_expr, expr *args) {
     /* return the expression that represents the call’s value */
     return retval;
 }
+
 
 expr *create_expr_list(expr *head, expr *tail) {
     if (!head) {

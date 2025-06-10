@@ -10,6 +10,23 @@
 #include "symbol_table.h"
 #include "quads.h" 
 
+unsigned global_offset = 0;
+unsigned local_offset = 0;
+unsigned formal_offset = 0;
+
+void assign_space_and_offset(SymbolTableEntry* sym) {
+    if (sym->scope == 0) {
+        sym->space = programvar;
+        sym->offset = global_offset++;
+    } else if (sym->type == ARGUMENT) {
+        sym->space = formalarg;
+        sym->offset = formal_offset++;
+    } else {
+        sym->space = functionlocal;
+        sym->offset = local_offset++;
+    }
+}
+
 static const char *get_symbol_type_str(SymbolType symbol_type) {
     switch (symbol_type) {
         case GLOBAL:            return "global variable";
@@ -90,7 +107,7 @@ SymbolTableEntry* insert_symbol(SymbolTable *symbol_table, const char *name, Sym
             while (current->next) current = current->next;
             current->next = new_entry;
         }
-
+        assign_space_and_offset(new_entry);
 	return new_entry;
 }
 

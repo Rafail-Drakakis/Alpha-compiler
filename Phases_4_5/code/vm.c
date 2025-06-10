@@ -399,11 +399,16 @@ void libfunc_typeof(void) {
 
 void libfunc_print(void) {
     avm_memcell *nCell = &stack[topsp];
-    if (nCell->type != number_m) {
-        avm_error("print: invalid # of args");
+
+    // Check if the first cell is a number and a valid count
+    if (nCell->type != number_m || 
+        nCell->data.numVal < 0 || 
+        nCell->data.numVal > STACK_SIZE - topsp - 1) {
+        avm_error("print: invalid number of arguments (%g)", nCell->data.numVal);
         retval_reg->type = nil_m;
         return;
     }
+
     unsigned n = (unsigned) nCell->data.numVal;
 
     for (unsigned i = 1; i <= n; ++i) {
@@ -412,6 +417,7 @@ void libfunc_print(void) {
         fputs(s, stdout);
         if (i < n) putchar(' ');
     }
+
     putchar('\n');
 
     retval_reg->type = nil_m;  // print returns nil

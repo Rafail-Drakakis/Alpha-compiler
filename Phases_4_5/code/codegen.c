@@ -102,6 +102,7 @@ void make_operand(expr *e, vmarg *arg) {
             }
             SymbolTableEntry *sym = e->sym;
             unsigned offset = sym->offset;
+	    // printf("PARAM for symbol '%s' with offset %u and space %d\n", sym->name, offset, sym->space);
             switch (sym->space) {
                 case programvar:
                     arg->type  = global_a;
@@ -397,6 +398,10 @@ void generate_PARAM(quad *q) {
     q->taddress = nextinstructionlabel();
     instruction t = { .opcode = op_pusharg };
     make_operand(q->arg1, &t.arg1);
+
+    // printf("PARAM for symbol '%s' at VM addr type=%d, val=%d\n",
+    //        q->arg1->sym ? q->arg1->sym->name : "NULL",
+    //        t.arg1.type, t.arg1.value);    
     emit_instruction(t);
 }
 
