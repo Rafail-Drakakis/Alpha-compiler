@@ -45,16 +45,16 @@ void generate(opcode_t op, quad *q) {
 }
 
 /* Arithmetic/table/assign/NOP */
-void generate_ADD   (quad *q) { generate(op_add,           q); }
-void generate_SUB   (quad *q) { generate(op_sub,           q); }
-void generate_MUL   (quad *q) { generate(op_mul,           q); }
-void generate_DIV   (quad *q) { generate(op_div,           q); }
-void generate_MOD   (quad *q) { generate(op_mod,           q); }
-void generate_NEWTABLE     (quad *q) { generate(op_newtable,      q); }
-void generate_TABLEGETELM  (quad *q) { generate(op_tablegetelem,  q); }
-void generate_TABLESETELEM (quad *q) { generate(op_tablesetelem,  q); }
-void generate_ASSIGN       (quad *q) { generate(op_assign,        q); }
-void generate_NOP          (void)   { instruction t = { .opcode = op_nop }; emit_instruction(t); }
+void generate_ADD           (quad *q) { generate(op_add,           q); }
+void generate_SUB           (quad *q) { generate(op_sub,           q); }
+void generate_MUL           (quad *q) { generate(op_mul,           q); }
+void generate_DIV           (quad *q) { generate(op_div,           q); }
+void generate_MOD           (quad *q) { generate(op_mod,           q); }
+void generate_NEWTABLE      (quad *q) { generate(op_newtable,      q); }
+void generate_TABLEGETELM   (quad *q) { generate(op_tablegetelem,  q); }
+void generate_TABLESETELEM  (quad *q) { generate(op_tablesetelem,  q); }
+void generate_ASSIGN        (quad *q) { generate(op_assign,        q); }
+void generate_NOP           (void)   { instruction t = { .opcode = op_nop }; emit_instruction(t); }
 
 static unsigned add_numconst(double x) {
   for (unsigned i=0; i<totalNumConsts; ++i)
@@ -417,6 +417,16 @@ void generate_GETRETVAL(quad *q) {
     instruction t = { .opcode = op_assign };
     make_operand(q->result, &t.result);
     make_retvaloperand(&t.arg1);
+    emit_instruction(t);
+}
+
+void generate_RET(quad *q) {
+    q->taddress = nextinstructionlabel();
+    assert(q->result);
+    instruction t = { .opcode = op_assign };
+    make_operand(q->result, &t.arg1);
+    make_retvaloperand(&t.result);
+    reset_operand(&t.arg2);
     emit_instruction(t);
 }
 

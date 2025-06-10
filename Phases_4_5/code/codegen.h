@@ -16,7 +16,8 @@ typedef enum {
     global_a,   /* global variable */
     formal_a,   /* function formal argument */
     local_a,    /* function-local var */
-    retval_a    /* function return-value slot */
+    retval_a,    /* function return-value slot */
+    nil_a
 } vmarg_t;
 
 /* One VM argument */
@@ -96,6 +97,11 @@ void generate_AND(quad *q);
 void generate_PARAM    (quad *q);
 void generate_CALL     (quad *q);
 void generate_GETRETVAL(quad *q);
+
+void generate_FUNCSTART(quad *q);
+void generate_FUNCEND(quad *q);
+void generate_RET(quad *q);
+
 void generate_target_code(void);
 
 /* Print/write */

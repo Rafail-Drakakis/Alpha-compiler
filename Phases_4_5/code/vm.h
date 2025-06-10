@@ -2,6 +2,7 @@
 #define VM_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "codegen.h"
 
 #define STACK_SIZE    4096
@@ -103,6 +104,7 @@ unsigned totalactuals(void);
 
 avm_memcell* avm_translate_operand(vmarg *arg, avm_memcell *reg);
 
+bool pointer_in_array(void **arr, unsigned size, void *ptr);
 void avm_destroy(void);
 
 #endif

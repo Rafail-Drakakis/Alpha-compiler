@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <math.h>
 #include "vm.h"
 
@@ -796,32 +797,52 @@ void vm_init(void) {
     }
 }
 
+bool pointer_in_array(void **arr, unsigned size, void *ptr) {
+    for (unsigned i = 0; i < size; ++i) {
+        if (arr[i] == ptr) return true;
+    }
+    return false;
+}
 
 void avm_destroy(void) {
-    for (unsigned i = 0; i < total_const_strs; ++i)
-        free(const_strs[i]);
+    void *freed_ptrs[total_const_strs + STACK_SIZE];    // to store freed pointers
+    unsigned freed_count = 0;
+
+    for (unsigned i = 0; i < total_const_strs; ++i) {
+        if (const_strs[i]) {
+            free(const_strs[i]);                        // free const_strs string
+            freed_ptrs[freed_count++] = const_strs[i];  // record freed pointers
+            const_strs[i] = NULL;
+        }
+    }
     free(const_strs);
     free(const_nums);
-
-    /* Free instructions */
     free(code);
 
-    /* Free every table that might remain on the stack: */
+    // now we free stack strings only if not freed before
     for (unsigned i = 0; i < STACK_SIZE; ++i) {
-        if (stack[i].type == table_m && stack[i].data.tableVal)
+        if (stack[i].type == table_m && stack[i].data.tableVal) {
             avm_table_dec_ref(stack[i].data.tableVal);
-        else if (stack[i].type == string_m && stack[i].data.strVal)
-            free(stack[i].data.strVal);
+            stack[i].data.tableVal = NULL;
+        }
+        else if (stack[i].type == string_m && stack[i].data.strVal) {
+            if (!pointer_in_array(freed_ptrs, freed_count, stack[i].data.strVal)) {
+                free(stack[i].data.strVal);
+                freed_ptrs[freed_count++] = stack[i].data.strVal;
+            }
+            stack[i].data.strVal = NULL;
+        }
     }
+
     free(retval_reg);
 
-    /* Free userfunc names */
-    for (unsigned i = 0; i < num_userfuncs; ++i)
+    for (unsigned i = 0; i < num_userfuncs; ++i) {
         free(userfuncs[i].name);
+    }
 
-    /* Free libfunc names */
-    for (unsigned i = 0; i < num_registered_libfuncs; ++i)
+    for (unsigned i = 0; i < num_registered_libfuncs; ++i){
         free((char*)libfunc_names_arr[i]);
+    }
 }
 
 void vm_run(void) {
