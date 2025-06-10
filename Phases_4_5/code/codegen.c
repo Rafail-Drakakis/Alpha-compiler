@@ -93,6 +93,10 @@ void make_operand(expr *e, vmarg *arg) {
             arg->value = e->boolConst;
             break;
         case var_e:
+        case arithexpr_e:
+        case assignexpr_e:
+        case boolexpr_e:
+        case newtable_e: 
         case tableitem_e: {
             /* guard against missing symbol */
             if (!e->sym) {
@@ -102,7 +106,7 @@ void make_operand(expr *e, vmarg *arg) {
             }
             SymbolTableEntry *sym = e->sym;
             unsigned offset = sym->offset;
-	    // printf("PARAM for symbol '%s' with offset %u and space %d\n", sym->name, offset, sym->space);
+	          // printf("PARAM for symbol '%s' with offset %u and space %d\n", sym->name, offset, sym->space);
             switch (sym->space) {
                 case programvar:
                     arg->type  = global_a;
@@ -119,6 +123,9 @@ void make_operand(expr *e, vmarg *arg) {
             }
             break;
         }
+        case nil_e:
+            arg->type = nil_a;
+            break;
         case call_e:
             arg->type  = retval_a;
             arg->value = 0;
