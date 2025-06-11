@@ -524,56 +524,43 @@ static void emit_params_rev(expr *p) {
 //     emit(param, evaled, NULL, NULL, 0, yylineno);
 // }
 
-/* added make_call_expr & create_expr_list (not sure if they can be replaced by existing functions) */
 expr *make_call_expr(expr *func_expr, expr *args) {
-    
     func_expr = emit_iftableitem(func_expr);
+    if (!func_expr) return newexpr(nil_e);
 
-    /* Defensive check for NULL function expression */
-    if (!func_expr) {
-        fprintf(stderr, "Warning: NULL function expression in make_call_expr\n");
-        return newexpr(nil_e);
-    }
-
-    /* Create a new call expression */
     expr *call_expr = newexpr(call_e);
-
-    /* Safely copy the symbol if available */
-    if (func_expr->sym) {
-        call_expr->sym = func_expr->sym;
-    } else {
-        /* Create a temporary symbol if none exists */
-        call_expr->sym = newtemp();
-        fprintf(stderr, "Warning: Function expression has no symbol, created temp\n");
-    }
-
-    /* Safely handle arguments */
+    call_expr->sym  = func_expr->sym ? func_expr->sym : newtemp();
     call_expr->args = args;
 
-    /* ---------------------- new -------------------------- */
-    emit_params_rev(args);
-
+    /* 1) Count args */
     unsigned cnt = 0;
-    for (expr *tmp = args; tmp; tmp = tmp->next)
-        ++cnt;
+    for (expr *e = args; e; e = e->next) ++cnt;
+    fprintf(stderr, "[DEBUG] make_call_expr: %u arg(s)\n", cnt);
 
-    expr *cnt_expr = newexpr_constnum(cnt);          /* const number expr  */
-    emit(param, cnt_expr, NULL, NULL, 0, yylineno);
-   // emit_params_rev(args);
+    /* 2) PARAM for each real argument */
+    unsigned idx = 1;
+    for (expr *e = args; e; e = e->next, ++idx) {
+        expr *val = emit_iftableitem(e);
+        fprintf(stderr, "[DEBUG] make_call_expr: PARAM arg #%u = %s\n",
+                idx, val->sym->name);
+        emit(param, val, NULL, NULL, 0, yylineno);
+    }
+
+    /* 3) PARAM for count LAST */
+    fprintf(stderr, "[DEBUG] make_call_expr: PARAM count = %u\n", cnt);
+    emit(param, newexpr_constnum(cnt), NULL, NULL, 0, yylineno);
+
+    /* 4) CALL + GETRETVAL */
+    fprintf(stderr, "[DEBUG] make_call_expr: CALL %s\n", call_expr->sym->name);
     emit(call, func_expr, NULL, NULL, 0, yylineno);
-
-    /* generate a temp to hold the return value */
     expr *retval = newexpr(var_e);
-    retval->sym  = newtemp();
+    retval->sym   = newtemp();
+    fprintf(stderr, "[DEBUG] make_call_expr: GETRET into %s\n",
+            retval->sym->name);
+    emit(getretval, NULL, NULL, retval, 0, yylineno);
 
-    emit(getretval, NULL, NULL, retval, 0, yylineno); /* emit GETRETVAL quad */
-
-    /* ------------------------------------------------------------ */
-
-    /* return the expression that represents the call’s value */
     return retval;
 }
-
 
 expr *create_expr_list(expr *head, expr *tail) {
     if (!head) {

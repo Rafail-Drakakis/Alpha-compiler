@@ -1,0 +1,4959 @@
+\vm.h
+#ifndef VM_H
+#define VM_H
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "codegen.h"
+
+#define STACK_SIZE    4096
+#define TABLE_HASHSIZE  1024
+#define MAX_LIBFUNCS   16
+
+typedef enum {
+  number_m,
+  string_m,
+  bool_m,
+  table_m,
+  userfunc_m,
+  libfunc_m,
+  nil_m,
+  undef_m
+} avm_memcell_t;
+
+typedef struct avm_memcell {
+  avm_memcell_t type;
+  union {
+    double     numVal;   /* for number_m */
+    char*      strVal;   /* for string_m */
+    unsigned char  boolVal;  /* for bool_m */
+    struct avm_table* tableVal; /* for table_m */
+    unsigned    funcVal;  /* for userfunc_m: instruction‐index */
+    char*      libfuncVal; /* for libfunc_m */
+  } data;
+  unsigned    refCounter;  /* for tables only (ref‐counting) */
+} avm_memcell;
+
+/* A single bucket in the hash‐table for runtime tables. */
+typedef struct avm_table_bucket {
+  avm_memcell*   key;   /* must be number_m, string_m, or bool_m */
+  avm_memcell*   value;  /* can be any memcell type */
+  struct avm_table_bucket* next;
+} avm_table_bucket;
+
+/* A runtime table (associative array). */
+typedef struct avm_table {
+  unsigned      refCounter;
+  avm_table_bucket*  numIndexed[TABLE_HASHSIZE];
+  avm_table_bucket*  strIndexed[TABLE_HASHSIZE];
+  avm_table_bucket*  boolIndexed[2];
+} avm_table;
+
+extern avm_memcell  stack[STACK_SIZE];
+extern unsigned    top, topsp;
+extern instruction*  code;    /* pointer to loaded instruction array */
+extern unsigned    pc;     /* program counter: index into 'code' */
+extern unsigned    total_instructions;
+extern double*    const_nums;   /* array from out_numConsts.bin */
+extern unsigned    total_const_nums;
+extern char**     const_strs;   /* array from out_stringConsts.bin */
+extern unsigned    total_const_strs;
+typedef void (*library_func_t)(void);
+extern const char*  libfunc_names[];
+extern library_func_t libfunc_ptrs[];
+
+void vm_init(void);
+void vm_run(void);
+void avm_error(const char *fmt, ...);
+char *avm_tostring(avm_memcell *cell);
+avm_table* avm_table_new(void);
+void avm_table_inc_ref(avm_table *tbl);
+void avm_table_dec_ref(avm_table *tbl);
+avm_memcell* avm_tablegetelem(avm_table *tbl, avm_memcell *key);
+void avm_tablesetelem(avm_table *tbl, avm_memcell *key, avm_memcell *value);
+void execute_ADD(instruction *instr);
+void execute_SUB(instruction *instr);
+void execute_MUL(instruction *instr);
+void execute_DIV(instruction *instr);
+void execute_MOD(instruction *instr);
+void execute_JEQ(instruction *instr);
+void execute_JNE(instruction *instr);
+void execute_JGT(instruction *instr);
+void execute_JGE(instruction *instr);
+void execute_JLT(instruction *instr);
+void execute_JLE(instruction *instr);
+void execute_ASSIGN(instruction *instr);
+void execute_NEWTABLE(instruction *instr);
+void execute_TABLEGETELM(instruction *instr);
+void execute_TABLESETELEM(instruction *instr);
+void execute_NOP(instruction *instr);
+void execute_PUSHARG(instruction *instr);
+void execute_CALLFUNC(instruction *instr);
+void execute_GETRET(instruction *instr);
+void execute_FUNCENTER(instruction *instr);
+void execute_FUNCEXIT(instruction *instr);
+void execute_AND(instruction *instr);
+void execute_OR(instruction *instr);
+void execute_NOT(instruction *instr);
+void avm_registerlibfunc(const char *name, library_func_t ptr);
+void avm_calllibfunc(const char *name);
+void libfunc_typeof(void);
+void libfunc_totalarguments(void);
+void libfunc_argument(void);
+void libfunc_print(void);
+unsigned totalactuals(void);
+
+avm_memcell* avm_translate_operand(vmarg *arg, avm_memcell *reg);
+
+bool pointer_in_array(void **arr, unsigned size, void *ptr);
+void avm_destroy(void);
+
+#endif
+
+\parser.y
+/**
+ * HY-340 Project Phase 3 2024-2025
+ *
+ * Members:
+ *      csd5171 Fytaki Maria
+ *      csd5310 Rafail Drakakis
+ *      csd5082 Theologos Kokkinellis
+ */
+
+%{
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    #include "symbol_table.h"
+    #include "parser.h"
+    #include "quads.h"
+
+    extern int yylineno;
+    extern char* yytext;
+    extern SymbolTable *symbol_table;
+    extern int yylex();
+    int yyerror (char* yaccProvidedMessage);
+    int anonymus_function_counter = 0;
+
+    void print_rule(const char* rule) {
+        (void)0; // printf("Reduced by rule: %s\n", rule);
+    }
+
+    unsigned int checkScope = 0;        // 0 for global, 1 for local
+    // int checkLoopDepth = 0;
+    int inside_function_scope = 0;
+    int inside_function_depth = 0;      // 0 for global, >0 for function scope
+    static int first_brace_of_func = 0;
+    int is_calling = 0;			        // reducing lvalue for function call 1, normal lvalues 0
+    expr* current_function_expr = NULL;
+    char* current_function_char = NULL;
+    int semantic_errors = 0;
+    static unsigned checkFuncDepth = 0;
+    unsigned int returnlist = 0;
+
+
+    typedef struct formal_argument_node {
+        char *name;
+        struct formal_argument_node *next;
+    } formal_argument_node;
+
+    formal_argument_node *create_node(char *name) {
+        formal_argument_node *node = (formal_argument_node *)malloc(sizeof(formal_argument_node));
+        node->name = strdup(name);
+        node->next = NULL;
+        return node;
+    }
+
+    formal_argument_node *append_argument(formal_argument_node *list, char *name) {
+        formal_argument_node *node = create_node(name);
+        node->next = list;
+        return node;
+    }
+
+    void enter_scope() {
+        // printf("Entering new scope: %u\n", checkScope);
+        checkScope++;
+    }
+
+    static void exit_scope(void) {
+        if (checkScope == 0) {
+            return;
+	    }
+        // printf("Exiting  scope: %u\n", checkScope-1);
+        deactivate_entries_from_curr_scope(symbol_table, checkScope-1);
+        --checkScope;
+    }
+
+   /**
+    * we use this function to reset loop depth when entering a new function
+    */
+    void enter_function_scope() {
+        checkFuncDepth++;
+        while (loopcounter() > 0) {
+            pop_loopcounter();
+        }
+    }
+
+    void exit_function_scope() {
+        assert(checkFuncDepth > 0); // Add assertion to catch imbalanced calls
+        checkFuncDepth--;
+    }
+
+    // Helper function to ensure an expression has a valid symbol
+    expr* ensure_expr_has_symbol(expr* e) {
+        if (!e) return NULL;
+        
+        // Skip constant types that don't need symbols
+        if (e->type == constnum_e || e->type == conststring_e || e->type == constbool_e) {
+            return e;
+        }
+        
+        // Ensure the expression has a symbol
+        if (!e->sym) {
+            e->sym = newtemp();
+        }
+        
+        return e;
+    }
+
+    /*  is_inc    : 1 → ++   , 0 → --                         */
+    /*  is_prefix : 1 → ++x  , 0 → x++                        */
+    static expr *incdec_lvalue(expr *lv, int is_inc, int is_prefix)
+    {
+        expr *one = newexpr_constnum(1);
+
+        if (lv->type == tableitem_e) {
+            expr *table = emit_iftableitem(lv->table);      /* may be nested  */
+            expr *index = lv->index;                        /* already ok     */
+
+            /* fetch current value */
+            expr *old  = newexpr(var_e); old ->sym = newtemp();
+            emit(tablegetelem, table, index, old, 0, yylineno);
+
+            expr *ret  = NULL;                              /* value to return */
+
+            /*  x++ / x--  – save the *original* value BEFORE we change it */
+            if (!is_prefix) {
+                ret = newexpr(var_e); ret->sym = newtemp();
+                emit(assign, old, NULL, ret, 0, yylineno);  /* ret = old      */
+            }
+
+            /* compute updated value */
+            expr *newv = newexpr(var_e); newv->sym = newtemp();
+            emit(is_inc ? add : sub, old, one, newv, 0, yylineno);
+
+            /* store it back */
+            emit(tablesetelem, newv, index, table, 0, yylineno);
+
+            /* ++x / --x -> result is the updated value, x++ / x-- -> old  */
+            return is_prefix ? newv : ret;
+        }
+
+        /* ────────────────  PLAIN VARIABLE  ─────────────── */
+        expr *ret = newexpr(var_e); ret->sym = newtemp();
+
+        if (is_prefix) {                     /* ++x / --x   */
+            emit(is_inc ? add : sub, lv, one, lv , 0, yylineno);
+            emit(assign, lv , NULL, ret, 0, yylineno);      /* result = new   */
+        } else {                             /* x++ / x--   */
+            emit(assign, lv , NULL, ret, 0, yylineno);      /* result = old   */
+            emit(is_inc ? add : sub, lv, one, lv , 0, yylineno);
+        }
+
+        return ret;
+    }
+
+%}
+
+%union {
+    int intValue;
+    double realValue;
+    char* stringValue;
+    struct formal_argument_node* arglist;
+    struct SymbolTableEntry* symbol;    // for lvalue
+    struct expr *expression;            // for expressions
+}
+
+%token <stringValue> IF ELSE WHILE FOR RETURN BREAK CONTINUE LOCAL TRUE FALSE NIL
+%token <stringValue> PLUS MINUS MULTIPLY DIVIDE ASSIGNMENT EQUAL NOT_EQUAL GREATER_THAN GREATER_EQUAL LESS_THAN LESS_EQUAL
+%token <stringValue> LEFT_PARENTHESIS RIGHT_PARENTHESIS
+%token <stringValue> LEFT_BRACE RIGHT_BRACE LEFT_BRACKET RIGHT_BRACKET
+%token <stringValue> SEMICOLON COMMA COLON
+%token <stringValue> IDENTIFIER STRING
+%token <intValue>    INTCONST
+%token <realValue>   REALCONST
+%token <stringValue> FUNCTION AND OR NOT MODULO PLUS_PLUS MINUS_MINUS EQUAL_EQUAL LESS GREATER
+%token <stringValue> DOT_DOT DOT COLON_COLON PUNCTUATION OPERATOR
+
+%type <expression>  funcdef
+%type <arglist>     idlist formal_arguments
+%type <expression> 	expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
+%type <intValue>	ifprefix elseprefix ifstmt
+%type <expression>  call_member indexed indexedelem objectdef
+%type <intValue>    whilestmt
+%type <expression> immediately_invoked_func_expr stmt
+
+%type <intValue> MP
+
+%right ASSIGNMENT        /* = has less priority in compare with all the other */
+%left OR
+%left AND
+%nonassoc EQUAL_EQUAL NOT_EQUAL
+%nonassoc GREATER_THAN GREATER_EQUAL LESS_THAN LESS_EQUAL
+%right NOT
+%left  PLUS 
+%left MINUS              /* changed to UMINUS for (x-y) - z */
+%left MULTIPLY DIVIDE MODULO
+%right PLUS_PLUS
+%right MINUS_MINUS
+%right DOT_DOT
+
+%nonassoc LOWER_THAN_ELSE
+%nonassoc ELSE
+
+%nonassoc UMINUS         /* unary minus operator */
+
+// %expect 2
+
+%start program
+
+%%
+
+MP : /* empty */ { $$ = nextquad(); }
+
+program
+    : stmt_list { print_rule("program -> stmt_list"); }
+    ;
+
+stmt_list
+    : stmt stmt_list { print_rule("stmt_list -> stmt stmt_list"); }
+    | /* empty */ { print_rule("stmt_list -> epsilon"); }
+    ;
+
+stmt
+    : expr SEMICOLON 
+        {
+
+        // for a[3];
+        if ($1 && $1->type == tableitem_e) {
+            emit_iftableitem($1);
+        }
+
+	    expr *val = convert_to_value($1);
+            if($1->type == constnum_e) { 
+                expr *temp = newexpr(var_e); 
+                temp->sym = newtemp();
+                emit(add, newexpr_constnum($1->numConst), NULL, temp, 0, yylineno); 
+            }
+            /* 
+
+            NOTE:   turns out this is WRONG because then tests like this one: 
+                    [   (function four(four){four=4;});   ]
+                    fail with extra assign anonymous
+            
+            if ($1 && $1->type != nil_e && $1->type != constnum_e && $1->type != conststring_e && $1->type != constbool_e) {
+                expr *temp = newexpr(var_e);
+                temp->sym = newtemp();
+                emit(assign, $1, NULL, temp, 0, yylineno);
+            }
+            */
+
+            print_rule("stmt -> expr ;");
+            $$ = $1;
+            resettemp(); 
+        }
+    | error SEMICOLON { print_rule("stmt -> error ;"); yyerrok; resettemp(); }
+    | ifstmt { print_rule("stmt -> ifstmt"); resettemp(); }
+    | whilestmt { print_rule("stmt -> whilestmt"); resettemp(); }
+    | forstmt { print_rule("stmt -> forstmt"); resettemp(); }
+    | returnstmt { print_rule("stmt -> returnstmt"); resettemp(); }
+    | break_stmt { print_rule("stmt -> break ;"); resettemp(); }
+    | continue_stmt { print_rule("stmt -> continue ;"); resettemp(); }
+    | block { print_rule("stmt -> block"); resettemp(); }
+    | funcdef { print_rule("stmt -> funcdef"); resettemp(); }
+    | error ';' { print_rule("stmt -> error ;"); yyerrok; resettemp(); }
+    ;
+
+expr
+    : expr PLUS expr
+    {
+        expr *r = newexpr(arithexpr_e);
+        
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp();
+
+        // emit(add, $1, $3, r, 0, yylineno);
+        emit(add, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
+        $$ = r;
+    }
+    | expr MINUS expr
+    {
+        expr *r = newexpr(arithexpr_e);
+
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp(); 
+
+        emit(sub, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
+        $$ = r;
+    }
+    | expr MULTIPLY expr
+    {
+        expr *r = newexpr(arithexpr_e);
+
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp();
+
+        emit(mul, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
+        $$ = r;
+    }
+    | expr DIVIDE expr
+    {
+        expr *r = newexpr(arithexpr_e);
+    
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp();
+    
+        // emit(idiv, $1, $3, r, 0, yylineno);
+        emit(idiv, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
+        $$ = r;
+    }
+    | expr MODULO expr
+    {
+        expr *r = newexpr(arithexpr_e);
+        
+        if ($1 && $1->sym && istempname($1->sym->name))
+            r->sym = $1->sym;
+        else if ($3 && $3->sym && istempname($3->sym->name))
+            r->sym = $3->sym;
+        else
+            r->sym = newtemp();
+
+        // emit(mod, $1, $3, r, 0, yylineno);
+        emit(mod, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
+        $$ = r;
+    }
+    | expr GREATER_THAN expr
+    {
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+
+        if (!$1) $1 = newexpr(nil_e);
+        if (!$3) $3 = newexpr(nil_e);
+        // Check if either operand is NULL or nil
+        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
+           
+            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        } else {
+            // emit(if_greater, $1, $3, NULL, nextquad()+2, yylineno);
+            expr *left = emit_iftableitem($1);
+            expr *right = emit_iftableitem($3);
+            emit(if_greater, left, right, NULL, nextquad()+2, yylineno);
+
+            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
+        }
+        $$ = r;
+    }
+    | expr LESS_THAN expr
+    {
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+        if (!$1) $1 = newexpr(nil_e);
+        if (!$3) $3 = newexpr(nil_e);
+        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
+            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        } else {
+            // emit(if_less, $1, $3, NULL, nextquad()+2, yylineno);
+            expr *left = emit_iftableitem($1);
+            expr *right = emit_iftableitem($3);
+            emit(if_less, left, right, NULL, nextquad()+2, yylineno);
+            
+            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
+        }
+        $$ = r;
+    }
+    | expr GREATER_EQUAL expr
+    {
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+        if (!$1) $1 = newexpr(nil_e);
+        if (!$3) $3 = newexpr(nil_e);
+        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
+            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        } else {
+            // emit(if_greatereq, $1, $3, NULL, nextquad()+2, yylineno);
+            expr *left = emit_iftableitem($1);
+            expr *right = emit_iftableitem($3);
+            emit(if_greatereq, left, right, NULL, nextquad()+2, yylineno);
+
+            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
+        }
+        $$ = r;
+    }
+    | expr LESS_EQUAL expr
+    {
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+        if (!$1) $1 = newexpr(nil_e);
+        if (!$3) $3 = newexpr(nil_e);
+        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
+            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        } else {
+            // emit(if_lesseq, $1, $3, NULL, nextquad()+2, yylineno);
+            expr *left = emit_iftableitem($1);
+            expr *right = emit_iftableitem($3);
+            emit(if_lesseq, left, right, NULL, nextquad()+2, yylineno);
+
+            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
+        }
+        $$ = r;
+    }
+    | expr EQUAL_EQUAL expr { $$ = make_eq_neq($1, $3, if_eq); }
+    | expr NOT_EQUAL expr { $$ = make_eq_neq($1, $3, if_noteq);  }
+    | expr OR expr { $$ = make_or($1, $3); }
+    | expr AND expr { $$ = make_and($1, $3); }
+    | assignexpr { $$ = $1; }
+    | immediately_invoked_func_expr { $$ = $1; }
+    | term       { $$ = $1; } 
+    | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); $$ = newexpr(nil_e);}
+    ;
+
+
+assignexpr
+    : lvalue ASSIGNMENT expr
+    {
+        expr *rhs = convert_to_value($3);
+
+        if($1->type == programfunc_e || $1->type == libraryfunc_e) {
+            fprintf(stderr,"Error: Symbol '%s' is not a valid l-value (line %d)\n",
+                    $1->sym->name, yylineno);
+        }
+
+	rhs = emit_iftableitem(rhs);
+
+        if ($1->type == tableitem_e) {
+            expr *tbl = emit_iftableitem($1->table);
+            expr *idx = $1->index;
+
+            emit(tablesetelem, rhs, idx, tbl, 0, yylineno); // changed order
+
+            expr *result = newexpr(var_e);
+            result->sym = newtemp();
+            
+            emit(tablegetelem, tbl, idx, result, 0, yylineno);
+            
+            $$ = result;
+        } else {
+            // emit: a := rhs
+            // regular var assing
+            emit(assign, rhs, NULL, $1, 0, yylineno);
+
+            // create a temp to hold the result
+            expr *final = newexpr(var_e);
+            final->sym = newtemp();
+            emit(assign, $1, NULL, final, 0, yylineno);
+            $$ = final;
+        }
+    }
+;
+
+/*
+op
+    : plus_op expr       %prec PLUS
+    | minus_op expr      %prec MINUS
+    | mult_op expr       %prec MULTIPLY
+    | div_op expr        %prec DIVIDE
+    | mod_op expr        %prec MODULO
+    | greaterthan_op expr %prec GREATER_THAN
+    | greaterequal_op expr %prec GREATER_EQUAL
+    | lessthan_op expr     %prec LESS_THAN
+    | lessequal_op expr    %prec LESS_EQUAL
+    | eqeq_op expr       %prec EQUAL_EQUAL
+    | noteq_op expr      %prec NOT_EQUAL
+    | and_op expr        %prec AND
+    | or_op expr         %prec OR
+    ;
+
+    plus_op:            PLUS { print_rule("op -> +"); };
+    minus_op:           MINUS { print_rule("op -> -"); };
+    mult_op:            MULTIPLY { print_rule("op -> *"); };
+    div_op:             DIVIDE { print_rule("op -> /"); };
+    mod_op:             MODULO { print_rule("op -> %"); };
+    greaterthan_op:     GREATER_THAN { print_rule("op -> >"); };
+    greaterequal_op:    GREATER_EQUAL { print_rule("op -> >="); };
+    lessthan_op:        LESS_THAN { print_rule("op -> <"); };
+    lessequal_op:       LESS_EQUAL { print_rule("op -> <="); };
+    eqeq_op:            EQUAL_EQUAL { print_rule("op -> =="); };
+    noteq_op:           NOT_EQUAL { print_rule("op -> !="); };
+    and_op:             AND { print_rule("op -> and"); };
+    or_op:              OR { print_rule("op -> or"); };
+*/
+
+
+
+term
+    : LEFT_PARENTHESIS expr RIGHT_PARENTHESIS { $$ = $2; print_rule("term -> ( expr )"); }
+    | MINUS expr %prec UMINUS 
+    { 
+        expr *r = newexpr(arithexpr_e); 
+        if ($2 && $2->sym && istempname($2->sym->name)) {
+            r->sym = $2->sym;
+        } else {
+            r->sym = newtemp();
+        }
+        printf("%d %s\n", $2->type, $2->sym ? $2->sym->name : "NULL");
+        emit(uminus, $2, NULL, r, 0, yylineno); 
+        $$ = r; 
+        print_rule("term -> - expr"); 
+    }
+    | NOT expr {
+        expr *e = newexpr(not_e);
+        e->index = $2;      /* store the operand */
+        $$ = e;
+    }
+    | PLUS_PLUS lvalue 
+    { 
+        /*
+        if ($2->type == programfunc_e || $2->type == libraryfunc_e) fprintf(stderr,"Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->sym->name, yylineno); 
+        expr *r = newexpr(var_e); 
+        r->sym = newtemp(); 
+        emit(assign, $2, NULL, r, 0, yylineno); 
+        emit(add, $2, newexpr_constnum(1), $2, 0, yylineno); 
+        $$ = r; 
+        */
+        $$ = incdec_lvalue($2, 1, 1);
+    }
+    | lvalue PLUS_PLUS 
+    { 
+        /*
+        if ($1->type == programfunc_e || $1->type == libraryfunc_e) fprintf(stderr,"Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->sym->name, yylineno); 
+        expr *r = newexpr(var_e); 
+        r->sym = newtemp(); 
+        emit(assign, $1, NULL, r, 0, yylineno); 
+        emit(add, $1, newexpr_constnum(1), $1, 0, yylineno); 
+        $$ = r; 
+        */
+        $$ = incdec_lvalue($1, 1, 0); 
+    }
+    | MINUS_MINUS lvalue 
+    { 
+        /*
+        if ($2->type == programfunc_e || $2->type == libraryfunc_e) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->sym->name, yylineno);
+        expr *r = newexpr(var_e); 
+        r->sym = newtemp(); 
+        emit(assign, $2, NULL, r, 0, yylineno); 
+        emit(sub, $2, newexpr_constnum(1), $2, 0, yylineno); 
+        $$ = r; 
+        */
+        $$ = incdec_lvalue($2, 0, 1);
+    }
+    | lvalue MINUS_MINUS 
+    { 
+        /*
+        if ($1->type == programfunc_e || $1->type == libraryfunc_e) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->sym->name, yylineno); 
+        expr *r = newexpr(var_e); 
+        r->sym = newtemp(); 
+        emit(assign, $1, NULL, r, 0, yylineno); 
+        emit(sub, $1, newexpr_constnum(1), $1, 0, yylineno); 
+        $$ = r;
+        */
+        $$ = incdec_lvalue($1, 0, 0); 
+    }
+    | primary 
+    { 
+        print_rule("term -> primary"); 
+    }
+    ;
+
+primary
+    : lvalue { print_rule("primary -> lvalue"); }
+    | call { print_rule("primary -> call"); }
+    | objectdef { print_rule("primary -> objectdef"); }
+    | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS { print_rule("primary -> ( funcdef )"); $$ = $2;}
+    | const { print_rule("primary -> const"); }
+    ;
+
+lvalue
+    : IDENTIFIER
+      {
+        SymbolTableEntry *sym = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
+        if (!sym) {
+            sym = insert_symbol(symbol_table, $1, (checkScope==0)? GLOBAL : LOCAL_VAR, yylineno, checkScope);
+            if (!sym) {
+                fprintf(stderr, "Error: Failed to insert symbol '%s' (line %d)\n", $1, yylineno);
+                semantic_errors++;
+                $$ = newexpr(nil_e);
+            } else {
+                $$ = lvalue_expr(sym);
+            }
+        } else {
+            $$ = lvalue_expr(sym);
+        }
+      }
+
+    | LOCAL IDENTIFIER
+    {
+        SymbolTableEntry *sym = insert_symbol(symbol_table, $2, LOCAL_VAR, yylineno, checkScope);
+        if (!sym) {
+            fprintf(stderr, "Error: Failed to insert symbol '%s' (line %d)\n", $2, yylineno);
+            semantic_errors++;
+            $$ = newexpr(nil_e);
+        } else {
+            $$ = lvalue_expr(sym);
+        }
+    }
+    | COLON_COLON IDENTIFIER
+    {
+        SymbolTableEntry *sym = lookup_symbol(symbol_table, $2, 0, 0);
+        if (!sym) {
+            fprintf(stderr, "Error: Symbol '%s' not found in global scope (line %d)\n", $2, yylineno);
+            semantic_errors++;
+            $$ = newexpr(nil_e); // Return a safe nil expression instead of using NULL
+        } else {
+            $$ = lvalue_expr(sym);
+        }
+    }
+    | member { print_rule("lvalue -> member"); }
+    ;
+
+const
+    : INTCONST    { $$ = newexpr_constnum($1);         }
+    | REALCONST   { $$ = newexpr_constnum($1);         }
+    | STRING      { $$ = newexpr_conststring($1);      }
+    | NIL         { $$ = newexpr(nil_e);               }
+    | TRUE       { $$ = newexpr_constbool(1);         }
+    | FALSE      { $$ = newexpr_constbool(0);         }
+;
+
+member
+    : lvalue DOT IDENTIFIER 
+    { 
+        expr* result = newexpr(tableitem_e);
+        result->sym = newtemp();
+        result->index = newexpr_conststring($3);
+        result->table = $1; // new
+        //emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        $$ = result;
+        print_rule("member -> lvalue . IDENTIFIER"); 
+    }
+    | lvalue LEFT_BRACKET expr RIGHT_BRACKET 
+    { 
+        expr* result = newexpr(tableitem_e);
+        result->sym = newtemp();
+        result->index = $3;
+        result->table = $1; // new
+        //emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        $$ = result;
+        print_rule("member -> lvalue [ expr ]"); 
+    }
+    | call_member { $$ = $1; print_rule("member -> call_member"); }
+    ;
+
+/* Helpful for member */
+call_member
+    : call DOT IDENTIFIER 
+    { 
+        expr* result = newexpr(tableitem_e);
+        result->sym = newtemp();
+        result->index = newexpr_conststring($3);
+        result->table = $1; // new
+        //emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        $$ = result;
+        print_rule("call_member -> call . IDENTIFIER"); 
+    }
+    | call LEFT_BRACKET expr RIGHT_BRACKET 
+    { 
+        expr* result = newexpr(tableitem_e);
+        result->sym = newtemp();
+        result->index = $3;
+        result->table = $1;  // new
+        //emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        $$ = result;
+        print_rule("call_member -> call [ expr ]"); 
+    }
+    ;
+
+call
+    : call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS 
+    { 
+        $$ = make_call_expr($1, $3); // $1 = previous call expr, $3 = argument list
+        print_rule("call -> call (elist)"); 
+        }
+    | lvalue {
+        is_calling = 1;
+        } callsuffix { 
+        is_calling = 0;
+        $$ = make_call_expr($1, $3);
+        print_rule("call -> lvalue callsuffix"); 
+    }
+    /*  | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
+        if (!$2) { debug(1, "Warning: Invalid function definition at line %d\n", yylineno); $$ = newexpr(nil_e); // Return a safe nil expression
+        } else { $$ = make_call_expr($2, $5); } print_rule("call -> ( funcdef ) ( elist )"); }    */
+    ;
+
+immediately_invoked_func_expr
+    : LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS {
+        // Add safety check for anonymous function calls
+        if (!$2) {
+            debug(1, "Warning: Invalid function definition at line %d\n", yylineno);
+            $$ = newexpr(nil_e); // Return a safe nil expression
+        } else {
+
+            // ensure funcdef has a symbol
+            if (!$2->sym) {
+                $2->sym = newtemp();
+            }
+
+            $$ = make_call_expr($2, $5);
+        }
+        print_rule("call -> ( funcdef ) ( elist )"); 
+    }
+;
+
+
+callsuffix
+    : normcall { print_rule("callsuffix -> normcall"); }
+    | methodcall { print_rule("callsuffix -> methodcall"); }
+    ;
+
+normcall
+    : LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { $$ = $2; print_rule("normcall -> ( elist )"); }
+    ;
+
+methodcall
+    : lvalue DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { $$ = create_expr_list($1 , $5); print_rule("methodcall -> lvalue .. IDENTIFIER ( elist )"); }
+    ;
+
+elist
+    : expr 
+    { 
+        if ($1 && !$1->sym && $1->type != constnum_e && $1->type != conststring_e && $1->type != constbool_e)
+            $1->sym = newtemp();
+        $$ = $1;
+        print_rule("elist -> expr"); 
+        }
+    | expr COMMA elist { 
+        if ($1 && !$1->sym && $1->type != constnum_e && $1->type != conststring_e && $1->type != constbool_e)
+            $1->sym = newtemp();
+        $$ = create_expr_list($1, $3);
+        print_rule("elist -> expr , elist"); 
+        }
+    | /* empty */ { 
+        $$ = NULL;
+        print_rule("elist -> epsilon");
+    }
+;
+
+objectdef
+    : LEFT_BRACKET elist RIGHT_BRACKET 
+    { 
+        expr* t = newexpr(newtable_e);
+        t->sym = newtemp();
+        emit(tablecreate, NULL, NULL, t, 0, yylineno);
+        
+        // Add elements from elist
+        int i = 0;
+        expr* curr = $2;
+        while(curr) {
+            // --- NEW CODE: Ensure curr has a symbol! ---
+            if (!curr->sym) curr->sym = newtemp();
+
+            expr* index = newexpr_constnum(i++);
+            emit(tablesetelem, curr, index, t, 0, yylineno);
+            curr = curr->next;
+        }
+        
+        $$ = t;
+        print_rule("objectdef -> [ elist ]"); 
+    }
+    | LEFT_BRACKET indexed RIGHT_BRACKET 
+    { 
+        expr* t = newexpr(newtable_e);
+        t->sym = newtemp();
+        emit(tablecreate, NULL, NULL, t, 0, yylineno);
+
+        // Process indexed elements
+        expr* curr = $2;
+        while(curr) {
+            // --- NEW CODE: Defensive checks ---
+            if (!curr->args) {
+                fprintf(stderr, "ERROR: indexedelem->args is NULL at line %d\n", yylineno);
+                curr = curr->next;
+                continue;
+            }
+            if (!curr->index) {
+                fprintf(stderr, "ERROR: indexedelem->index is NULL at line %d\n", yylineno);
+                curr = curr->next;
+                continue;
+            }
+            // --- Ensure both have symbols! ---
+            if (!curr->args->sym) curr->args->sym = newtemp();
+            if (!curr->index->sym && curr->index->type != constnum_e && curr->index->type != conststring_e) curr->index->sym = newtemp();
+
+            emit(tablesetelem, curr->args, curr->index, t, 0, yylineno);
+            curr = curr->next;
+        }
+        
+        $$ = t;
+        print_rule("objectdef -> [ indexed ]"); 
+    }
+;
+
+indexed
+    : indexedelem { $$ = $1; print_rule("indexed -> indexedelem"); }
+    | indexedelem COMMA indexed 
+    { 
+        // Link the current indexedelem with the rest of the indexed list
+        $1->next = $3;
+        $$ = $1;
+        print_rule("indexed -> indexedelem, indexed"); 
+    }
+    ;
+
+indexedelem
+    : LEFT_BRACE expr COLON expr RIGHT_BRACE 
+    { 
+        expr* elem = newexpr(var_e);
+        elem->sym = newtemp();
+        elem->index = $2;
+        elem->args = $4;
+        elem->next = NULL;
+
+        // --- New: Make sure $2 and $4 have sym ---
+        if (elem->index && !elem->index->sym &&
+            elem->index->type != constnum_e &&
+            elem->index->type != conststring_e) {
+            elem->index->sym = newtemp();
+        }
+        if (elem->args && 
+        elem->args->type != constnum_e &&
+        elem->args->type != conststring_e &&
+        elem->args->type != constbool_e &&
+        !elem->args->sym) { elem->args->sym = newtemp();
+        }
+        $$ = elem;
+        print_rule("indexedelem -> { expr : expr }"); 
+    }
+;
+
+formal_arguments
+    : idlist { $$ = $1; }
+    ;
+
+funcdef
+  : FUNCTION IDENTIFIER
+    {
+        /*SymbolTableEntry *func_sym = insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
+        expr* f = newexpr(programfunc_e);
+        f->sym = func_sym;
+	    current_function_expr = f;
+        //$<expression>3 = e;
+
+        enter_scope();
+        ++inside_function_depth;
+        inside_function_scope = 1;
+        first_brace_of_func = 1;  // Indicates the first brace of the function
+	    enter_function_scope();   // for loop */
+
+        SymbolTableEntry *func_sym = insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
+        expr* f = newexpr(programfunc_e);
+        f->sym = func_sym;
+	    current_function_expr = f;
+        //$<expression>3 = e;
+
+        emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
+        emit(funcstart, f, NULL, NULL, 0, yylineno);
+
+	    returnlist = 0;
+
+        enter_scope();
+        ++inside_function_depth;
+        inside_function_scope = 1;
+        first_brace_of_func = 1;  // Indicates the first brace of the function
+	    enter_function_scope();   // for loop
+
+        $<expression>$ = f;
+    }
+    LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
+    {
+        // we insert the formal arguments here for normal functions
+        formal_argument_node* arg = $5;
+        while (arg != NULL) {
+            insert_symbol(symbol_table, arg->name, ARGUMENT, yylineno, checkScope);
+            arg = arg->next;
+        }
+    }
+    block
+    {
+        /*--inside_function_depth;
+        exit_scope();
+        exit_function_scope();      // for loop
+        $$ = $<expression>3;        // use previously stored expr*
+        */
+
+        --inside_function_depth;
+        exit_scope();
+        exit_function_scope();      // for loop
+        emit(funcend, $<expression>3, NULL, NULL, 0, yylineno); // emit funcend
+
+        // new
+        patchlist(returnlist, nextquad());
+
+        $$ = $<expression>3;        // use previously stored expr*
+    }
+    | FUNCTION
+    {
+        char *anonymous_name = malloc(32);
+        if (!anonymous_name) {
+            fprintf(stderr, "Memory allocation failed\n");
+            exit(EXIT_FAILURE);
+        }
+        sprintf(anonymous_name, "$%d", anonymus_function_counter++);
+        SymbolTableEntry *func_sym = insert_symbol(symbol_table, anonymous_name, USER_FUNCTION, yylineno, checkScope);
+        
+        // Only free if insert_symbol makes a deep copy of the name
+        free(anonymous_name);
+
+        expr* func_expr = newexpr(programfunc_e);
+        func_expr->sym = func_sym;
+
+        emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
+        emit(funcstart, func_expr, NULL, NULL, 0, yylineno);
+
+        // new
+        returnlist = 0;
+
+        current_function_expr = func_expr;  // we save this function as current
+        enter_scope();
+        ++inside_function_depth;
+        first_brace_of_func = 1;
+        enter_function_scope();             // for loop
+        $<expression>$ = func_expr;         // and then pass it to later rules
+
+    }
+    LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
+    {
+        formal_argument_node* arg = $4;
+        while (arg != NULL) {
+            insert_symbol(symbol_table, arg->name, ARGUMENT, yylineno, checkScope);
+            arg = arg->next;
+        }
+    }
+    block
+    {
+        --inside_function_depth;
+	    exit_function_scope();  // for loop
+        exit_scope();
+
+        emit(funcend, $<expression>2, NULL, NULL, 0, yylineno); // emit funcend after block
+
+	    // new
+        patchlist(returnlist, nextquad());
+
+        $$ = $<expression>2;    // rtrn func_expr
+        print_rule("funcdef -> function ( idlist ) block");
+    }
+    ;
+
+idlist
+    : IDENTIFIER { 
+        print_rule("idlist -> IDENTIFIER"); 
+        $$ = create_node($1);
+    }
+    | IDENTIFIER COMMA idlist { 
+        print_rule("idlist -> IDENTIFIER , idlist"); 
+        $$ = append_argument($3, $1);
+    }
+    | /* empty */ { print_rule("idlist -> epsilon");
+        $$ = NULL;
+    }
+    ;
+
+ifstmt
+    : ifprefix stmt %prec LOWER_THAN_ELSE
+        {
+        patchlabel($1, nextquad());
+        print_rule("ifstmt -> if ( expr ) stmt");
+        }
+    | ifprefix stmt elseprefix stmt
+        {
+        //printf("IF-LABEL: %d , %d\n",$1, $3);
+        patchlabel($1, $3 + 1);
+        //patchlabel($2, nextquad()); // $2 is stmt not a quad number so we use $3
+        patchlabel($3, nextquad());
+        print_rule("ifstmt -> if ( expr ) stmt else stmt");
+        }
+    ;
+
+ifprefix
+    : IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS
+    {
+        // Ensure expr has a symbol
+        $3 = ensure_expr_has_symbol($3);
+
+	    // we ensure the expression is in boolean form
+        if ($3->type != boolexpr_e) {
+            expr* true_const = newexpr_constbool(1);
+            emit(if_eq, $3, true_const, NULL, nextquad() + 2, yylineno);
+        } else {
+            emit(if_eq, $3, NULL, NULL, nextquad() + 2, yylineno);
+        }
+
+	    // we emit jump and record its position for patching
+        emit(jump, NULL, NULL, NULL, 0, yylineno);
+        $$ = nextquad() - 1;
+
+    }
+
+elseprefix
+    : ELSE
+    {
+        $$ = nextquad();
+        emit(jump, NULL, NULL, NULL, 0, yylineno);
+    }
+    ;
+
+whilestmt
+    : WHILE MP
+      LEFT_PARENTHESIS expr RIGHT_PARENTHESIS
+      {
+          push_loopcounter();
+
+          expr *cond = $4;
+          if (cond->type == boolexpr_e)        /* a chain of or/and/not           */
+            cond = convert_to_value(cond);     /* generate t := true/false      */
+          else
+            cond = emit_iftableitem(cond);     /* still handle tableitem         */
+
+          /* IF cond == TRUE jump somewhere (patch later) */
+          emit(if_eq, cond, newexpr_constbool(1), NULL, 0, yylineno);
+          emit(jump , NULL, NULL, NULL,0, yylineno);  /* JFALSE */
+
+          $<intValue>$ = nextquad() - 2; /* $6 : IF-quad id */
+      }
+      MP                                         
+      stmt
+      {
+          //printf("EMIT-LABEL-2: %d\n", $2);
+          emit(jump, NULL, NULL, NULL, $2, yylineno);      /* back-edge  */
+
+          /* patch IF-TRUE  → body, IF-FALSE → exit */
+          patchlabel($<intValue>6    , $7);
+          patchlabel($<intValue>6 + 1, nextquad());
+
+          lc_stack_t *loop = current_loop();
+          if (loop) {
+              patchlist(loop->breaklist, nextquad());  /* break    → exit */
+              patchlist(loop->contlist, $2);           /* continue */
+          }
+
+          pop_loopcounter();
+      }
+    ;
+
+
+
+forstmt
+    : FOR
+        { push_loopcounter(); enter_scope(); }     /* housekeeping     */
+      LEFT_PARENTHESIS
+      elist SEMICOLON                              /* expr1 (init)     */
+      MP
+      expr                                         /* expr2 (cond)     */
+        {
+            // Ensure expr has a symbol
+            $7 = ensure_expr_has_symbol($7);
+
+            emit(if_eq, $7, newexpr_constbool(1), NULL, nextquad() + 1, yylineno);
+            emit(jump , NULL, NULL, NULL, nextquad() + 3, yylineno);  /* JFALSE */
+
+            $<intValue>$ = nextquad() - 2; /* $8 : IF-quad id */
+        }
+      SEMICOLON
+      MP                                       
+      elist                                      
+        {
+            emit(jump, NULL, NULL, NULL, $6, yylineno);   
+        }
+      RIGHT_PARENTHESIS
+      MP                                          
+      stmt
+            {
+        int ifQuad = $<intValue>8;
+
+        emit(jump, NULL, NULL, NULL, $10, yylineno);
+
+        patchlabel(ifQuad, $14);
+
+        patchlabel(ifQuad + 1, nextquad());
+
+        lc_stack_t *loop = current_loop();
+        if (loop) {
+            // 4. Patch any 'break' statements to also exit the loop.
+            patchlist(loop->breaklist, nextquad());
+            // 5. Patch any 'continue' statements to go to the increment part ($10).
+            patchlist(loop->contlist, $10);
+        }
+        exit_scope();
+        pop_loopcounter();
+    }
+    ;
+
+
+
+returnstmt
+    : RETURN SEMICOLON
+    {
+        if (inside_function_depth < 1) {
+            fprintf(stderr, "Error: 'return' used outside of any function (line %d)\n", yylineno);
+            semantic_errors++;
+        }
+        print_rule("returnstmt -> return ;");
+    }
+    | RETURN expr SEMICOLON
+    {
+        if (inside_function_depth < 1) {
+            fprintf(stderr, "Error: 'return' used outside of any function (line %d)\n", yylineno);
+            semantic_errors++;
+        }
+        expr *val = convert_to_value($2);
+        emit(ret, val, NULL, NULL, 0, yylineno);
+
+ 	    // new
+        emit(jump, NULL, NULL, NULL, 0, yylineno);  // label to patch later
+        returnlist = mergelist(returnlist, newlist(nextquad() - 1));
+        // new end
+
+        print_rule("returnstmt -> return expr ;");
+    }
+    ;
+
+break_stmt
+    : BREAK SEMICOLON 
+    {
+        //if (checkLoopDepth < 1) { 
+        if (loopcounter() == 0) {
+            fprintf(stderr, "Error: 'break' used outside of any loop (line %d)\n", yylineno);
+            semantic_errors++;
+        } 
+        print_rule("break_stmt -> break ;"); 
+    }
+    {
+        if (loopcounter() == 0) {
+            // Skip patching if not in a loop
+            fprintf(stderr, "Error: 'break' used outside of any loop (line %d)\n", yylineno);
+            semantic_errors++;
+        } else {
+            emit(jump, NULL, NULL, NULL, 0, yylineno); // emit jump to break
+            struct lc_stack_t *n = current_loop();
+            if (n) { // Add safety check
+                n->breaklist = mergelist(n->breaklist, newlist(nextquad() - 1));
+            }
+        }
+    }
+    ;
+
+continue_stmt
+    : CONTINUE SEMICOLON 
+    {
+        //if (checkLoopDepth < 1) { 
+        if (loopcounter() == 0) {
+            fprintf(stderr, "Error: 'continue' used outside of any loop (line %d)\n", yylineno);
+            semantic_errors++;
+        } 
+        print_rule("continue_stmt -> continue ;"); 
+    }
+    {
+        if (loopcounter() == 0) {
+            // Skip patching if not in a loop
+            fprintf(stderr, "Error: 'continue' used outside of any loop (line %d)\n", yylineno);
+            semantic_errors++;
+        } else {
+            emit(jump, NULL, NULL, NULL, 0, yylineno); // emit jump to break
+            struct lc_stack_t *n = current_loop();
+            if (n) { // Add safety check
+                n->contlist = mergelist(n->contlist, newlist(nextquad() - 1));
+            }
+        }
+    }
+    ;
+
+block
+    : LEFT_BRACE { enter_scope(); } stmt_list RIGHT_BRACE { exit_scope(); print_rule("block -> { stmt_list }"); }
+    ;
+
+%%
+
+int yyerror (char* yaccProvidedMessage)
+{
+    fprintf(stderr, "%s: at line %d, before token: '%s'\n", yaccProvidedMessage, yylineno, yytext);
+    fprintf(stderr, "unexpected token: %s with ascii: %d\n", yytext, yytext[0]);
+    fprintf(stderr, "INPUT NOT VALID\n");
+    return 1;
+}
+\main.c
+/*
+ * HY-340 Project Phase 3 2024-2025
+ *
+ * Members:
+ *      csd5171 Fytaki Maria
+ *      csd5310 Rafail Drakakis
+ *      csd5082 Theologos Kokkinellis
+ */
+
+#include <stdio.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <string.h>
+
+#include "quads.h"
+#include "symbol_table.h"
+#include "codegen.h"
+#include "vm.h"
+
+extern unsigned int checkScope;
+extern int yyparse();        
+extern FILE* yyin;
+extern int semantic_errors;
+extern unsigned total;
+extern unsigned int currQuad;
+
+SymbolTable *symbol_table;
+quad* quads = (quad*) 0;
+
+void debug(int level, const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    if (level > 0) {
+        fprintf(stderr, "[DEBUG] ");
+        vfprintf(stderr, fmt, args);
+    }
+
+    va_end(args);
+}
+
+// Signal handler for segmentation faults
+void segfault_handler(int sig) {
+    fprintf(stderr, "Caught segmentation fault! Current quad: %d\n", currQuad);
+    exit(EXIT_FAILURE);
+}
+
+int main(int argc, char **argv) {
+    // Add signal handler for segmentation faults
+    signal(SIGSEGV, segfault_handler);
+     
+    if (argc > 2) {
+        fprintf(stderr, "Usage: %s [inputfile]\n", argv[0]);
+        return 1;
+    }
+
+    if (argc == 2) {
+        yyin = fopen(argv[1], "r");
+        if (!yyin) {
+            perror(argv[1]);
+            return 1;
+        }
+    }
+     
+    // Initialize globals safely
+    quads = NULL;
+    total = 0;
+    currQuad = 0;
+     
+    symbol_table = create_symbol_table();
+    if (!symbol_table) {
+        fprintf(stderr, "Failed to create symbol table\n");
+        return 1;
+    }
+
+    // Register built-in library functions in global scope
+    const char *builtins[] = { "typeof", "totalarguments", "argument", "print" };
+    for (size_t i = 0; i < sizeof(builtins)/sizeof(*builtins); ++i) {
+        SymbolTableEntry *sym = insert_symbol(
+            symbol_table,
+            builtins[i],
+            LIBRARY_FUNCTION,   
+            0,                  // line 0 (predefined)
+            0                   // scope 0 = global
+        );
+        if (!sym) {
+            fprintf(stderr, "Warning: could not register builtin %s\n", builtins[i]);
+        } else {
+            // Place it as a true global at the next available slot
+            sym->space  = programvar;
+            sym->offset = programVarOffset++;
+        }
+    }
+
+    if (yyparse() == 0) {
+        if (semantic_errors > 0) {
+            fprintf(stderr, "\nParsing completed with %d semantic error(s).\n", semantic_errors);
+        } else {
+            printf("Parsing completed successfully.\n");
+        }
+    } else {
+        fprintf(stderr, "Parsing failed.\n");
+    }
+ 
+    if (quads && currQuad > 0) {
+        print_quads(stdout);
+
+        generate_target_code();
+        printf("\n------ Target VM Instructions ------\n");
+        print_instructions(stdout);
+        write_text("out_instructions.txt", currInstruction);
+        write_binary("out_instructions.bin", currInstruction);
+        write_numConsts("out_numConsts.bin"); 
+        write_stringConsts("out_stringConsts.bin");
+    } else {
+        fprintf(stderr, "No quads to print or empty quads array\n");
+    }
+
+    vm_init();
+    vm_run();
+    avm_destroy();
+
+    free_symbol_table(symbol_table);
+    if (argc == 2 && yyin) {
+        fclose(yyin);
+    }
+ 
+    return 0;
+}
+
+\quads.h
+/**
+ * HY-340 Project Phase 3 2024-2025
+ *
+ * Members:
+ *      csd5171 Fytaki Maria
+ *      csd5310 Rafail Drakakis
+ *      csd5082 Theologos Kokkinellis
+ */
+
+#ifndef QUADS_H
+#define QUADS_H
+
+#include <assert.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdarg.h>
+#include <stdarg.h>
+
+#include "symbol_table.h"
+
+extern int yylineno;
+
+#define EXPAND_SIZE 1024
+#define CURR_SIZE (total * sizeof(quad))
+#define NEW_SIZE (EXPAND_SIZE * sizeof(quad) + CURR_SIZE)
+
+void debug(int level, const char* fmt, ...);
+
+typedef enum iopcode {
+    assign, add, sub, mul, idiv, mod,
+    uminus, and, or, not,
+    if_eq, if_noteq, if_lesseq, if_greatereq, if_less, if_greater,
+    jump, call, param, ret, getretval,
+    funcstart, funcend, tablecreate, tablegetelem, tablesetelem
+} iopcode;
+
+typedef enum expr_t {
+    var_e, tableitem_e,
+    programfunc_e, libraryfunc_e,
+    arithexpr_e, not_e, boolexpr_e, assignexpr_e, newtable_e,
+    constnum_e, constbool_e, conststring_e,
+    nil_e, call_e /* call_e new 19 may */ 
+} expr_t;
+
+typedef struct expr {
+    expr_t type;
+    SymbolTableEntry* sym;
+    struct expr* index;
+    struct expr* table;   
+    double numConst;
+    char* strConst;
+    unsigned char boolConst;
+    struct expr *args;
+    struct expr* next;
+    int truelist;
+    int falselist;
+} expr;
+
+typedef struct quad {
+    iopcode op;
+    expr* result;
+    expr* arg1;
+    expr* arg2;
+    unsigned label;
+    unsigned line;
+    unsigned taddress; 
+} quad;
+
+
+/* quads.h – put this just after the #includes */
+#ifndef LC_STACK_DEFINED
+#define LC_STACK_DEFINED
+
+typedef struct lc_stack_t {
+        struct lc_stack_t *next;
+        unsigned           counter;     /* for nested-loop depth (any value is fine) */
+        int                breaklist;   /* list-head of pending ‘break’ jumps */
+        int                contlist;    /* list-head of pending ‘continue’ jumps */
+} lc_stack_t;
+
+#endif    /* LC_STACK_DEFINED */
+
+/* helper that the parser uses */
+lc_stack_t *current_loop(void);
+
+// Scope and offset management
+extern unsigned programVarOffset;
+extern unsigned functionLocalOffset;
+extern unsigned formalArgOffset;
+extern unsigned scopeSpaceCounter;
+extern unsigned total;
+extern unsigned int currQuad;
+extern quad* quads;
+extern SymbolTable* symbol_table;
+
+// Function declarations
+void expand(void);
+void emit(iopcode op, expr* arg1, expr* arg2, expr* result, unsigned label, unsigned line);
+unsigned nextquad(void);
+void patchlabel(unsigned quadNo, unsigned label);
+
+scopespace_t currscopespace(void);
+unsigned currscopeoffset(void);
+void inccurrscopeoffset(void);
+void enterscopespace(void);
+void exitscopespace(void);
+
+expr* lvalue_expr(SymbolTableEntry* sym);
+expr* newexpr(expr_t t);
+expr* newexpr_constnum(double i);
+expr* newexpr_conststring(char* s);
+expr* newexpr_constbool(unsigned int b);
+char* newtempname(void);
+SymbolTableEntry* newtemp(void);
+void resettemp(void);
+unsigned int istempname(char* s);
+unsigned int istempexpr(expr* e);
+
+expr* make_call_expr(expr* func_expr, expr* args);
+expr* create_expr_list(expr* head, expr* tail);
+
+expr* emit_iftableitem(expr* e);
+void print_quads(FILE* f);
+
+// Statement list structure for break/continue
+typedef struct stmt_t {
+    int breaklist;
+    int contlist;
+} stmt_t;
+
+void make_stmt(stmt_t* s);
+
+// Patch lists
+int newlist(int quadNo);
+int mergelist(int list1, int list2);
+void patchlist(int list, int label);
+
+expr* convert_to_value(expr* e);
+expr* convert_to_bool(expr* e);
+expr* make_not(expr* e);
+expr* make_or(expr* e1, expr* e2);
+expr* make_and(expr* e1, expr* e2);
+expr* make_eq_neq(expr* e1, expr* e2, iopcode op);
+
+#endif
+
+#ifndef LOOP_CONTROL_H
+#define LOOP_CONTROL_H
+
+unsigned loopcounter(void);
+void push_loopcounter(void);
+void pop_loopcounter(void);
+
+#endif
+
+\codegen.h
+#ifndef CODEGEN_H
+#define CODEGEN_H
+
+#include "quads.h"
+
+extern double*    numConsts;
+extern unsigned   totalNumConsts;
+extern char**     stringConsts;
+extern unsigned   totalStringConsts;
+
+typedef enum {
+    label_a,    /* branch targets & fallbacks */
+    number_a,   /* constant number */
+    string_a,   /* constant string */
+    bool_a,     /* constant boolean */
+    global_a,   /* global variable */
+    formal_a,   /* function formal argument */
+    local_a,    /* function-local var */
+    retval_a,    /* function return-value slot */
+    nil_a
+} vmarg_t;
+
+/* One VM argument */
+typedef struct {
+    vmarg_t type;
+    int     value;
+} vmarg;
+
+/* Final-code opcodes */
+typedef enum {
+    op_add, op_sub, op_mul, op_div, op_mod,
+    op_newtable, op_tablegetelem, op_tablesetelem,
+    op_assign, op_nop,
+    op_jeq, op_jne, op_jgt, op_jge, op_jlt, op_jle,
+    op_pusharg, op_callfunc, op_getretval,
+    op_uminus
+} opcode_t;
+
+/* One final instruction */
+typedef struct {
+    opcode_t opcode;
+    vmarg    arg1, arg2, result;
+} instruction;
+
+/* Incomplete-jump chain */
+typedef struct incomplete_jump {
+    int instrNo;
+    int iaddress;
+    struct incomplete_jump *next;
+} incomplete_jump;
+
+/* Arrays and globals */
+extern instruction     instructions[];
+extern incomplete_jump *ijumps_head;
+extern unsigned int currInstruction;
+
+/* Helper routines */
+int  nextinstructionlabel(void);
+void emit_instruction(instruction t);
+void reset_operand(vmarg *arg);
+void make_booloperand(vmarg *arg, int boolean);
+void make_retvaloperand(vmarg *arg);
+void add_incomplete_jump(int instrNo, int iaddress);
+void make_operand(expr *e, vmarg *arg);
+
+/* Entry points */
+void patch_incomplete_jumps(void);
+void generate(opcode_t op, quad *q);
+
+/* Per-op generators */
+void generate_ADD      (quad *q);
+void generate_SUB      (quad *q);
+void generate_MUL      (quad *q);
+void generate_DIV      (quad *q);
+void generate_MOD      (quad *q);
+void generate_NEWTABLE (quad *q);
+void generate_TABLEGETELM  (quad *q);
+void generate_TABLESETELEM (quad *q);
+void generate_ASSIGN       (quad *q);
+void generate_NOP          (void);
+
+/* Jumps & relational */
+void generate_relational(opcode_t op, quad *q);
+void generate_JUMP       (quad *q);
+void generate_IF_EQ      (quad *q);
+void generate_IF_NOTEQ   (quad *q);
+void generate_IF_GREATER (quad *q);
+void generate_IF_GREATEREQ(quad *q);
+void generate_IF_LESS    (quad *q);
+void generate_IF_LESSEQ  (quad *q);
+
+/* Boolean shortcuts */
+void generate_NOT(quad *q);
+void generate_OR (quad *q);
+void generate_AND(quad *q);
+
+/* Function-call mechanics */
+void generate_PARAM    (quad *q);
+void generate_CALL     (quad *q);
+void generate_GETRETVAL(quad *q);
+
+void generate_FUNCSTART(quad *q);
+void generate_FUNCEND(quad *q);
+void generate_RET(quad *q);
+
+void generate_target_code(void);
+
+/* Print/write */
+void print_instructions(FILE* out);
+void write_text(const char *filename, unsigned int instr_count);
+void write_binary(const char *filename, unsigned int instr_count);
+
+void write_numConsts(const char *filename);
+void write_stringConsts(const char *filename);
+void write_vmarg(FILE *out, vmarg *arg);
+void emit_params_rev(expr *args);
+
+#endif /* CODEGEN_H */
+
+\vm.c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <math.h>
+#include "vm.h"
+
+/* ---------- Global VM State ---------- */
+
+avm_memcell stack[STACK_SIZE];
+
+unsigned top    = STACK_SIZE - 1;  /* initially, stack is empty */
+unsigned topsp  = 0;
+unsigned pc     = 0;
+
+instruction *code = NULL;
+unsigned total_instructions = 0;
+
+/* Constant pools loaded from files */
+double* const_nums         = NULL;
+unsigned total_const_nums  = 0;
+char**  const_strs         = NULL;
+unsigned total_const_strs  = 0;
+
+static const char*  libfunc_names_arr[MAX_LIBFUNCS];
+static library_func_t libfunc_ptrs_arr[MAX_LIBFUNCS];
+static unsigned num_registered_libfuncs = 0;
+
+typedef struct {
+    char* name;
+    unsigned addr;  /* taddress in the instructions[] array */
+} userfunc_entry;
+
+static userfunc_entry userfuncs[256];
+static unsigned num_userfuncs = 0;
+
+/* ---------- Helper Prototypes ---------- */
+
+static unsigned hash_number(double key);
+static unsigned hash_string(const char *key);
+static unsigned hash_bool(unsigned char key);
+
+/* Forward declarations for execute_XXX() functions: */
+void execute_ADD(instruction *instr);
+void execute_SUB(instruction *instr);
+void execute_MUL(instruction *instr);
+void execute_DIV(instruction *instr);
+void execute_MOD(instruction *instr);
+void execute_ASSIGN(instruction *instr);
+void execute_JEQ(instruction *instr);
+void execute_JNE(instruction *instr);
+void execute_JLE(instruction *instr);
+void execute_JLT(instruction *instr);
+void execute_JGE(instruction *instr);
+void execute_JGT(instruction *instr);
+void execute_NEWTABLE(instruction *instr);
+void execute_TABLEGETELM(instruction *instr);
+void execute_TABLESETELEM(instruction *instr);
+void execute_PUSHARG(instruction *instr);
+void execute_CALLFUNC(instruction *instr);
+void execute_GETRET(instruction *instr);
+void execute_FUNCENTER(instruction *instr);
+void execute_FUNCEXIT(instruction *instr);
+void execute_AND(instruction *instr);
+void execute_OR(instruction *instr);
+void execute_NOT(instruction *instr);
+void execute_NOP(instruction *instr);
+
+avm_memcell* avm_translate_operand(vmarg *arg, avm_memcell *reg);
+
+/* ---------- Error‐printing helper ---------- */
+void avm_error(const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    fprintf(stderr, "[VM ERROR] ");
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+    va_end(ap);
+    exit(EXIT_FAILURE);
+}
+
+/* ---------- Memory‐cell to String for Debugging ---------- */
+char *avm_tostring(avm_memcell *m) {
+    static char buffer[256];
+    switch (m->type) {
+        case number_m:
+            snprintf(buffer, sizeof(buffer), "%.2f", m->data.numVal);
+            return buffer;
+        case string_m:
+            return m->data.strVal ? m->data.strVal : strdup("<null str>");
+        case bool_m:
+            return m->data.boolVal ? "true" : "false";
+        case nil_m:
+            return "nil";
+        case undef_m:
+            return "undef";
+        case table_m:
+            return "[table]";
+        case userfunc_m: {
+            for (unsigned i = 0; i < num_userfuncs; ++i)
+                if (userfuncs[i].addr == m->data.funcVal) {
+                    snprintf(buffer, sizeof(buffer), "<userfunc:%s>", userfuncs[i].name);
+                    return buffer;
+                }
+            return "<userfunc:unknown>";
+        }
+        case libfunc_m:
+            return m->data.libfuncVal ? m->data.libfuncVal : "<libfunc:null>";
+        default:
+            return "<invalid cell>";
+    }
+}
+
+/* ---------- Reference Counting for Tables ---------- */
+void avm_table_inc_ref(avm_table *tbl) {
+    if (!tbl) return;
+    tbl->refCounter++;
+}
+
+void avm_table_dec_ref(avm_table *tbl) {
+    if (!tbl) return;
+    if (--tbl->refCounter == 0) {
+        /* Free all buckets */
+        for (unsigned i = 0; i < TABLE_HASHSIZE; ++i) {
+            avm_table_bucket *b = tbl->numIndexed[i];
+            while (b) {
+                avm_table_bucket *next = b->next;
+                /* free key & value if needed */
+                if (b->key) {
+                    if (b->key->type == string_m && b->key->data.strVal) free(b->key->data.strVal);
+                    free(b->key);
+                }
+                if (b->value) {
+                    /* if it's a table, decrement its refcount */
+                    if (b->value->type == table_m && b->value->data.tableVal)
+                        avm_table_dec_ref(b->value->data.tableVal);
+                    if (b->value->type == string_m && b->value->data.strVal) free(b->value->data.strVal);
+                    free(b->value);
+                }
+                free(b);
+                b = next;
+            }
+            b = tbl->strIndexed[i];
+            while (b) {
+                avm_table_bucket *next = b->next;
+                if (b->key) {
+                    if (b->key->type == string_m && b->key->data.strVal) free(b->key->data.strVal);
+                    free(b->key);
+                }
+                if (b->value) {
+                    if (b->value->type == table_m && b->value->data.tableVal)
+                        avm_table_dec_ref(b->value->data.tableVal);
+                    if (b->value->type == string_m && b->value->data.strVal) free(b->value->data.strVal);
+                    free(b->value);
+                }
+                free(b);
+                b = next;
+            }
+        }
+        avm_table_bucket *b = tbl->boolIndexed[0];
+        while (b) {
+            avm_table_bucket *next = b->next;
+            if (b->key) free(b->key);
+            if (b->value) {
+                if (b->value->type == table_m && b->value->data.tableVal)
+                    avm_table_dec_ref(b->value->data.tableVal);
+                if (b->value->type == string_m && b->value->data.strVal) free(b->value->data.strVal);
+                free(b->value);
+            }
+            free(b);
+            b = next;
+        }
+        b = tbl->boolIndexed[1];
+        while (b) {
+            avm_table_bucket *next = b->next;
+            if (b->key) free(b->key);
+            if (b->value) {
+                if (b->value->type == table_m && b->value->data.tableVal)
+                    avm_table_dec_ref(b->value->data.tableVal);
+                if (b->value->type == string_m && b->value->data.strVal) free(b->value->data.strVal);
+                free(b->value);
+            }
+            free(b);
+            b = next;
+        }
+        free(tbl);
+    }
+}
+
+avm_table* avm_table_new(void) {
+    avm_table *tbl = malloc(sizeof(avm_table));
+    tbl->refCounter = 0;
+    for (unsigned i = 0; i < TABLE_HASHSIZE; ++i)
+        tbl->numIndexed[i] = tbl->strIndexed[i] = NULL;
+    tbl->boolIndexed[0] = tbl->boolIndexed[1] = NULL;
+    return tbl;
+}
+
+/* ---------- Hash functions ---------- */
+static unsigned hash_number(double key) {
+    uint64_t bits;
+    memcpy(&bits, &key, sizeof(bits));
+    return (unsigned)((bits ^ (bits >> 32)) % TABLE_HASHSIZE);
+}
+static unsigned hash_string(const char *key) {
+    unsigned long hash = 5381;
+    int c;
+    while ((c = *key++))
+        hash = ((hash << 5) + hash) + (unsigned)c; /* hash * 33 + c */
+    return (unsigned)(hash % TABLE_HASHSIZE);
+}
+static unsigned hash_bool(unsigned char key) {
+    return (unsigned)(key % 2);
+}
+
+/* ---------- Table get/set element ---------- */
+avm_memcell* avm_tablegetelem(avm_table *tbl, avm_memcell *key) {
+    if (!tbl || !key) return NULL;
+    unsigned idx;
+    avm_table_bucket *b = NULL;
+    if (key->type == number_m) {
+        idx = hash_number(key->data.numVal);
+        b = tbl->numIndexed[idx];
+    } else if (key->type == string_m) {
+        idx = hash_string(key->data.strVal);
+        b = tbl->strIndexed[idx];
+    } else if (key->type == bool_m) {
+        idx = hash_bool(key->data.boolVal);
+        b = tbl->boolIndexed[idx];
+    } else {
+        return NULL; /* nil/undef cannot index a table */
+    }
+    while (b) {
+        /* compare keys */
+        if (key->type == number_m && b->key->data.numVal == key->data.numVal)
+            return b->value;
+        else if (key->type == string_m && strcmp(b->key->data.strVal, key->data.strVal) == 0)
+            return b->value;
+        else if (key->type == bool_m && b->key->data.boolVal == key->data.boolVal)
+            return b->value;
+        b = b->next;
+    }
+    return NULL; /* not found */
+}
+
+void avm_tablesetelem(avm_table *tbl, avm_memcell *key, avm_memcell *value) {
+    if (!tbl || !key) return;
+    unsigned idx;
+    avm_table_bucket **bucket_array = NULL;
+    avm_table_bucket **head = NULL;
+    if (key->type == number_m) {
+        idx = hash_number(key->data.numVal);
+        head = &tbl->numIndexed[idx];
+    } else if (key->type == string_m) {
+        idx = hash_string(key->data.strVal);
+        head = &tbl->strIndexed[idx];
+    } else if (key->type == bool_m) {
+        idx = hash_bool(key->data.boolVal);
+        head = &tbl->boolIndexed[idx];
+    } else {
+        return; /* nil/undef cannot index */
+    }
+
+    /* If value is nil, delete any existing bucket */
+    if (value->type == nil_m) {
+        avm_table_bucket *prev = NULL, *cur = *head;
+        while (cur) {
+            if ((key->type == number_m && cur->key->data.numVal == key->data.numVal) ||
+                (key->type == string_m && strcmp(cur->key->data.strVal, key->data.strVal) == 0) ||
+                (key->type == bool_m && cur->key->data.boolVal == key->data.boolVal)) {
+                /* Found it: remove from chain and free */
+                if (prev) prev->next = cur->next;
+                else *head = cur->next;
+                if (cur->value && cur->value->type == table_m)
+                    avm_table_dec_ref(cur->value->data.tableVal);
+                free(cur->value);
+                free(cur->key);
+                free(cur);
+                return;
+            }
+            prev = cur;
+            cur = cur->next;
+        }
+        return;
+    }
+
+    /* Otherwise, insert or overwrite */
+    avm_table_bucket *cur = *head;
+    while (cur) {
+        if ((key->type == number_m && cur->key->data.numVal == key->data.numVal) ||
+            (key->type == string_m && strcmp(cur->key->data.strVal, key->data.strVal) == 0) ||
+            (key->type == bool_m && cur->key->data.boolVal == key->data.boolVal)) {
+            /* Overwrite the value */
+            if (cur->value->type == table_m)
+                avm_table_dec_ref(cur->value->data.tableVal);
+            free(cur->value);
+            cur->value = malloc(sizeof(avm_memcell));
+            *cur->value = *value;
+            if (value->type == string_m)
+                cur->value->data.strVal = strdup(value->data.strVal);
+            if (value->type == table_m) {
+                cur->value->data.tableVal = value->data.tableVal;
+                avm_table_inc_ref(cur->value->data.tableVal);
+            }
+            return;
+        }
+        cur = cur->next;
+    }
+
+    avm_table_bucket *newb = malloc(sizeof(avm_table_bucket));
+    newb->key = malloc(sizeof(avm_memcell));
+    *newb->key = *key;
+    if (key->type == string_m)
+        newb->key->data.strVal = strdup(key->data.strVal);
+    newb->value = malloc(sizeof(avm_memcell));
+    *newb->value = *value;
+    if (value->type == string_m)
+        newb->value->data.strVal = strdup(value->data.strVal);
+    if (value->type == table_m) {
+        newb->value->data.tableVal = value->data.tableVal;
+        avm_table_inc_ref(newb->value->data.tableVal);
+    }
+    newb->next = *head;
+    *head = newb;
+}
+
+static avm_memcell *retval_reg = NULL;
+
+avm_memcell* avm_translate_operand(vmarg *arg, avm_memcell *reg) {
+    switch (arg->type) {
+        case number_a:
+            reg->type = number_m;
+            reg->data.numVal = const_nums[arg->value];
+            return reg;
+        case string_a:
+            reg->type = string_m;
+            reg->data.strVal = strdup(const_strs[arg->value]);
+            return reg;
+        case bool_a:
+            reg->type = bool_m;
+            reg->data.boolVal = (unsigned char)arg->value;
+            return reg;
+        case global_a:
+            return &stack[0 + arg->value];            /* globals start at index 0 */
+        case local_a:
+            return &stack[top + 1 + arg->value];      /* ‘top’ is the current top‐of‐stack */
+        case formal_a:
+            return &stack[topsp - 1 - arg->value];    /* ‘topsp’ is where formals begin */        
+        case retval_a:
+            return retval_reg;
+        case label_a:
+            reg->type = number_m;
+            reg->data.numVal = (double)arg->value;
+            return reg;
+        default:
+            avm_error("Invalid operand type %d in avm_translate_operand()", arg->type);
+            return NULL;
+    }
+}
+
+/* ---------- Built‐in Library Functions Registration ---------- */
+void avm_registerlibfunc(const char *name, library_func_t ptr) {
+    if (num_registered_libfuncs >= MAX_LIBFUNCS)
+        avm_error("Too many library functions registered!");
+    libfunc_names_arr[num_registered_libfuncs] = strdup(name);
+    libfunc_ptrs_arr[num_registered_libfuncs] = ptr;
+    num_registered_libfuncs++;
+}
+
+void avm_calllibfunc(const char *name) {
+    for (unsigned i = 0; i < num_registered_libfuncs; ++i) {
+        if (strcmp(name, libfunc_names_arr[i]) == 0) {
+            libfunc_ptrs_arr[i]();
+            return;
+        }
+    }
+    avm_error("Unknown library function '%s'", name);
+}
+
+void libfunc_typeof(void) {
+    avm_memcell *arg = &stack[topsp + 1];
+    if (!arg) { avm_error("typeof: missing argument"); return; }
+    const char *res = NULL;
+    switch (arg->type) {
+        case number_m:  res = "number";   break;
+        case string_m:  res = "string";   break;
+        case bool_m:    res = "bool";     break;
+        case table_m:   res = "table";    break;
+        case userfunc_m:res = "userfunc"; break;
+        case libfunc_m: res = "libfunc";  break;
+        case nil_m:     res = "nil";      break;
+        case undef_m:   res = "undef";    break;
+        default:        res = "unknown";  break;
+    }
+    /* Push return value into retval_reg */
+    retval_reg->type = string_m;
+    retval_reg->data.strVal = strdup(res);
+}
+
+void libfunc_print(void) {
+    avm_memcell *nCell = &stack[topsp];
+
+    // Check if the first cell is a number and a valid count
+    if (nCell->type != number_m || 
+        nCell->data.numVal < 0 || 
+        nCell->data.numVal > STACK_SIZE - topsp - 1) {
+        avm_error("print: invalid number of arguments (%g)", nCell->data.numVal);
+        retval_reg->type = nil_m;
+        return;
+    }
+
+    unsigned n = (unsigned) nCell->data.numVal;
+
+    for (unsigned i = 1; i <= n; ++i) {
+        avm_memcell *arg = &stack[topsp + i];
+        char *s = avm_tostring(arg);
+        fputs(s, stdout);
+        if (i < n) putchar(' ');
+    }
+
+    putchar('\n');
+
+    retval_reg->type = nil_m;  // print returns nil
+    top = topsp;               // pop args off the stack
+}
+
+void libfunc_totalarguments(void) {
+    if (pc == 0) {
+        avm_error("totalarguments: called outside any function");
+        retval_reg->type = nil_m;
+        return;
+    }
+    double n = 0;
+    if (stack[topsp].type == number_m) {
+        n = stack[topsp].data.numVal;
+    }
+    retval_reg->type = number_m;
+    retval_reg->data.numVal = n;
+}
+
+void libfunc_argument(void) {
+    avm_memcell *idxCell = &stack[topsp + 1];
+    if (idxCell->type != number_m) {
+        avm_error("argument: index is not a number");
+        retval_reg->type = nil_m;
+        return;
+    }
+    int idx = (int)idxCell->data.numVal;
+    if (idx < 0) {
+        retval_reg->type = nil_m;
+        return;
+    }
+    /* The caller’s actual arguments begin at TOPSP+2. */
+    avm_memcell *argCell = &stack[topsp + 2 + idx];
+    if (argCell->type == undef_m || argCell->type == nil_m) {
+        retval_reg->type = nil_m;
+    } else {
+        /* Copy the value into retval_reg */
+        *retval_reg = *argCell;
+        if (argCell->type == string_m)
+            retval_reg->data.strVal = strdup(argCell->data.strVal);
+        else if (argCell->type == table_m)
+            avm_table_inc_ref(argCell->data.tableVal), retval_reg->data.tableVal = argCell->data.tableVal;
+    }
+}
+
+void execute_PUSHARG(instruction *instr) {
+    avm_memcell *source = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-1]);
+    if (!source) {
+        avm_error("PUSHARG: cannot translate argument");
+        return;
+    }
+    stack[top--] = *source;
+}
+
+/* ---------- Function‐Call Mechanics   ---------- */
+void execute_CALLFUNC(instruction *instr) {
+    avm_memcell *funcCell = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-1]);
+    if (!funcCell) avm_error("CALLFUNC: cannot translate operand");
+
+    if (funcCell->type == userfunc_m) {
+        /* -- existing userfunc handling unchanged -- */
+        /* push old_topsp, old_top, ret_addr; set topsp; jump... */
+    }
+    else if (funcCell->type == libfunc_m) {
+        /* Library-call frame: stack[topsp] == arg-count */
+        unsigned saved_topsp = topsp;
+        topsp = top + 1;                         /* first param is the count */
+        avm_calllibfunc(funcCell->data.libfuncVal);
+        topsp = saved_topsp;                     /* restore previous frame */
+        return;
+    }
+    else {
+        avm_error("CALLFUNC: trying to call a non-function type '%s'", avm_tostring(funcCell));
+    }
+}
+
+void execute_GETRET(instruction *instr) {
+    avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-2]);
+    if (!lv) avm_error("GETRET: cannot translate LHS");
+    /* Copy retval_reg into lv */
+    *lv = *retval_reg;
+    if (retval_reg->type == string_m)
+        lv->data.strVal = strdup(retval_reg->data.strVal);
+    else if (retval_reg->type == table_m)
+        avm_table_inc_ref(retval_reg->data.tableVal), lv->data.tableVal = retval_reg->data.tableVal;
+}
+
+void execute_FUNCENTER(instruction *instr) {
+    avm_memcell *numLocalsCell = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-3]);
+    if (numLocalsCell->type != number_m)
+        avm_error("FUNCENTER: #locals is not a number");
+    unsigned numLocals = (unsigned)numLocalsCell->data.numVal;
+    for (unsigned i = 0; i < numLocals; ++i) {
+        stack[top--].type = undef_m;
+    }
+}
+
+void execute_FUNCEXIT(instruction *instr) {
+    top = topsp;
+    double ret_addr = stack[top].data.numVal;    /* old return address */
+    double old_top  = stack[top+1].data.numVal;
+    double old_tops = stack[top+2].data.numVal;
+    top   = (unsigned)old_top;
+    topsp = (unsigned)old_tops;
+    pc    = (unsigned)ret_addr;
+}
+
+/* ---------- Arithmetic / Table / Assign / NOP ---------- */
+
+void execute_ADD(instruction *instr) {
+    avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-3]);
+    avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
+    avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
+    if (l->type != number_m || r->type != number_m)
+        avm_error("ADD: non‐numeric operands '%s' + '%s'", avm_tostring(l), avm_tostring(r));
+    lv->type = number_m;
+    lv->data.numVal = l->data.numVal + r->data.numVal;
+}
+
+void execute_SUB(instruction *instr) {
+    avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-3]);
+    avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
+    avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
+    if (l->type != number_m || r->type != number_m)
+        avm_error("SUB: non‐numeric operands '%s' - '%s'", avm_tostring(l), avm_tostring(r));
+    lv->type = number_m;
+    lv->data.numVal = l->data.numVal - r->data.numVal;
+}
+
+void execute_MUL(instruction *instr) {
+    avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-3]);
+    avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
+    avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
+    if (l->type != number_m || r->type != number_m)
+        avm_error("MUL: non‐numeric operands '%s' * '%s'", avm_tostring(l), avm_tostring(r));
+    lv->type = number_m;
+    lv->data.numVal = l->data.numVal * r->data.numVal;
+}
+
+void execute_DIV(instruction *instr) {
+    avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-3]);
+    avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
+    avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
+    if (l->type != number_m || r->type != number_m)
+        avm_error("DIV: non‐numeric operands '%s' / '%s'", avm_tostring(l), avm_tostring(r));
+    if (r->data.numVal == 0)
+        avm_error("DIV: division by zero");
+    lv->type = number_m;
+    lv->data.numVal = l->data.numVal / r->data.numVal;
+}
+
+void execute_MOD(instruction *instr) {
+    avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-3]);
+    // avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
+    // avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
+    avm_memcell *l  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
+    avm_memcell *r  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
+    if (l->type != number_m || r->type != number_m)
+        avm_error("MOD: non‐numeric operands '%s' %% '%s'", avm_tostring(l), avm_tostring(r));
+    if (r->data.numVal == 0)
+        avm_error("MOD: modulo by zero");
+    lv->type = number_m;
+    lv->data.numVal = fmod(l->data.numVal, r->data.numVal);
+}
+
+void execute_ASSIGN(instruction *instr) {
+    avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-2]);
+    avm_memcell *rv = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-1]);
+    if (lv == rv) return;
+    if (lv->type == string_m && lv->data.strVal) {
+        free(lv->data.strVal);
+    }
+    if (lv->type == table_m && lv->data.tableVal) {
+        avm_table_dec_ref(lv->data.tableVal);
+    }
+    *lv = *rv;
+    if (rv->type == string_m && rv->data.strVal)
+        lv->data.strVal = strdup(rv->data.strVal);
+    else if (rv->type == table_m) {
+        avm_table_inc_ref(rv->data.tableVal);
+        lv->data.tableVal = rv->data.tableVal;
+    }
+}
+
+void execute_NEWTABLE(instruction *instr) {
+    avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-1]);
+    lv->type = table_m;
+    lv->data.tableVal = avm_table_new();
+    avm_table_inc_ref(lv->data.tableVal);
+}
+
+void execute_TABLEGETELM(instruction *instr) {
+    avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-1]);
+    avm_memcell *tbl = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
+    avm_memcell *key = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-3]);
+    if (tbl->type != table_m)
+        avm_error("TABLEGETELM: first operand is not a table '%s'", avm_tostring(tbl));
+    avm_memcell *cell = avm_tablegetelem(tbl->data.tableVal, key);
+    if (!cell) {
+        lv->type = nil_m;
+    } else {
+        *lv = *cell;
+        if (cell->type == string_m && cell->data.strVal)
+            lv->data.strVal = strdup(cell->data.strVal);
+        else if (cell->type == table_m)
+            avm_table_inc_ref(cell->data.tableVal), lv->data.tableVal = cell->data.tableVal;
+    }
+}
+
+void execute_TABLESETELEM(instruction *instr) {
+    avm_memcell *tbl = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-3]);
+    avm_memcell *key = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-2]);
+    avm_memcell *val = avm_translate_operand(&instr->result, &stack[STACK_SIZE-1]);
+    if (tbl->type != table_m)
+        avm_error("TABLESETELEM: first operand is not a table '%s'", avm_tostring(tbl));
+    avm_tablesetelem(tbl->data.tableVal, key, val);
+}
+
+void execute_NOP(instruction *instr) {
+    /* do nothing */
+}
+
+#define CHECK_NUMERIC_OP(l, r, op) \
+    if ((l)->type != number_m || (r)->type != number_m) \
+        avm_error("%s: non‐numeric operands '%s' and '%s'", op, avm_tostring(l), avm_tostring(r))
+
+void execute_JEQ(instruction *instr) {
+    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
+    avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
+    int result = 0;
+    if (l->type == nil_m && r->type == nil_m) result = 1;
+    else if (l->type == bool_m && r->type == bool_m) result = (l->data.boolVal == r->data.boolVal);
+    else if (l->type == number_m && r->type == number_m) result = (l->data.numVal == r->data.numVal);
+    else if (l->type == string_m && r->type == string_m) result = (strcmp(l->data.strVal, r->data.strVal) == 0);
+    else if (l->type == table_m && r->type == table_m) result = (l->data.tableVal == r->data.tableVal);
+    else if (l->type == userfunc_m && r->type == userfunc_m) result = (l->data.funcVal == r->data.funcVal);
+    else if (l->type == libfunc_m && r->type == libfunc_m) result = (strcmp(l->data.libfuncVal, r->data.libfuncVal) == 0);
+    if (!result) pc = instr->result.value - 1; /* skip to label if false */
+}
+
+void execute_JNE(instruction *instr) {
+    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
+    avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
+    int result = 0;
+    if (l->type == nil_m && r->type == nil_m) result = 1;
+    else if (l->type == bool_m && r->type == bool_m) result = (l->data.boolVal == r->data.boolVal);
+    else if (l->type == number_m && r->type == number_m) result = (l->data.numVal == r->data.numVal);
+    else if (l->type == string_m && r->type == string_m) result = (strcmp(l->data.strVal, r->data.strVal) == 0);
+    else if (l->type == table_m && r->type == table_m) result = (l->data.tableVal == r->data.tableVal);
+    else if (l->type == userfunc_m && r->type == userfunc_m) result = (l->data.funcVal == r->data.funcVal);
+    else if (l->type == libfunc_m && r->type == libfunc_m) result = (strcmp(l->data.libfuncVal, r->data.libfuncVal) == 0);
+    if (result) pc = instr->result.value - 1; /* skip if equal */
+}
+
+void execute_JLE(instruction *instr) {
+    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
+    avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
+    CHECK_NUMERIC_OP(l, r, "JLE");
+    if (l->data.numVal > r->data.numVal) pc = instr->result.value - 1;
+}
+
+void execute_JLT(instruction *instr) {
+    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
+    avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
+    CHECK_NUMERIC_OP(l, r, "JLT");
+    if (l->data.numVal >= r->data.numVal) pc = instr->result.value - 1;
+}
+
+void execute_JGE(instruction *instr) {
+    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
+    avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
+    CHECK_NUMERIC_OP(l, r, "JGE");
+    if (l->data.numVal < r->data.numVal) pc = instr->result.value - 1;
+}
+
+void execute_JGT(instruction *instr) {
+    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
+    avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
+    CHECK_NUMERIC_OP(l, r, "JGT");
+    if (l->data.numVal <= r->data.numVal) pc = instr->result.value - 1;
+}
+
+void execute_AND(instruction *instr) {
+    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
+    avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
+    if (l->type != bool_m || r->type != bool_m)
+        avm_error("AND: non‐bool operands '%s' and '%s'", avm_tostring(l), avm_tostring(r));
+    if (!(l->data.boolVal && r->data.boolVal)) pc = instr->result.value - 1;
+}
+
+void execute_OR(instruction *instr) {
+    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
+    avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
+    if (l->type != bool_m || r->type != bool_m)
+        avm_error("OR: non‐bool operands '%s' and '%s'", avm_tostring(l), avm_tostring(r));
+    if (!(l->data.boolVal || r->data.boolVal)) pc = instr->result.value - 1;
+}
+
+void execute_NOT(instruction *instr) {
+    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-1]);
+    if (l->type != bool_m)
+        avm_error("NOT: non‐bool operand '%s'", avm_tostring(l));
+    if (!l->data.boolVal) pc = instr->result.value - 1;
+}
+
+void execute_NEG(instruction *instr) {
+    static avm_memcell lv_temp, rv_temp;
+    avm_memcell *lv = avm_translate_operand(&instr->result, &lv_temp);
+    avm_memcell *rv = avm_translate_operand(&instr->arg1, &rv_temp);
+    if (rv->type != number_m) {
+        avm_error("NEG: operand is not a number '%s'", avm_tostring(rv));
+        return;
+    }
+    lv->type = number_m;
+    lv->data.numVal = -rv->data.numVal;
+}
+
+static void load_numConsts(const char *filename) {
+    FILE *fp = fopen(filename, "rb");
+    if (!fp) avm_error("Cannot open %s", filename);
+    uint32_t count;
+    fread(&count, sizeof(count), 1, fp);
+    total_const_nums = count;
+    const_nums = malloc(count * sizeof(double));
+    fread(const_nums, sizeof(double), count, fp);
+    fclose(fp);
+}
+
+static void load_stringConsts(const char *filename) {
+    FILE *fp = fopen(filename, "rb");
+    if (!fp) avm_error("Cannot open %s", filename);
+    uint32_t count;
+    fread(&count, sizeof(count), 1, fp);
+    total_const_strs = count;
+    const_strs = malloc(count * sizeof(char*));
+    for (uint32_t i = 0; i < count; ++i) {
+        uint32_t len;
+        fread(&len, sizeof(len), 1, fp);
+        char *buf = malloc(len+1);
+        fread(buf, sizeof(char), len, fp);
+        buf[len] = '\0';
+        const_strs[i] = buf;
+    }
+    fclose(fp);
+}
+
+static void load_instructions(const char *filename) {
+    FILE *fp = fopen(filename, "rb");
+    if (!fp) avm_error("Cannot open %s", filename);
+    uint32_t instr_count;
+    fread(&instr_count, sizeof(instr_count), 1, fp);
+    total_instructions = instr_count;
+    code = malloc(instr_count * sizeof(instruction));
+    fread(code, sizeof(instruction), instr_count, fp);
+    fclose(fp);
+}
+
+static void register_libfuncs(void) {
+    avm_registerlibfunc("typeof",         libfunc_typeof);
+    avm_registerlibfunc("totalarguments", libfunc_totalarguments);
+    avm_registerlibfunc("argument",       libfunc_argument);
+    avm_registerlibfunc("print", libfunc_print);
+}
+
+void vm_init(void) {
+    load_numConsts("out_numConsts.bin");
+    load_stringConsts("out_stringConsts.bin");
+    load_instructions("out_instructions.bin");
+
+    /* Initialize everything to undef */
+    for (unsigned i = 0; i < STACK_SIZE; ++i)
+        stack[i].type = undef_m;
+    top   = STACK_SIZE - 1;
+    topsp = 0;
+    pc    = 0;
+
+    /* A single dedicated “retval” register */
+    retval_reg = malloc(sizeof(avm_memcell));
+    retval_reg->type = undef_m;
+
+    /* Register all built-in library functions: */
+    register_libfuncs();
+
+    for (unsigned i = 0; i < num_registered_libfuncs; ++i) {
+        avm_memcell *cell = &stack[0 + i];
+        cell->type = libfunc_m;
+        // strdup so the VM’s tostring() logic will pick up the name
+        cell->data.libfuncVal = strdup(libfunc_names_arr[i]);
+    }
+}
+
+bool pointer_in_array(void **arr, unsigned size, void *ptr) {
+    for (unsigned i = 0; i < size; ++i) {
+        if (arr[i] == ptr) return true;
+    }
+    return false;
+}
+
+void avm_destroy(void) {
+    void *freed_ptrs[total_const_strs + STACK_SIZE];    // to store freed pointers
+    unsigned freed_count = 0;
+
+    for (unsigned i = 0; i < total_const_strs; ++i) {
+        if (const_strs[i]) {
+            free(const_strs[i]);                        // free const_strs string
+            freed_ptrs[freed_count++] = const_strs[i];  // record freed pointers
+            const_strs[i] = NULL;
+        }
+    }
+    free(const_strs);
+    free(const_nums);
+    free(code);
+
+    // now we free stack strings only if not freed before
+    for (unsigned i = 0; i < STACK_SIZE; ++i) {
+        if (stack[i].type == table_m && stack[i].data.tableVal) {
+            avm_table_dec_ref(stack[i].data.tableVal);
+            stack[i].data.tableVal = NULL;
+        }
+        else if (stack[i].type == string_m && stack[i].data.strVal) {
+            if (!pointer_in_array(freed_ptrs, freed_count, stack[i].data.strVal)) {
+                free(stack[i].data.strVal);
+                freed_ptrs[freed_count++] = stack[i].data.strVal;
+            }
+            stack[i].data.strVal = NULL;
+        }
+    }
+
+    free(retval_reg);
+
+    for (unsigned i = 0; i < num_userfuncs; ++i) {
+        free(userfuncs[i].name);
+    }
+
+    for (unsigned i = 0; i < num_registered_libfuncs; ++i){
+        free((char*)libfunc_names_arr[i]);
+    }
+}
+
+void vm_run(void) {
+    while (pc < total_instructions) {
+        instruction *instr = &code[pc++];
+        switch (instr->opcode) {
+            case op_add:            execute_ADD(instr);           break;
+            case op_sub:            execute_SUB(instr);           break;
+            case op_mul:            execute_MUL(instr);           break;
+            case op_div:            execute_DIV(instr);           break;
+            case op_mod:            execute_MOD(instr);           break;
+            case op_newtable:       execute_NEWTABLE(instr);      break;
+            case op_tablegetelem:   execute_TABLEGETELM(instr);   break;
+            case op_tablesetelem:   execute_TABLESETELEM(instr);  break;
+            case op_assign:         execute_ASSIGN(instr);        break;
+            case op_nop:            execute_NOP(instr);           break;
+            case op_jeq:            execute_JEQ(instr);           break;
+            case op_jne:            execute_JNE(instr);           break;
+            case op_jle:            execute_JLE(instr);           break;
+            case op_jlt:            execute_JLT(instr);           break;
+            case op_jge:            execute_JGE(instr);           break;
+            case op_jgt:            execute_JGT(instr);           break;
+            case op_pusharg:        execute_PUSHARG(instr);       break;
+            case op_callfunc:       execute_CALLFUNC(instr);      break;
+            case op_getretval:      execute_GETRET(instr);        break;
+            case op_uminus:         execute_NEG(instr);           break;
+            default:
+                avm_error("Unknown opcode %d at pc=%u", instr->opcode, pc-1);
+        }
+    }
+}
+
+\al.l
+/**
+ * HY-340 Project Phase 3 2024-2025
+ *
+ * Members:
+ *      csd5171 Fytaki Maria
+ *      csd5310 Rafail Drakakis
+ *      csd5082 Theologos Kokkinellis
+ */
+
+%{
+#include "parser.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <assert.h>
+extern int yylineno;
+
+#define token_string_compare(val1, val2) strcmp((val1), (val2))
+
+void print_unclosed_comment_error();
+void push_string(int line);
+int pop_string();
+int isStringStackEmpty();
+void print_unclosed_string_error();
+
+typedef struct StackNode {
+    int line;
+    int has_nested;
+    struct StackNode* next;
+} StackNode;
+
+typedef struct Stack {
+    StackNode* top;
+} Stack;
+
+Stack commentStack;
+Stack stringStack;
+
+/* Token Structure */
+typedef struct alpha_token_t {
+    unsigned int line_number;
+    unsigned int token_number;
+    char *content;
+    char *token_type;
+    char *data_type;
+    struct alpha_token_t *next_t;
+} alpha_token_t;
+
+alpha_token_t* list_head = NULL;
+int counter_tk_number = 0;
+int comment_line_start = 0;
+int comment_line_end = 0;
+int comment_nested = 0;
+int string_line_start = 0;
+
+/* Function to insert tokens into the list */
+void insert_token(int line, const char* text, const char* type, const char* type_of_data) {
+    alpha_token_t* new_token = (alpha_token_t*)malloc(sizeof(alpha_token_t));
+    new_token->line_number = line;
+    new_token->token_number = ++counter_tk_number;
+    new_token->content = strdup(text);
+    new_token->token_type = strdup(type);
+    new_token->data_type = strdup(type_of_data);
+    new_token->next_t = NULL;
+
+    if (!list_head) {
+        list_head = new_token;
+    } else {
+        alpha_token_t* temp = list_head;
+        while (temp->next_t)
+            temp = temp->next_t;
+        temp->next_t = new_token;
+    }
+}
+
+void initStack(Stack* stack) {
+    stack->top = NULL;
+}
+
+void push(Stack* stack, int line) {
+    StackNode* newNode = (StackNode*)malloc(sizeof(StackNode));
+    if (!newNode) {
+        fprintf(stderr, "Memory allocation error in push()\n");
+        exit(EXIT_FAILURE);
+    }
+    newNode->line = line;
+    newNode->has_nested = 0;	// in the begining default is that these is no nested comment 
+    newNode->next = stack->top;
+    stack->top = newNode;
+}
+
+int pop(Stack* stack) {
+    if (!stack->top) return -1;  // Stack empty
+    StackNode* temp = stack->top;
+    int line = temp->line;
+    stack->top = stack->top->next;
+    free(temp);
+    return line;
+}
+
+int isStackEmpty(Stack* stack) {
+    return stack->top == NULL;
+}
+
+void freeStack(Stack* stack) {
+    while (!isStackEmpty(stack)) {
+        pop(stack);
+    }
+}
+
+/* Free Token List */
+void free_token_list() {
+    alpha_token_t* temp;
+    while (list_head) {
+        temp = list_head;
+        list_head = list_head->next_t;
+        free(temp->content);
+        free(temp->token_type);
+        free(temp->data_type);
+        free(temp);
+    }
+}
+
+%}
+
+%option yylineno
+%option noyywrap
+
+/* for block comments, before %% */
+%x COMMENT
+
+/* for strings, before %% */
+%x STRING_MODE
+
+/* Regular Expressions */
+id          [a-zA-Z][a-zA-Z_0-9]*
+intconst    (0[xX][0-9A-Fa-f]+)|([0-9]+)
+realconst   [0-9]+\.[0-9]+(e[+-]?[0-9]+)?
+string      \"([^\\n"\\]|\\t|\\n|\\\"|\\\\|\\.)*\"
+whitespace  [ \t\r\n]+
+comment1    \/\/.*
+operator    (\+|\-|\*|\/|=|%|\+\+|\-\-|==|!=|>|<|>=|<=|&&|\|\|)
+keyword     (function|while|for|if|else|continue|break|return|and|or|not|local|true|false|nil)
+punctuation (:|\.|\{|\}|\[|\]|\(|\)|;|,)
+
+%%
+{keyword} {
+    if (!token_string_compare(yytext, "if"))            { insert_token(yylineno, yytext, "KEYWORD IF", "enumerated"); return IF; }
+    else if (!token_string_compare(yytext, "else"))     { insert_token(yylineno, yytext, "KEYWORD ELSE", "enumerated"); return ELSE; }
+    else if (!token_string_compare(yytext, "while"))    { insert_token(yylineno, yytext, "KEYWORD WHILE", "enumerated"); return WHILE; }
+    else if (!token_string_compare(yytext, "for"))      { insert_token(yylineno, yytext, "KEYWORD FOR", "enumerated"); return FOR; }
+    else if (!token_string_compare(yytext, "function")) { insert_token(yylineno, yytext, "KEYWORD FUNCTION", "enumerated"); return FUNCTION; }
+    else if (!token_string_compare(yytext, "return"))   { insert_token(yylineno, yytext, "KEYWORD RETURN", "enumerated"); return RETURN; }
+    else if (!token_string_compare(yytext, "break"))    { insert_token(yylineno, yytext, "KEYWORD BREAK", "enumerated"); return BREAK; }
+    else if (!token_string_compare(yytext, "continue")) { insert_token(yylineno, yytext, "KEYWORD CONTINUE", "enumerated"); return CONTINUE; }
+    else if (!token_string_compare(yytext, "and"))      { insert_token(yylineno, yytext, "KEYWORD AND", "enumerated"); return AND; }
+    else if (!token_string_compare(yytext, "not"))      { insert_token(yylineno, yytext, "KEYWORD NOT", "enumerated"); return NOT; }
+    else if (!token_string_compare(yytext, "or"))       { insert_token(yylineno, yytext, "KEYWORD OR", "enumerated"); return OR; }
+    else if (!token_string_compare(yytext, "local"))    { insert_token(yylineno, yytext, "KEYWORD LOCAL", "enumerated"); return LOCAL; }
+    else if (!token_string_compare(yytext, "true"))     { insert_token(yylineno, yytext, "KEYWORD TRUE", "enumerated"); return TRUE; }
+    else if (!token_string_compare(yytext, "false"))    { insert_token(yylineno, yytext, "KEYWORD FALSE", "enumerated"); return FALSE; }
+    else if (!token_string_compare(yytext, "nil"))      { insert_token(yylineno, yytext, "KEYWORD NIL", "enumerated"); return NIL; }
+    else {
+        insert_token(yylineno, yytext, "KEYWORD", "enumerated");
+    }
+    return 1;
+}
+
+{operator} {
+    if (!token_string_compare(yytext, "+"))        { insert_token(yylineno, yytext, "OPERATOR PLUS", "enumerated"); return PLUS; }
+    else if (!token_string_compare(yytext, "-"))   { insert_token(yylineno, yytext, "OPERATOR MINUS", "enumerated"); return MINUS; }
+    else if (!token_string_compare(yytext, "*"))   { insert_token(yylineno, yytext, "OPERATOR MULT", "enumerated"); return MULTIPLY; }
+    else if (!token_string_compare(yytext, "/"))   { insert_token(yylineno, yytext, "OPERATOR DIVIDE", "enumerated"); return DIVIDE; }
+    else if (!token_string_compare(yytext, "%"))   { insert_token(yylineno, yytext, "OPERATOR MODULO", "enumerated"); return MODULO; }
+    else if (!token_string_compare(yytext, "++"))  { insert_token(yylineno, yytext, "OPERATOR PLUS_PLUS", "enumerated"); return PLUS_PLUS; }
+    else if (!token_string_compare(yytext, "--"))  { insert_token(yylineno, yytext, "OPERATOR MINUS_MINUS", "enumerated"); return MINUS_MINUS; }
+    else if (!token_string_compare(yytext, "="))   { insert_token(yylineno, yytext, "OPERATOR ASSIGNMENT", "enumerated"); return ASSIGNMENT; }
+    else if (!token_string_compare(yytext, "=="))  { insert_token(yylineno, yytext, "OPERATOR EQUAL_EQUAL", "enumerated"); return EQUAL_EQUAL; }
+    else if (!token_string_compare(yytext, "!="))  { insert_token(yylineno, yytext, "OPERATOR NOT_EQUAL", "enumerated"); return NOT_EQUAL; }
+    else if (!token_string_compare(yytext, ">"))   { insert_token(yylineno, yytext, "OPERATOR GREATER_THAN", "enumerated"); return GREATER_THAN;}
+    else if (!token_string_compare(yytext, "<"))   { insert_token(yylineno, yytext, "OPERATOR LESS_THAN", "enumerated"); return LESS_THAN; }
+    else if (!token_string_compare(yytext, ">="))  { insert_token(yylineno, yytext, "OPERATOR GREATER_EQUAL", "enumerated"); return GREATER_EQUAL; }
+    else if (!token_string_compare(yytext, "<="))  { insert_token(yylineno, yytext, "OPERATOR LESS_EQUAL", "enumerated"); return LESS_EQUAL; }
+    else if (!token_string_compare(yytext, "&&"))  { insert_token(yylineno, yytext, "OPERATOR AND", "enumerated"); return AND; }
+    else if (!token_string_compare(yytext, "||"))  { insert_token(yylineno, yytext, "OPERATOR OR", "enumerated"); return OR; }
+    else {
+        /* If none of the above operators doesnt match then just store it as a general OPERATOR. */
+        insert_token(yylineno, yytext, "OPERATOR", "enumerated");
+    }
+    return 1;
+}
+
+"::" { insert_token(yylineno, yytext, "PUNCTUATION COLON_COLON", "enumerated"); return COLON_COLON; }
+".." { insert_token(yylineno, yytext, "PUNCTUATION DOT_DOT", "enumerated"); return DOT_DOT; 
+
+/* due to ascii 46 error for ".." i split these into top level rules */ }
+
+
+{punctuation} {
+    if (!token_string_compare(yytext, "("))       { insert_token(yylineno, yytext, "PUNCTUATION LEFT_PARENTHESIS", "enumerated"); return LEFT_PARENTHESIS; }
+    else if (!token_string_compare(yytext, ")"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_PARENTHESIS", "enumerated"); return RIGHT_PARENTHESIS;  }
+    else if (!token_string_compare(yytext, "["))  { insert_token(yylineno, yytext, "PUNCTUATION LEFT_BRACKET", "enumerated"); return LEFT_BRACKET; }
+    else if (!token_string_compare(yytext, "]"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_BRACKET", "enumerated"); return RIGHT_BRACKET; }
+    else if (!token_string_compare(yytext, "{"))  { insert_token(yylineno, yytext, "PUNCTUATION LEFT_BRACE", "enumerated"); return LEFT_BRACE; }
+    else if (!token_string_compare(yytext, "}"))  { insert_token(yylineno, yytext, "PUNCTUATION RIGHT_BRACE", "enumerated"); return RIGHT_BRACE; }
+    else if (!token_string_compare(yytext, ";"))  { insert_token(yylineno, yytext, "PUNCTUATION SEMICOLON", "enumerated"); return SEMICOLON;}
+    else if (!token_string_compare(yytext, "."))  { insert_token(yylineno, yytext, "PUNCTUATION DOT", "enumerated"); return DOT; }
+    else if (!token_string_compare(yytext, ":"))  { insert_token(yylineno, yytext, "PUNCTUATION COLON", "enumerated"); return COLON; }
+    else if (!token_string_compare(yytext, ","))  { insert_token(yylineno, yytext, "PUNCTUATION COMMA", "enumerated"); return COMMA; }
+    else {
+        insert_token(yylineno, yytext, "PUNCTUATION", "enumerated");
+    }
+    return 1;
+}
+
+{id}          { yylval.stringValue = strdup(yytext); return IDENTIFIER; }
+{intconst}    { yylval.intValue = atoi(yytext); return INTCONST; }
+{realconst}   { yylval.realValue = atof(yytext); return REALCONST; }
+
+{string} {
+    char *processed_str = strdup(yytext);
+    
+    // Remove outer quotes
+    processed_str[strlen(processed_str) - 1] = '\0';
+    memmove(processed_str, processed_str + 1, strlen(processed_str));
+
+    // Replace escape sequences
+    for (int i = 0; processed_str[i]; i++) {
+        if (processed_str[i] == '\\' && processed_str[i + 1]) {
+            char replacement_regex;
+            if (processed_str[i + 1] == 't') {
+                replacement_regex = '\t';
+            } else if (processed_str[i + 1] == 'n') {
+                replacement_regex = '\n';
+            } else if (processed_str[i + 1] == '"') {
+                replacement_regex = '"';
+            } else if (processed_str[i + 1] == '\\') {
+                replacement_regex = '\\';
+            } else {
+                // If the escape sequence is unrecognized, leave it as is.
+                continue;
+            }
+            processed_str[i] = replacement_regex;
+            memmove(&processed_str[i + 1], &processed_str[i + 2],
+                    strlen(&processed_str[i + 2]) + 1);
+        }
+    }
+
+    insert_token(yylineno, processed_str, "STRING", "char*");
+    yylval.stringValue = processed_str;
+    return STRING;
+}
+
+{comment1}    {insert_token(yylineno, yytext, "COMMENT LINE_COMMENT", "enumerated"); }
+
+"/*" {	
+    push(&commentStack, yylineno);
+    comment_nested++;
+    BEGIN(COMMENT);
+}
+
+<COMMENT>"/*" {
+    if (commentStack.top != NULL) {
+        commentStack.top->has_nested = 1;
+    }
+    push(&commentStack, yylineno);
+    comment_nested++;
+}
+
+<COMMENT>. {
+}
+
+<COMMENT>"*/" {
+    if (comment_nested > 0) {
+        int startLine = commentStack.top->line;
+        int was_nested = commentStack.top->has_nested;
+        pop(&commentStack);
+        comment_nested--;
+
+        comment_line_end = yylineno;
+        const char* label = (commentStack.top != NULL) ? "Nested Comment" : "Comment";
+        int msg_size = snprintf(NULL, 0, "%s %d - %d", label, startLine, comment_line_end) + 1;
+        char *comment_msg = (char *)malloc(msg_size);
+        if (comment_msg) {
+            snprintf(comment_msg, msg_size, "%s %d - %d", label, startLine, comment_line_end);
+            insert_token(startLine, comment_msg, "COMMENT BLOCK_COMMENT", "enumerated");
+            free(comment_msg);
+        }
+        if (isStackEmpty(&commentStack)){
+            BEGIN(INITIAL);
+        }
+    }
+}           
+
+<COMMENT>\n { 
+    comment_line_end = yylineno; 
+}
+
+<COMMENT><<EOF>> {
+    print_unclosed_comment_error();
+    yyterminate();
+}
+
+\" {
+    push_string(yylineno);
+    BEGIN(STRING_MODE);
+}
+
+<STRING_MODE>[^"\\\n]+ { yymore(); }
+<STRING_MODE>\\.       { yymore(); }
+
+<STRING_MODE>\" {
+    int startLine = pop_string();
+    if (startLine != -1) {
+        char *processed_str = strdup(yytext);
+        int len = strlen(processed_str);
+
+        if (len > 0 && processed_str[len - 1] == '"') {
+            processed_str[len - 1] = '\0';
+        }
+
+        if (processed_str[0] == '"') {
+            memmove(processed_str, processed_str + 1, strlen(processed_str));
+        }
+
+        for (int i = 0; processed_str[i]; i++) {
+            if (processed_str[i] == '\\' && processed_str[i + 1]) {
+                char replacement_char;
+                if (processed_str[i + 1] == 't') {
+                    replacement_char = '\t';
+                } else if (processed_str[i + 1] == 'n') {
+                    replacement_char = '\n';
+                } else if (processed_str[i + 1] == '"') {
+                    replacement_char = '"';
+                } else if (processed_str[i + 1] == '\\') {
+                    replacement_char = '\\';
+                } else {
+                    continue;
+                }
+                processed_str[i] = replacement_char;
+                memmove(&processed_str[i + 1],
+                        &processed_str[i + 2],
+                        strlen(&processed_str[i + 2]) + 1);
+            }
+        }
+
+        insert_token(startLine, processed_str, "STRING", "char*");
+        free(processed_str);
+    }
+    BEGIN(INITIAL);
+}
+
+<STRING_MODE>\n {
+    int startLine = pop_string();
+    if (startLine != -1) {
+        int msg_size = snprintf(NULL, 0, "ERROR UNCLOSED STRING AT LINE %d", startLine) + 1;
+        char *error_msg = (char *)malloc(msg_size);
+        if (error_msg) {
+            snprintf(error_msg, msg_size, "ERROR UNCLOSED STRING AT LINE %d", startLine);
+            insert_token(startLine, error_msg, "ERROR", "enumerated");
+            free(error_msg);
+        }
+    }
+    int c;
+    while ((c = input()) != '\n' && c != EOF) {}
+    BEGIN(INITIAL);
+}
+
+<STRING_MODE><<EOF>> {
+    while (!isStringStackEmpty()) {
+        int startLine = pop_string();
+        if (yyleng > 0 && yytext[yyleng - 1] == '\\') {
+            int msg_size = snprintf(NULL, 0, "ERROR UNCLOSED STRING AT LINE %d (trailing backslash)", startLine) + 1;
+            char *error_msg = (char *)malloc(msg_size);
+            if (error_msg) {
+                snprintf(error_msg, msg_size, "ERROR UNCLOSED STRING AT LINE %d (trailing backslash)", startLine);
+                insert_token(startLine, error_msg, "ERROR", "enumerated");
+                free(error_msg);
+            }
+        } else {
+            int msg_size = snprintf(NULL, 0, "ERROR UNCLOSED STRING AT LINE %d", startLine) + 1;
+            char *error_msg = (char *)malloc(msg_size);
+            if (error_msg) {
+                snprintf(error_msg, msg_size, "ERROR UNCLOSED STRING AT LINE %d", startLine);
+                insert_token(startLine, error_msg, "ERROR", "enumerated");
+                free(error_msg);
+            }
+        }
+    }
+    BEGIN(INITIAL);
+    yyterminate();
+}
+
+{whitespace}  {  }
+
+.   { 
+    int msg_size = snprintf(NULL, 0, "ERROR UNDEFINED CHARACTER AT LINE %d", yylineno) + 1;
+    char *error_msg = (char *)malloc(msg_size);
+    if (error_msg) {
+        snprintf(error_msg, msg_size, "ERROR UNDEFINED CHARACTER AT LINE %d", yylineno);
+        insert_token(yylineno, yytext, error_msg, "enumerated");
+        free(error_msg);
+    }
+}
+
+%%
+
+void print_unclosed_comment_error() {
+    while (!isStackEmpty(&commentStack)) {
+        int startLine = pop(&commentStack);
+        int msg_size = snprintf(NULL, 0, "ERROR UNCLOSED COMMENT STARTED AT %d", startLine) + 1;
+        char *error_msg = (char *)malloc(msg_size);
+        if (error_msg) {
+            snprintf(error_msg, msg_size, "ERROR UNCLOSED COMMENT STARTED AT %d", startLine);
+            insert_token(startLine, error_msg, "ERROR", "enumerated");
+            free(error_msg);
+        }
+    }
+}
+
+void push_string(int line) {
+    push(&stringStack, line);
+}
+
+int pop_string() {
+    return pop(&stringStack);
+}
+
+int isStringStackEmpty() {
+    return isStackEmpty(&stringStack);
+}
+
+void print_unclosed_string_error() {
+    while (!isStackEmpty(&stringStack)) {
+        int startLine = pop(&stringStack);
+        int msg_size = snprintf(NULL, 0, "ERROR UNCLOSED STRING AT LINE %d", startLine) + 1;
+        char *error_msg = (char *)malloc(msg_size);
+        if (error_msg) {
+            snprintf(error_msg, msg_size, "ERROR UNCLOSED STRING AT LINE %d", startLine);
+            insert_token(startLine, error_msg, "ERROR", "enumerated");
+            free(error_msg);
+        }
+    }
+}
+\quads.c
+/**
+ * HY-340 Project Phase 3 2024-2025
+ *
+ * Members:
+ *      csd5171 Fytaki Maria
+ *      csd5310 Rafail Drakakis
+ *      csd5082 Theologos Kokkinellis
+ */
+
+#include <stdio.h>
+#include <string.h>
+#include <stdint.h> // uintptr_t
+#include "quads.h"
+#include "symbol_table.h"
+
+/* ── forward declarations for helpers used later ── */
+static void print_number_to_buf(char *buf, size_t sz, double n);
+static const char *bool_str(unsigned char b);
+/* ------------------------------------------------------ */
+
+unsigned programVarOffset = 0;
+unsigned functionLocalOffset = 0;
+unsigned formalArgOffset = 0;
+unsigned scopeSpaceCounter = 1;
+unsigned total = 0;
+unsigned int currQuad = 0;
+static unsigned tempcounter = 0;
+
+extern unsigned int checkScope;
+extern int yyparse();
+extern FILE *yyin;
+
+
+static struct lc_stack_t *lcs_top = 0;
+static struct lc_stack_t *lcs_bottom = 0;
+
+static unsigned loop_id_counter = 1;
+
+unsigned loopcounter(void) {
+    if (lcs_top != NULL) {
+        return lcs_top->counter;
+    } else {
+        return 0;
+    }
+}
+
+/**
+ * we made push_loopcounter() and 
+ * pop_loopcounter() scope-aware and 
+ * we reset when entering/exiting functions
+ * in enter_function_scope()
+ */
+
+
+void push_loopcounter(void) {
+    struct lc_stack_t* new_node = malloc(sizeof(struct lc_stack_t));
+    if (!new_node) {
+        debug(1, "Memory allocation failed in push_loopcounter\n");
+        exit(EXIT_FAILURE);
+    }
+    new_node->counter = loop_id_counter++;
+    new_node->breaklist = 0;
+    new_node->contlist = 0;
+    new_node->next = lcs_top;
+    lcs_top = new_node;
+}
+
+void pop_loopcounter(void) {
+    if (!lcs_top) return;
+    struct lc_stack_t* temp = lcs_top;
+    lcs_top = lcs_top->next;
+    free(temp);
+}
+
+struct lc_stack_t *current_loop(void) { return lcs_top; }
+
+unsigned int currscope(void) {
+    return checkScope;
+}
+
+void expand(void) {
+    assert(total == currQuad);
+    quad *p = NULL;
+    
+    if (!quads) {
+        p = (quad *)malloc(NEW_SIZE);
+        if (!p) {
+            debug(1, "memory allocation failed in expand\n");
+            exit(EXIT_FAILURE);
+        }
+        total = EXPAND_SIZE;
+    }
+    else {
+        p = (quad *)malloc(NEW_SIZE);
+        if (!p) {
+            debug(1, "memory allocation failed in expand\n");
+            exit(EXIT_FAILURE);
+        }
+        memcpy(p, quads, CURR_SIZE);
+        free(quads);
+        total += EXPAND_SIZE;
+    }
+    quads = p;
+}
+
+static const char *op_to_str(iopcode op) {
+    static const char *name[] = {
+        "assign", "add", "sub", "mul", "idiv", "mod",
+        "uminus", "and", "or", "not",
+        "if_eq", "if_noteq", "if_lesseq", "if_greatereq", "if_less", "if_greater",
+        "jump", "call", "param", "ret", "getretval",
+        "funcstart", "funcend", "tablecreate", "tablegetelem", "tablesetelem"
+    };
+
+    return name[op];
+}
+
+static const char *expr_to_str_buf(expr *e, char *buf, size_t bufsize) {
+    if (!e) {
+        snprintf(buf, bufsize, "nil");
+        return buf;
+    }
+
+    /* 1. Types that do not depend on sym */
+    switch (e->type) {
+        case constnum_e:
+            print_number_to_buf(buf, bufsize, e->numConst);
+            return buf;
+        case conststring_e:
+            snprintf(buf, bufsize, "\"%s\"", e->strConst);
+            return buf;
+        case constbool_e:
+            snprintf(buf, bufsize, "%s", bool_str(e->boolConst));
+            return buf;
+        case nil_e:
+            snprintf(buf, bufsize, "NIL");
+            return buf;
+        default:
+            break;
+    }
+    
+    if (!e->sym) {
+        snprintf(buf, bufsize, "anonymous");
+        return buf;
+    }
+
+    switch (e->type) {
+    case var_e:
+    case tableitem_e:
+    case arithexpr_e:
+    case assignexpr_e:
+        snprintf(buf, bufsize, "%s", e->sym->name);
+        break;
+    case programfunc_e:
+    case libraryfunc_e:
+        // snprintf(buf, bufsize, "%s()", e->sym->name);
+        snprintf(buf, bufsize, "%s", e->sym->name);
+        break;
+    case newtable_e:
+        snprintf(buf, bufsize, "[table]");
+        break;
+    default:
+        snprintf(buf, bufsize, "UNKNOWN");
+        break;
+    }
+    return buf;
+}
+
+void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsigned line) {
+    // Debug output for critical quads
+    if (currQuad >= 48 && currQuad <= 55) {
+        debug(1, "About to emit quad %d - op: %s\n", currQuad+1, op_to_str(op));
+        if (arg1) debug(1, "  arg1 type: %d, addr: %p\n", arg1->type, (void*)arg1);
+        if (result) {
+            debug(1, "  result type: %d, addr: %p\n", result->type, (void*)result);
+            if (result->sym) debug(1, "  result sym: %s\n", result->sym->name);
+        }
+    }
+    
+    if (arg1 && !arg1->sym &&
+        (arg1->type != constnum_e &&
+        arg1->type != conststring_e &&
+        arg1->type != constbool_e &&
+        arg1->type != newtable_e)) {
+        debug(1, "Warning: Expression without symbol (type %d) at line %d\n", arg1->type, line);
+        arg1->sym = newtemp();
+    }
+
+    if (arg2 && !arg2->sym &&
+        (arg2->type != constnum_e &&
+        arg2->type != conststring_e &&
+        arg2->type != constbool_e &&
+        arg2->type != newtable_e)) { 
+        debug(1, "Warning: Expression without symbol (type %d) at line %d\n", arg2->type, line);
+        arg2->sym = newtemp();
+    }
+
+    if (result && !result->sym) {
+        // let's only warn if it's not an arithmetic or assign expression since temp results are expected here
+        if (result->type != arithexpr_e 
+            && result->type != assignexpr_e 
+            && result->type != var_e 
+            && result->type != boolexpr_e
+            && result->type != tableitem_e && result->type != newtable_e) {
+                    debug(1, "Warning: Result without symbol (type %d) at line %d\n", result->type, line);
+        }
+    result->sym = newtemp();
+    }
+    
+    // Special handling for boolean expressions in assign operations
+    if (op == assign && arg1 && arg1->type == boolexpr_e) {
+        // If the boolean expression doesn't have a symbol, create a temporary one
+        if (!arg1->sym) {
+            debug(1, "Warning: Boolean expression without symbol in assign operation (line %d)\n", line);
+            
+            // Create a new temporary expression with a symbol
+            expr *temp = newexpr(var_e);
+            temp->sym = newtemp();
+            
+            // Create a boolean constant to assign to the temporary
+            expr *boolval = newexpr_constbool(0);
+            
+            // Emit a separate quad for this assignment
+            if (currQuad < total) {
+                quad *q = quads + currQuad++;
+                q->op = assign;
+                q->arg1 = boolval;
+                q->arg2 = NULL;
+                q->result = temp;
+                q->label = 0;
+                q->line = line;
+            }
+            
+            // Use this temporary instead of the original arg1
+            arg1 = temp;
+        }
+    }
+    
+    // Safety check for NULL or nil expressions in critical operations
+    if ((op == if_eq || op == if_noteq || op == if_lesseq || op == if_greatereq || 
+         op == if_less || op == if_greater) && 
+        (arg1 == NULL || arg2 == NULL || 
+         (arg1 && arg1->type == nil_e) || 
+         (arg2 && arg2->type == nil_e))) {
+        debug(1, "Warning: Skipping unsafe boolean operation at line %d\n", line);
+        return; // Skip this quad entirely
+    }
+
+    // Check for required arguments based on opcode
+    switch (op) {
+        // Operations requiring result
+        case assign:
+        case add:
+        case sub:
+        case mul:
+        case idiv:
+        case mod:
+        case uminus:
+        case and:
+        case or:
+        case not:
+        case getretval:
+            if (result == NULL) {
+                debug(1, "Error: NULL result in emit() for opcode that requires result (line %d)\n", line);
+                return;
+            }
+            break;
+        case tablecreate:
+        case tablegetelem:
+            if (result == NULL) {
+                debug(1, "Error: NULL result in emit() for opcode that requires result (line %d)\n", line);
+                return;
+            }
+            break;
+        // Operations requiring arg1
+        case if_eq:
+        case if_noteq:
+        case if_lesseq:
+        case if_greatereq:
+        case if_less:
+        case if_greater:
+        case param:
+        case call:
+            if (arg1 == NULL) {
+                debug(1, "Error: NULL arg1 in emit() for opcode that requires arg1 (line %d)\n", line);
+                return;
+            }
+            break;
+        // Operations requiring both arg1 and arg2
+        case tablesetelem:
+            if (arg1 == NULL || arg2 == NULL) {
+                fprintf(stderr, "Error: NULL arg1 or arg2 in emit() for opcode that requires both (line %d)\n", line);
+                return;
+            }
+            break;
+        default:
+            break;
+    }
+
+    // ensure we have space for the new quad
+    if (currQuad == total)
+        expand();
+
+    // create the new quad
+    quad *q = quads + currQuad++;
+    q->op = op;
+    if (op == tablesetelem) {
+        q->arg1 = arg2;  // index
+        q->arg2 = arg1;  // value
+    } else {
+        q->arg1 = arg1;
+        q->arg2 = arg2;
+    }
+    q->result = result;
+    q->label = label;
+    q->line = line;
+}
+
+unsigned nextquad(void) {
+    return currQuad;
+}
+
+void patchlabel(unsigned quadNo, unsigned label) {
+    // Add comprehensive safety checks
+    if (quadNo >= currQuad) {
+        fprintf(stderr, "Error: patchlabel: quadNo (%u) >= currQuad (%u) at line %d\n", quadNo, currQuad, yylineno);
+        return;
+    }
+    
+    // Make sure quads array is valid
+    if (!quads) {
+        fprintf(stderr, "Error: quads array is NULL in patchlabel\n");
+        return;
+    }
+    
+    debug(1, "Patching quad %u with label %u\n", quadNo, label);
+    quads[quadNo].label = label;
+}
+
+/* Scoping */
+
+scopespace_t currscopespace(void) {
+    if (scopeSpaceCounter == 1) {
+        return programvar;
+    } else if (scopeSpaceCounter % 2 == 0) {
+        return formalarg;
+    } else {
+        return functionlocal;
+    }
+}
+
+unsigned currscopeoffset(void) {
+    switch (currscopespace())
+    {
+    case programvar:
+        return programVarOffset;
+    case functionlocal:
+        return functionLocalOffset;
+    case formalarg:
+        return formalArgOffset;
+    default:
+        assert(0);
+    }
+}
+
+void inccurrscopeoffset(void) {
+    switch (currscopespace())
+    {
+    case programvar:
+        ++programVarOffset;
+        break;
+    case functionlocal:
+        ++functionLocalOffset;
+        break;
+    case formalarg:
+        ++formalArgOffset;
+        break;
+    default:
+        assert(0);
+    }
+}
+
+void enterscopespace(void) {
+    ++scopeSpaceCounter;
+}
+
+void exitscopespace(void) {
+    assert(scopeSpaceCounter > 1);
+    --scopeSpaceCounter;
+}
+
+/* Expressions */
+
+expr *newexpr(expr_t t) {
+    expr *e = (expr *)malloc(sizeof(expr));
+    if (!e) {
+        fprintf(stderr, "Out of memory\n");
+        exit(EXIT_FAILURE);
+    }
+    memset(e, 0, sizeof(expr));
+    e->type = t;
+    e->sym = NULL;
+    
+    // for nil expressions, ensure they have safe default values
+    if (t == nil_e) {
+        e->sym = newtemp();
+    }
+    // FOR newtable_e, ALWAYS ASSIGN A SYMBOL!
+    if (t == newtable_e) {
+        e->sym = newtemp();
+    }
+    return e;
+}
+
+expr *newexpr_constnum(double i) {
+    expr *e = newexpr(constnum_e);
+    e->numConst = i;
+    return e;
+}
+
+expr* newexpr_conststring(char* s) {
+    if (!s || ((uintptr_t)s) < 0x1000) { // Super-low address = likely error
+        fprintf(stderr, "BUG: newexpr_conststring called with bad pointer %p\n", s);
+        exit(1); // or exit(1)
+    }
+    expr* e = newexpr(conststring_e);
+    e->strConst = strdup(s);
+    return e;
+}
+
+
+expr *newexpr_constbool(unsigned int b)
+{
+    expr *e = newexpr(constbool_e);
+    e->boolConst = !!b;
+    /* constants never need a symbol */
+    return e;
+}
+
+char *newtempname(void) {
+    char *name = malloc(16);
+    sprintf(name, "_t%u", tempcounter++);
+    return name;
+}
+
+SymbolTableEntry *newtemp(void) {
+    char *name = newtempname();
+    SymbolTableEntry *sym = lookup_symbol(symbol_table, name, currscope(), 0);
+    if (!sym)
+    {
+        insert_symbol(symbol_table, name, TEMP_VAR, yylineno, currscope());
+        sym = lookup_symbol(symbol_table, name, currscope(), 0);
+    }
+    return sym;
+}
+
+void resettemp(void) {
+    tempcounter = 0;
+}
+
+unsigned int istempname(char *s) {
+    return *s == '_';
+}
+
+unsigned int istempexpr(expr *e) {
+    return e && e->sym && istempname(e->sym->name);
+}
+
+expr *lvalue_expr(SymbolTableEntry *sym) {
+    if (!sym) {
+        fprintf(stderr, "FATAL: NULL symbol passed to lvalue_expr (likely undeclared variable) at line %d\n", yylineno);
+        assert(0);
+    }
+    expr *e = newexpr(var_e);
+    e->sym = sym;
+
+    switch (sym->type) {
+        case GLOBAL:
+        case LOCAL_VAR:
+        case ARGUMENT:
+        case TEMP_VAR:
+            e->type = var_e;
+            break;
+        case USER_FUNCTION:
+            e->type = programfunc_e;
+            break;
+        case LIBRARY_FUNCTION:
+            e->type = libraryfunc_e;
+            break;
+        default:
+            fprintf(stderr, "Error: Unknown symbol type %d for symbol '%s' at line %d\n", sym->type, sym->name, sym->line_number);
+            assert(0); // for debugging
+    }
+
+    return e;
+}
+
+/* Helper function to emit PARAM quads right-to-left */
+static void emit_params_rev(expr *p) {
+    if (!p) return;
+    emit_params_rev(p->next);           /* go to list tail first */
+    emit(param, p, NULL, NULL, 0, yylineno);
+}
+
+// static void emit_params_rev(expr *p) {
+//     if (!p) return;
+
+//     emit_params_rev(p->next); // recurse to emit right-to-left
+
+//     expr *e = emit_iftableitem(p); // ensure tables are handled
+
+//     expr *evaled;
+
+//     // Constants and variables can be used directly
+//     if (e->type == constnum_e || e->type == constbool_e || e->type == conststring_e || e->type == nil_e || e->type == var_e) {
+//         evaled = e;
+//     } else {
+//         // Otherwise, evaluate into a new temp
+//         evaled = newexpr(var_e);
+//         evaled->sym = newtemp();
+//         emit(assign, e, NULL, evaled, 0, yylineno);
+//     }
+
+//     emit(param, evaled, NULL, NULL, 0, yylineno);
+// }
+
+expr *make_call_expr(expr *func_expr, expr *args) {
+    func_expr = emit_iftableitem(func_expr);
+
+    if (!func_expr) {
+        fprintf(stderr, "Warning: NULL function expression in make_call_expr\n");
+        return newexpr(nil_e);
+    }
+
+    expr *call_expr = newexpr(call_e);
+    call_expr->sym = func_expr->sym ? func_expr->sym : newtemp();
+    call_expr->args = args;
+
+    // 1. Count arguments
+    unsigned cnt = 0;
+    for (expr *e = args; e; e = e->next)
+        ++cnt;
+
+    // 2. Emit the argument count param FIRST!
+    expr *cnt_expr = newexpr_constnum(cnt);
+    emit(param, cnt_expr, NULL, NULL, 0, yylineno);
+
+    // 3. Emit each argument as a PARAM (left to right)
+    for (expr *e = args; e; e = e->next) {
+        expr *val = emit_iftableitem(e);
+        emit(param, val, NULL, NULL, 0, yylineno);
+    }
+
+    // 4. Call and get retval as before
+    emit(call, func_expr, NULL, NULL, 0, yylineno);
+
+    expr *retval = newexpr(var_e);
+    retval->sym   = newtemp();
+    emit(getretval, NULL, NULL, retval, 0, yylineno);
+
+    return retval;
+}
+
+expr *create_expr_list(expr *head, expr *tail) {
+    if (!head) {
+        return tail;
+    }
+    head->next = tail;
+    return head;
+}
+
+expr *emit_iftableitem(expr *e) {
+    if (!e) {
+        fprintf(stderr, "FATAL: NULL expr passed to emit_iftableitem!\n");
+        return newexpr(nil_e); // Return safe nil instead of exiting
+    }
+
+    // Skip invalid expressions
+    if ((uintptr_t)e < 4096 || ((uintptr_t)e & 0xF) != 0) {
+        fprintf(stderr, "FATAL: Invalid expr pointer: %p\n", (void *)e);
+        return newexpr(nil_e); // Return safe nil instead of exiting
+    }
+
+    if (e->type != tableitem_e) {
+        return e;
+    }
+
+    if (!e->index) {
+        fprintf(stderr, "FATAL: expr->index is NULL in emit_iftableitem!\n");
+        return newexpr(nil_e); // Return safe nil instead of exiting
+    }
+
+    if (e->next) {  // to avoid duplicate quad // added this 
+        return e->next;
+    }
+
+    expr *table = emit_iftableitem(e->table);   // for nested tableitem_e
+
+    expr *result = newexpr(var_e);
+    result->sym = newtemp();
+    // emit(tablegetelem, e, e->index, result, 0, yylineno);
+    emit(tablegetelem, table, e->index, result, 0, yylineno);
+
+
+    e->next = result; // added this to memoize
+    return result;
+}
+
+/* Break / Continue management */
+
+int newlist(int quadNo) {
+    quads[quadNo].label = 0;
+    return quadNo;
+}
+
+int mergelist(int l1, int l2) {
+    if (!l1){
+        return l2;
+    }
+    if (!l2){
+        return l1;
+    }
+    int i = l1;
+    while (quads[i].label){
+        i = quads[i].label;
+    }
+    quads[i].label = l2;
+    return l1;
+}
+
+void patchlist(int list, int label) {
+    printf("TEST_1: label %d\n", label);
+    while (list) {
+        printf("\tlist %d\n", list);
+        int next = quads[list].label;
+        quads[list].label = label;
+        list = next;
+    }
+}
+
+void make_stmt(stmt_t *s) {
+    s->breaklist = s->contlist = 0;
+}
+
+
+static void print_number(FILE *f, double n) {
+    double diff = n - (long)n;          /* cheap fabs */
+    if (diff < 0) diff = -diff;
+
+    if (diff < 0.0000001)
+        fprintf(f, "%ld", (long)n);
+    else
+        fprintf(f, "%.2f", n);
+}
+
+static void print_number_to_buf(char *buf, size_t sz, double n) {
+    double diff = n - (long)n;
+    if (diff < 0) diff = -diff;
+
+    if (diff < 0.0000001)
+        snprintf(buf, sz, "%ld", (long)n);
+    else
+        snprintf(buf, sz, "%.2f", n);
+}
+
+static const char *bool_str(unsigned char b) {   /* inlineable */
+    return b ? "TRUE" : "FALSE";
+}
+
+static void print_expr(FILE *f, expr *e) {
+    if (!e) {
+        fprintf(f, "nil");
+        return;
+    }
+
+    // Handle nil_e expressions specially
+    if (e->type == nil_e) {
+        fprintf(f, "NIL");
+        return;
+    }
+
+    /* 2. Types that do not depend on sym */
+    switch (e->type) {
+    case constnum_e:
+        print_number(f, e->numConst);
+        return;
+    case conststring_e:
+        fprintf(f, "\"%s\"", e->strConst);
+        return;
+    case constbool_e:
+        fprintf(f, "%s", bool_str(e->boolConst));
+        return;
+    case nil_e:
+        fprintf(f, "NIL");
+        return;
+    default:
+        break;
+    }
+
+    if (!e->sym){ 
+        fprintf(f, "anonymous");
+        return;
+    }
+
+    switch (e->type) {
+    case var_e:
+    case tableitem_e:
+    case arithexpr_e:
+    case assignexpr_e:
+        fprintf(f, "%s", e->sym->name);
+        break;
+
+    case programfunc_e:
+    case libraryfunc_e:
+        // fprintf(f, "%s()", e->sym->name);
+        fprintf(f, "%s", e->sym->name);
+	break;
+
+    case newtable_e:
+        fprintf(f, "[table]");
+        break;
+
+    default:
+        fprintf(f, "UNKNOWN");
+        break;
+    }
+}
+
+
+static inline unsigned shown_label(const quad *q)
+{
+    /* real label is 0 → means "no label yet"  */
+    if (q->label == 0) {
+        /* Show "1" only for jumps or IF-quads so that
+           the printed text never says "jump to 0". */
+        switch (q->op) {
+        case jump:
+        case if_eq:        case if_noteq:
+        case if_less:      case if_greater:
+        case if_lesseq:    case if_greatereq:
+            return 1; 
+        default:
+            return 0;                       /* keep the zero */
+        }
+    }
+
+    /* any other label → add 1 because quad indices are 0-based  */
+    return q->label + 1;
+}
+
+void print_quads(FILE *f) {
+    fprintf(f, "------------------------------ Intermediate Code ------------------------------\n");
+
+    for (unsigned i = 0; i < currQuad; ++i) {
+        quad *q = quads + i;
+        fprintf(f, "%-3u: ", i + 1);
+
+        switch (q->op) {
+            case assign:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                break;
+            case add:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, " + ");
+                print_expr(f, q->arg2);
+                break;
+            case sub:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, " - ");
+                print_expr(f, q->arg2);
+                break;
+            case mul:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, " * ");
+                print_expr(f, q->arg2);
+                break;
+            case idiv:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, " / ");
+                print_expr(f, q->arg2);
+                break;
+            case mod:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, " %% ");
+                print_expr(f, q->arg2);
+                break;
+            case uminus:
+                print_expr(f, q->result);
+                fprintf(f, " := -");
+                print_expr(f, q->arg1);
+                break;
+            case and:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, " and ");
+                print_expr(f, q->arg2);
+                break;
+            case or:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, " or ");
+                print_expr(f, q->arg2);
+                break;
+            case not:
+                print_expr(f, q->result);
+                fprintf(f, " := not ");
+                print_expr(f, q->arg1);
+                break;
+            case if_eq:
+                fprintf(f, "IF ");
+                print_expr(f, q->arg1);
+                fprintf(f, " == ");
+                print_expr(f, q->arg2);
+                fprintf(f, " THEN jump to %u", q->label + 1);
+
+                break;
+            case if_noteq:
+                fprintf(f, "IF ");
+                print_expr(f, q->arg1);
+                fprintf(f, " != ");
+                print_expr(f, q->arg2);
+                fprintf(f, " THEN jump to %u", q->label + 1);
+
+                break;
+            case if_lesseq:
+                fprintf(f, "IF ");
+                print_expr(f, q->arg1);
+                fprintf(f, " <= ");
+                print_expr(f, q->arg2);
+                fprintf(f, " THEN jump to %u", q->label + 1);
+
+                break;
+            case if_greatereq:
+                fprintf(f, "IF ");
+                print_expr(f, q->arg1);
+                fprintf(f, " >= ");
+                print_expr(f, q->arg2);
+                fprintf(f, " THEN jump to %u", q->label + 1);
+
+                break;
+            case if_less:
+                fprintf(f, "IF ");
+                print_expr(f, q->arg1);
+                fprintf(f, " < ");
+                print_expr(f, q->arg2);
+                fprintf(f, " THEN jump to %u", q->label + 1);
+
+                break;
+            case if_greater:
+                fprintf(f, "IF ");
+                print_expr(f, q->arg1);
+                fprintf(f, " > ");
+                print_expr(f, q->arg2);
+                fprintf(f, " THEN jump to %u", q->label + 1);
+
+                break;
+            case call:
+                fprintf(f, "CALL ");
+                print_expr(f, q->arg1);
+                break;
+            case param:
+                fprintf(f, "PARAM ");
+                print_expr(f, q->arg1);
+                break;
+            case ret:
+                fprintf(f, "RETURN ");
+                print_expr(f, q->arg1);
+                break;
+            case getretval:
+                print_expr(f, q->result);
+                fprintf(f, " := RETVAL");
+                break;
+            case funcstart:
+                fprintf(f, "FUNCSTART ");
+                print_expr(f, q->result);
+                break;
+            case funcend:
+                fprintf(f, "FUNCEND ");
+                print_expr(f, q->result);
+                break;
+            case tablecreate:
+                print_expr(f, q->result);
+                fprintf(f, " := TABLECREATE");
+                break;
+            case tablegetelem:
+                print_expr(f, q->result);
+                fprintf(f, " := ");
+                print_expr(f, q->arg1);
+                fprintf(f, "[");
+                print_expr(f, q->arg2);
+                fprintf(f, "]");
+                break;
+            case tablesetelem:
+                print_expr(f, q->arg1);
+                fprintf(f, "[");
+                print_expr(f, q->arg2);
+                fprintf(f, "] := ");
+                print_expr(f, q->result);
+                break;
+            case jump:
+                fprintf(f, "jump to %u", q->label + 1);
+                break;
+            default:
+                fprintf(f, "[Unknown opcode]");
+                break;
+        }
+
+        fprintf(f, "\n");
+    }
+
+    fprintf(f, "\n%-6s %-12s %-20s %-20s %-20s %-5s\n", "quad#", "opcode", "result", "arg1", "arg2", "label");
+
+    for (unsigned i = 0; i < currQuad; ++i) {
+        quad *q = quads + i;
+
+        char res_buf[64], arg1_buf[64], arg2_buf[64];
+        const char *res_str  = q->result ? expr_to_str_buf(q->result, res_buf, sizeof(res_buf)) : "nil";
+        const char *arg1_str = q->arg1   ? expr_to_str_buf(q->arg1, arg1_buf, sizeof(arg1_buf)) : "nil";
+        const char *arg2_str = q->arg2   ? expr_to_str_buf(q->arg2, arg2_buf, sizeof(arg2_buf)) : "nil";
+
+        fprintf(f, "%-6u %-12s %-20s %-20s %-20s %-5u   [line %u]\n",
+            i + 1,
+            op_to_str(q->op),
+            res_str,
+            arg1_str,
+            arg2_str,
+            shown_label(q),
+            q->line
+        );
+    }
+}
+
+static expr *lower_if_not(expr *e) {
+    if (e->type == not_e) {
+        expr *inner_bool = convert_to_bool(e->index);
+        expr *r = newexpr(boolexpr_e);
+        r->truelist  = inner_bool->falselist;
+        r->falselist = inner_bool->truelist;
+        return r;
+    }
+    return convert_to_bool(e);
+}
+
+static unsigned emit_bool_test(expr *e) {
+    e = emit_iftableitem(e);
+    unsigned if_quad = currQuad;                   // grab the index *before* emitting
+    emit(if_eq, e, newexpr_constbool(1), NULL, 0, yylineno);
+    emit(jump,   NULL, NULL,   NULL, 0, yylineno); // at if_quad+1
+    return if_quad;
+}
+
+expr* convert_to_value(expr* bool_expr) {
+    if (bool_expr->type != boolexpr_e){
+        return bool_expr;
+    }
+    expr* result = newexpr(var_e);
+    result->sym = newtemp();
+
+    unsigned trueLabel = nextquad();
+    emit(assign, newexpr_constbool(1), NULL, result, 0, yylineno);
+
+    unsigned jumpLabel = nextquad();
+    emit(jump, NULL, NULL, NULL, 0, yylineno);
+
+    unsigned falseLabel = nextquad();
+    emit(assign, newexpr_constbool(0), NULL, result, 0, yylineno);
+
+    patchlist(bool_expr->truelist, trueLabel);
+    patchlist(bool_expr->falselist, falseLabel);
+    patchlabel(jumpLabel, nextquad());
+
+    return result;
+}
+
+expr* convert_to_bool(expr *e) {
+    if (e->type == boolexpr_e) {
+        return e;
+    }
+    expr *b = newexpr(boolexpr_e);
+    emit(if_eq, e, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
+    emit(jump,   NULL, NULL,   NULL, nextquad() + 2, yylineno);
+    b->truelist  = newlist(nextquad() - 2);
+    b->falselist = newlist(nextquad() - 1);
+    return b;
+}
+
+expr* make_not(expr *e) {
+    e = convert_to_bool(e);
+    expr *b = newexpr(boolexpr_e);
+    b->truelist  = e->falselist;
+    b->falselist = e->truelist;
+    return b;
+}
+
+expr *make_and(expr *lhs, expr *rhs)
+{
+    unsigned test = emit_bool_test(lhs);
+
+   /* new:  patch the TRUE edge        */
+   patchlabel(test, nextquad());       /* E1.True  →  start of E2 */
+
+    expr *rb = lower_if_not(rhs);
+    expr *r  = newexpr(boolexpr_e);
+
+   /* new: E.True is only what comes from the RHS                    */
+   r->truelist  = rb->truelist;
+
+   r->falselist = mergelist(newlist(test + 1), rb->falselist);  /* same */
+    return r;
+}
+
+expr *make_or(expr *lhs, expr *rhs)
+{
+    unsigned test = emit_bool_test(lhs);
+
+    /* Patch the FALSE edge of LHS to the start of RHS */
+    patchlabel(test + 1, nextquad()); /* LHS.False → start of RHS */
+
+    expr *rb = lower_if_not(rhs);
+    expr *r = newexpr(boolexpr_e);
+
+    /* The TRUE list is the merge of LHS.True and RHS.True */
+    r->truelist = mergelist(newlist(test), rb->truelist);
+
+    /* The FALSE list is just the RHS's FALSE list */
+    r->falselist = rb->falselist;
+
+    return r;
+}
+
+expr* make_eq_neq(expr* e1, expr* e2, iopcode op) {
+    if (!e1) e1 = newexpr(nil_e);
+    if (!e2) e2 = newexpr(nil_e);
+
+    if (e1->type == boolexpr_e){
+        e1 = convert_to_value(e1);
+    }
+    if (e2->type == boolexpr_e){
+        e2 = convert_to_value(e2);
+    }
+    expr* r = newexpr(boolexpr_e);
+    r->sym = newtemp();
+
+    if (e1->type == nil_e || e2->type == nil_e) {
+        emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+    } else {
+        emit(op, e1, e2, NULL, nextquad() + 2, yylineno);
+        emit(jump, NULL, NULL, NULL, nextquad() + 1, yylineno);
+
+        r->truelist = newlist(nextquad() - 2);
+        r->falselist = newlist(nextquad() - 1);
+    }
+    return r;
+}
+
+\symbol_table.h
+/**
+ * HY-340 Project Phase 3 2024-2025
+ *
+ * Members:
+ *      csd5171 Fytaki Maria
+ *      csd5310 Rafail Drakakis
+ *      csd5082 Theologos Kokkinellis
+ */
+
+#ifndef SYMBOL_TABLE_H
+#define SYMBOL_TABLE_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct expr;
+
+typedef enum {
+    GLOBAL,
+    LOCAL_VAR,
+    ARGUMENT,
+    LIBRARY_FUNCTION,
+    USER_FUNCTION,
+    TEMP_VAR 
+} SymbolType;
+
+typedef enum scopespace_t { 
+    programvar, 
+    functionlocal, 
+    formalarg 
+} scopespace_t;
+
+typedef enum symbol_t { 
+    var_s, 
+    programfunc_s, 
+    libraryfunc_s 
+} symbol_t; 
+
+typedef struct SymbolTableEntry {
+    char *name;
+    SymbolType type;
+    unsigned int line_number;
+    unsigned int scope;
+    int is_active;
+    struct SymbolTableEntry *next;
+    
+    scopespace_t space;             // Originating scope space. 
+    unsigned int offset;            // Offset in scope space.
+
+} SymbolTableEntry;
+
+typedef struct SymbolTable {
+    SymbolTableEntry *head;
+} SymbolTable;
+
+SymbolTable *create_symbol_table();
+SymbolTableEntry *create_entry(const char *name, SymbolType type, unsigned int line, unsigned int scope);
+SymbolTableEntry* insert_symbol(SymbolTable *table, const char *name, SymbolType type, unsigned int line, unsigned int scope);
+SymbolTableEntry *lookup_symbol(SymbolTable *table, const char *name, unsigned int scope, int is_function_context);
+SymbolTableEntry *lookup_symbol_global(SymbolTable *table, const char *name);
+void print_symbol_table(SymbolTable *table);
+void free_symbol_table(SymbolTable *table);
+void deactivate_entries_from_curr_scope(SymbolTable*, unsigned int scope);
+
+void comperror(char* format, ...);
+void check_arith(struct expr* e, const char* context);
+
+void assign_space_and_offset(SymbolTableEntry* sym);
+
+#endif
+
+\symbol_table.c
+/**
+ * HY-340 Project Phase 3 2024-2025
+ *
+ * Members:
+ *      csd5171 Fytaki Maria
+ *      csd5310 Rafail Drakakis
+ *      csd5082 Theologos Kokkinellis
+ */
+
+#include "symbol_table.h"
+#include "quads.h" 
+
+unsigned global_offset = 0;
+unsigned local_offset = 0;
+unsigned formal_offset = 0;
+
+void assign_space_and_offset(SymbolTableEntry* sym) {
+    if (sym->scope == 0) {
+        sym->space = programvar;
+        sym->offset = global_offset++;
+    } else if (sym->type == ARGUMENT) {
+        sym->space = formalarg;
+        sym->offset = formal_offset++;
+    } else {
+        sym->space = functionlocal;
+        sym->offset = local_offset++;
+    }
+}
+
+static const char *get_symbol_type_str(SymbolType symbol_type) {
+    switch (symbol_type) {
+        case GLOBAL:            return "global variable";
+        case LOCAL_VAR:         return "local variable";
+        case ARGUMENT:          return "formal argument";
+        case LIBRARY_FUNCTION:  return "library function";
+        case USER_FUNCTION:     return "user function";
+        case TEMP_VAR:          return "temporary variable";
+        default:                return "unknown";
+    }
+}
+
+SymbolTable *create_symbol_table() {
+    SymbolTable *table = (SymbolTable *)malloc(sizeof(SymbolTable));
+    if (!table) {
+        fprintf(stderr, "Memory allocation failed for Symbol Table.\n");
+        exit(EXIT_FAILURE);
+    }
+    table->head = NULL;
+    return table;
+}
+
+SymbolTableEntry *create_entry(const char *name, SymbolType type, unsigned int line, unsigned int scope) {
+    SymbolTableEntry *entry = (SymbolTableEntry *)malloc(sizeof(SymbolTableEntry));
+    if (!entry) {
+        fprintf(stderr, "Memory allocation failed for Symbol Table Entry.\n");
+        exit(EXIT_FAILURE);
+    }
+    entry->name = strdup(name);
+    entry->type = type;
+    entry->line_number = line;  
+    entry->scope = scope;
+    entry->next = NULL;
+    return entry;
+}
+
+/* Search from scope-1 to 0 for a variable with the same name */
+static SymbolTableEntry *lookup_visible_var(SymbolTable *symbol_table, const char *name, unsigned scope) {
+    for (int s = (int)scope - 1; s >= 0; --s)
+        for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
+            if (current->scope == (unsigned)s &&
+                (current->type == GLOBAL || current->type == LOCAL_VAR || current->type == ARGUMENT) && strcmp(current->name, name) == 0)
+                return current;
+    return NULL;
+}
+
+/* modified insert_symbol: from void to SymbolTableEntry to store entries and use them from funcdef in call */
+SymbolTableEntry* insert_symbol(SymbolTable *symbol_table, const char *name, SymbolType type, unsigned int line, unsigned int scope) {
+
+    if (type == LOCAL_VAR) {                               
+        if (lookup_visible_var(symbol_table, name, scope))          
+            return NULL;                                        
+    }
+
+    /* note: are the {} correct ? */
+    for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
+        if (current->scope == scope && strcmp(current->name, name) == 0) {
+            int allow_duplicate = (current->type == ARGUMENT && type == ARGUMENT && current->line_number != line);
+            if (!allow_duplicate) {
+                fprintf(stderr, "Error: Symbol '%s' already defined in scope %u at line %u.\n", name, scope, line);
+                return NULL;
+            }
+        }
+
+        if (scope != 0) {
+            SymbolTableEntry *global_entry = lookup_symbol_global(symbol_table, name);
+            if (global_entry && global_entry->type == LIBRARY_FUNCTION) {
+                fprintf(stderr, "Error: Cannot redeclare library function '%s' (line %u).\n", name, line);
+                return NULL;
+            }
+        }
+
+        SymbolTableEntry *new_entry = create_entry(name, type, line, scope);
+
+        if (!symbol_table->head) symbol_table->head = new_entry;
+        else {
+            SymbolTableEntry *current = symbol_table->head;
+            while (current->next) current = current->next;
+            current->next = new_entry;
+        }
+        assign_space_and_offset(new_entry);
+	return new_entry;
+}
+
+SymbolTableEntry *lookup_symbol(SymbolTable *symbol_table, const char *name, unsigned int current_scope, int is_function_context) {
+    for (int scope = (int)current_scope; scope >= 0; --scope)
+        for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
+            if (current->scope == (unsigned)scope && strcmp(current->name, name) == 0) {
+
+                if (current->type == USER_FUNCTION || current->type == LIBRARY_FUNCTION)
+                    return current;
+
+                if (current->type == GLOBAL || current->type == LOCAL_VAR || current->type == ARGUMENT || current->type == TEMP_VAR) {
+
+                    if (scope == (int)current_scope || scope == 0)
+                        return current;
+
+                    if (is_function_context) {
+                        int other_scope = 0;
+                        for (int t = (int)current_scope; t > scope && !other_scope; --t)
+                            for (SymbolTableEntry *x = symbol_table->head; x; x = x->next)
+                                if (x->scope == (unsigned)t && x->type == USER_FUNCTION) {
+                                    other_scope = 1; break;
+                                }
+                        if (!other_scope) return current;
+                        printf("Error: Symbol '%s' defined at line %u in enclosing function.\n", current->name, current->line_number);
+                    }
+                }
+            }
+    return NULL;
+}
+
+SymbolTableEntry *lookup_symbol_global(SymbolTable *table, const char *name) {
+    SymbolTableEntry *current = table->head;
+    while (current) {
+        if (strcmp(current->name, name) == 0 && current->scope == 0) {
+            return current;
+        }
+        current = current->next;
+    }
+    return NULL;
+}
+
+static int compare_by_line(const void *a, const void *b) {
+    const SymbolTableEntry *entry_a = *(const SymbolTableEntry * const *)a;
+    const SymbolTableEntry *entry_b = *(const SymbolTableEntry * const *)b;
+    if (entry_a->line_number < entry_b->line_number) return -1;
+    if (entry_a->line_number > entry_b->line_number) return  1;
+    return 0;
+}
+
+void print_symbol_table(SymbolTable *symbol_table) {
+    unsigned int max_scope = 0;
+    for (SymbolTableEntry *current = symbol_table->head; 
+        current; current = current->next)
+        if (current->scope > max_scope) 
+        max_scope = current->scope;
+
+    for (unsigned int scope = 0; scope <= max_scope; ++scope) {
+        size_t num_entries = 0;
+        for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
+            if (current->scope == scope) ++num_entries;
+        if (!num_entries) continue;
+
+        SymbolTableEntry **entries_array = malloc(num_entries * sizeof *entries_array);
+        size_t i = 0;
+        for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
+            if (current->scope == scope) entries_array[i++] = current;
+
+        qsort(entries_array, num_entries, sizeof *entries_array, compare_by_line);
+
+        printf("-----------     Scope #%u     -----------\n", scope);
+        for (i = 0; i < num_entries; ++i)
+            printf("\"%s\" [%s] (line %u) (scope %u)\n",
+                   entries_array[i]->name, get_symbol_type_str(entries_array[i]->type),
+                   entries_array[i]->line_number, entries_array[i]->scope);
+        putchar('\n');
+
+        free(entries_array);
+    }
+}
+
+void deactivate_entries_from_curr_scope(SymbolTable *symbol_table, unsigned int scope) {
+    SymbolTableEntry *current = symbol_table->head, *previous = NULL;
+    while (current) {
+        int removable = (current->scope == scope) &&
+                        current->type != USER_FUNCTION &&
+                        current->type != LOCAL_VAR   &&
+                        current->type != ARGUMENT;
+
+        if (removable && scope != 0 && current->type != LIBRARY_FUNCTION) {
+            SymbolTableEntry *entry_to_delete = current;
+            if (!previous) symbol_table->head = current->next;
+            else previous->next = current->next;
+            current = current->next;
+            //free(entry_to_delete->name); 
+            //free(entry_to_delete);
+        } else { previous = current; current = current->next; }
+    }
+}
+
+void free_symbol_table(SymbolTable *symbol_table) {
+    SymbolTableEntry *current = symbol_table->head;
+    while (current) { 
+        SymbolTableEntry *next = current->next; 
+        free(current->name); 
+        free(current); current = next; 
+    }
+    free(symbol_table);
+}
+
+/* based on lec 10 slide 32 (custom) */
+
+void comperror(char* format, ...) {             
+    va_list args;
+    va_start(args, format);
+
+    fprintf(stderr, "Compiler Error: ");
+    vfprintf(stderr, format, args);
+    fprintf(stderr, "\n");
+
+    va_end(args);
+    exit(EXIT_FAILURE);
+}
+
+/**
+ * Use this function to check correct use of of expression in arithmetic 
+ */
+
+void check_arith (expr* e, const char* context) {
+    if ( e->type == constbool_e ||
+    e->type == conststring_e    ||
+    e->type == nil_e            ||
+    e->type == newtable_e       ||
+    e->type == programfunc_e    ||
+    e->type == libraryfunc_e    ||
+    e->type == boolexpr_e )
+    comperror("Illegal expr used in %s!", context); 
+}
+
+\codegen.c
+#include "codegen.h"
+#include "symbol_table.h"
+#include "quads.h"
+
+#include <assert.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdint.h>
+
+unsigned vm_stack_top    = 0;
+unsigned vm_stack_topsp  = 0;
+
+#define INSTRUCTION_ARRAY_SIZE 1024 
+#define GLOBAL_BASE  0
+#define TOP          vm_stack_top     
+#define TOPSP        vm_stack_topsp  
+
+double*  numConsts       = NULL; 
+unsigned totalNumConsts  = 0;
+char**   stringConsts    = NULL;
+unsigned totalStringConsts = 0;
+
+instruction instructions[INSTRUCTION_ARRAY_SIZE];
+unsigned int currInstruction = 0;
+
+incomplete_jump *ijumps_head = NULL;
+
+void patch_incomplete_jumps(void) {
+    incomplete_jump *ij = ijumps_head;
+    while (ij) {
+        instructions[ij->instrNo].result.value = quads[ij->iaddress].taddress;
+        ij = ij->next;
+    }
+}
+
+void generate(opcode_t op, quad *q) {
+    instruction t;
+    t.opcode = op;
+    make_operand(q->arg1, &t.arg1);
+    make_operand(q->arg2, &t.arg2);
+    make_operand(q->result, &t.result);
+    q->taddress = nextinstructionlabel();
+    emit_instruction(t);
+}
+
+/* Arithmetic/table/assign/NOP */
+void generate_ADD           (quad *q) { generate(op_add,           q); }
+void generate_SUB           (quad *q) { generate(op_sub,           q); }
+void generate_MUL           (quad *q) { generate(op_mul,           q); }
+void generate_DIV           (quad *q) { generate(op_div,           q); }
+void generate_MOD           (quad *q) { generate(op_mod,           q); }
+void generate_NEWTABLE      (quad *q) { generate(op_newtable,      q); }
+void generate_TABLEGETELM   (quad *q) { generate(op_tablegetelem,  q); }
+void generate_TABLESETELEM  (quad *q) { generate(op_tablesetelem,  q); }
+void generate_ASSIGN        (quad *q) { generate(op_assign,        q); }
+void generate_NOP           (void)   { instruction t = { .opcode = op_nop }; emit_instruction(t); }
+
+static unsigned add_numconst(double x) {
+  for (unsigned i=0; i<totalNumConsts; ++i)
+    if (numConsts[i]==x) return i;
+  numConsts = realloc(numConsts, (totalNumConsts+1)*sizeof *numConsts);
+  numConsts[totalNumConsts] = x;
+  return totalNumConsts++;
+}
+
+static unsigned add_strconst(const char* s) {
+  for (unsigned i=0; i<totalStringConsts; ++i)
+    if (strcmp(stringConsts[i],s)==0) return i;
+  stringConsts = realloc(stringConsts,(totalStringConsts+1)*sizeof *stringConsts);
+  stringConsts[totalStringConsts] = strdup(s);
+  return totalStringConsts++;
+}
+
+void make_operand(expr *e, vmarg *arg) {
+    if (!e) {
+        arg->type  = label_a;
+        arg->value = 0;
+        return;
+    }
+
+    switch (e->type) {
+        case constnum_e:
+            arg->type  = number_a;
+            arg->value = add_numconst(e->numConst);
+            break;
+        case conststring_e:
+            arg->type  = string_a;
+            arg->value = add_strconst(e->strConst);
+            break;
+        case constbool_e:
+            arg->type  = bool_a;
+            arg->value = e->boolConst;
+            break;
+        case var_e:
+        case arithexpr_e:
+        case assignexpr_e:
+        case boolexpr_e:
+        case newtable_e: 
+        case tableitem_e: {
+            /* guard against missing symbol */
+            if (!e->sym) {
+                arg->type  = label_a;
+                arg->value = 0;
+                break;
+            }
+            SymbolTableEntry *sym = e->sym;
+            unsigned offset = sym->offset;
+	          // printf("PARAM for symbol '%s' with offset %u and space %d\n", sym->name, offset, sym->space);
+            switch (sym->space) {
+                case programvar:
+                    arg->type  = global_a;
+                    arg->value = GLOBAL_BASE + offset;
+                    break;
+                case formalarg:
+                    arg->type  = formal_a;
+                    arg->value = TOPSP - offset - 1;
+                    break;
+                case functionlocal:
+                    arg->type  = local_a;
+                    arg->value = TOP + offset + 1;
+                    break;
+            }
+            break;
+        }
+        case nil_e:
+            arg->type = nil_a;
+            break;
+        case call_e:
+            arg->type  = retval_a;
+            arg->value = 0;
+            break;
+        case programfunc_e:
+        case libraryfunc_e: {
+          SymbolTableEntry *sym = e->sym;
+          arg->type  = global_a;
+          arg->value = GLOBAL_BASE + sym->offset;
+          break;
+        }
+        default:
+            arg->type  = label_a;
+            arg->value = 0;
+    }
+}
+
+void generate_FUNCSTART(quad *q) {
+    q->taddress = nextinstructionlabel();
+
+    /* 1) push old TOPSP */
+    instruction t1 = { .opcode = op_pusharg };
+    make_retvaloperand(&t1.arg1);           /* encode old TOPSP */
+    emit_instruction(t1);
+
+    /* 2) set TOPSP = TOP */
+    instruction t2 = { .opcode = op_assign };
+    make_operand(NULL, &t2.arg1);           /* no-op src */
+    make_retvaloperand(&t2.arg2);            /* dest = old retval slot */
+    emit_instruction(t2);
+
+    unsigned locals = (unsigned)q->arg1->numConst;
+    for (unsigned i = 0; i < locals; ++i) {
+        instruction t = { .opcode = op_nop };
+        emit_instruction(t);  
+    }
+}
+
+void generate_FUNCEND(quad *q) {
+    q->taddress = nextinstructionlabel();
+
+    /* 1) restore TOP = TOPSP */
+    instruction t1 = { .opcode = op_assign };
+    make_retvaloperand(&t1.arg1);      /* arg1 = old TOPSP value */
+    reset_operand(&t1.arg2);
+    emit_instruction(t1);
+
+    /* 2) pop old TOPSP (incomplete jump back address) */
+    instruction t2 = { .opcode = op_nop }; 
+    emit_instruction(t2);              /* or op_poptops if defined */
+
+    /* 3) return via incomplete jump */
+    instruction t3 = { .opcode = op_jne }; /* any conditional unused */
+    t3.result.type  = label_a;
+    if (q->label < nextinstructionlabel()) {
+        t3.result.value = quads[q->label].taddress;
+    } else {
+        add_incomplete_jump(nextinstructionlabel(), q->label);
+    }
+    emit_instruction(t3);
+}
+
+void write_numConsts(const char *filename) {
+    FILE *fp = fopen(filename,"wb");
+    if (!fp) { perror("Cannot open numConsts file"); exit(1); }
+    uint32_t count = totalNumConsts;
+    fwrite(&count, sizeof(count), 1, fp);
+    fwrite(numConsts, sizeof(double), totalNumConsts, fp);
+    fclose(fp);
+}
+
+void write_stringConsts(const char *filename) {
+    FILE *fp = fopen(filename,"wb");
+    if (!fp) { perror("Cannot open stringConsts file"); exit(1); }
+    uint32_t count = totalStringConsts;
+    fwrite(&count, sizeof(count), 1, fp);
+    for (uint32_t i = 0; i < count; ++i) {
+        uint32_t len = (uint32_t)strlen(stringConsts[i]);
+        fwrite(&len, sizeof(len), 1, fp);
+        fwrite(stringConsts[i], sizeof(char), len, fp);
+    }
+    fclose(fp);
+}
+
+void generate_target_code(void) {
+    currInstruction = 0;   /* clear out any old instructions */
+    ijumps_head   = NULL; 
+    for (unsigned i = 0; i < currQuad; ++i) {
+        quad *q = &quads[i];
+        switch (q->op) {
+          /* Arithmetic */
+          case add:     generate_ADD(q);  break;
+          case sub:     generate_SUB(q);  break;
+          case mul:     generate_MUL(q);  break;
+          case idiv:    generate_DIV(q);  break;
+          case mod:     generate_MOD(q);  break;
+          /* Table / Assign */
+          case tablecreate:
+            generate_NEWTABLE(q); break;
+          case tablegetelem:
+            generate_TABLEGETELM(q); break;
+          case tablesetelem:
+            generate_TABLESETELEM(q); break;
+          case assign:
+            generate_ASSIGN(q); break;
+          /* Jumps & Relational */
+          case jump:
+            generate_JUMP(q); break;
+          case if_eq:
+            generate_IF_EQ(q); break;
+          case if_noteq:
+            generate_IF_NOTEQ(q); break;
+          case if_greater:
+            generate_IF_GREATER(q); break;
+          case if_greatereq:
+            generate_IF_GREATEREQ(q); break;
+          case if_less:
+            generate_IF_LESS(q); break;
+          case if_lesseq:
+            generate_IF_LESSEQ(q); break;
+          /* Boolean */
+          case and:
+            generate_AND(q); break;
+          case or:
+            generate_OR(q); break;
+          case not:
+            generate_NOT(q); break;
+          /* Calls */
+          case param:
+            generate_PARAM(q); break;
+          case call:
+            generate_CALL(q); break;
+          case getretval:
+            generate_GETRETVAL(q); break;
+          /* Functions */
+          case funcstart:
+            generate_FUNCSTART(q); break;
+          case funcend:
+            generate_FUNCEND(q);   break;
+          default:
+            generate_NOP();
+        }
+    }
+    patch_incomplete_jumps();
+}
+
+/* Relational and unconditional jumps */
+void generate_relational(opcode_t op, quad *q) {
+    instruction t;
+    t.opcode = op;
+    make_operand(q->arg1, &t.arg1);
+    make_operand(q->arg2, &t.arg2);
+    t.result.type = label_a;
+
+    if (q->label < nextinstructionlabel()) {
+        t.result.value = quads[q->label].taddress;
+    } else {
+        add_incomplete_jump(nextinstructionlabel(), q->label);
+    }
+
+    q->taddress = nextinstructionlabel();
+    emit_instruction(t);
+}
+
+void generate_JUMP       (quad *q) { generate_relational(op_jne,    q); }
+void generate_IF_EQ      (quad *q) { generate_relational(op_jeq,    q); }
+void generate_IF_NOTEQ   (quad *q) { generate_relational(op_jne,    q); }
+void generate_IF_GREATER (quad *q) { generate_relational(op_jgt,    q); }
+void generate_IF_GREATEREQ(quad *q){ generate_relational(op_jge,    q); }
+void generate_IF_LESS    (quad *q) { generate_relational(op_jlt,    q); }
+void generate_IF_LESSEQ  (quad *q) { generate_relational(op_jle,    q); }
+
+/* Logical operators */
+void generate_NOT(quad *q) {
+    q->taddress = nextinstructionlabel();
+    instruction t;
+
+    t.opcode = op_jeq;
+    make_operand(q->arg1, &t.arg1);
+    make_booloperand(&t.arg2, 0);
+    t.result.type  = label_a;
+    t.result.value = nextinstructionlabel() + 3;
+    emit_instruction(t);
+
+    t.opcode = op_assign;
+    make_booloperand(&t.arg1, 0);
+    reset_operand(&t.arg2);
+    make_operand(q->result, &t.result);
+    emit_instruction(t);
+
+    t.opcode = op_jne;
+    reset_operand(&t.arg1);
+    reset_operand(&t.arg2);
+    t.result.type  = label_a;
+    t.result.value = nextinstructionlabel() + 2;
+    emit_instruction(t);
+
+    t.opcode = op_assign;
+    make_booloperand(&t.arg1, 1);
+    reset_operand(&t.arg2);
+    make_operand(q->result, &t.result);
+    emit_instruction(t);
+}
+
+void generate_OR(quad *q) {
+    q->taddress = nextinstructionlabel();
+    instruction t;
+
+    t.opcode = op_jeq;
+    make_operand(q->arg1, &t.arg1);
+    make_booloperand(&t.arg2, 1);
+    t.result.type  = label_a;
+    t.result.value = nextinstructionlabel() + 4;
+    emit_instruction(t);
+
+    make_operand(q->arg2, &t.arg1);
+    t.result.value = nextinstructionlabel() + 3;
+    emit_instruction(t);
+
+    t.opcode = op_assign;
+    make_booloperand(&t.arg1, 0);
+    reset_operand(&t.arg2);
+    make_operand(q->result, &t.result);
+    emit_instruction(t);
+
+    t.opcode = op_jne;
+    reset_operand(&t.arg1);
+    reset_operand(&t.arg2);
+    t.result.type  = label_a;
+    t.result.value = nextinstructionlabel() + 2;
+    emit_instruction(t);
+
+    t.opcode = op_assign;
+    make_booloperand(&t.arg1, 1);
+    reset_operand(&t.arg2);
+    make_operand(q->result, &t.result);
+    emit_instruction(t);
+}
+
+void generate_AND(quad *q) {
+    q->taddress = nextinstructionlabel();
+    instruction t;
+
+    t.opcode = op_jeq;
+    make_operand(q->arg1, &t.arg1);
+    make_booloperand(&t.arg2, 0);
+    t.result.type  = label_a;
+    t.result.value = nextinstructionlabel() + 4;
+    emit_instruction(t);
+
+    make_operand(q->arg2, &t.arg1);
+    t.result.value = nextinstructionlabel() + 3;
+    emit_instruction(t);
+
+    t.opcode = op_assign;
+    make_booloperand(&t.arg1, 1);
+    reset_operand(&t.arg2);
+    make_operand(q->result, &t.result);
+    emit_instruction(t);
+
+    t.opcode = op_jne;
+    reset_operand(&t.arg1);
+    reset_operand(&t.arg2);
+    t.result.type  = label_a;
+    t.result.value = nextinstructionlabel() + 2;
+    emit_instruction(t);
+
+    t.opcode = op_assign;
+    make_booloperand(&t.arg1, 0);
+    reset_operand(&t.arg2);
+    make_operand(q->result, &t.result);
+    emit_instruction(t);
+}
+
+/* Function calls */
+void generate_PARAM(quad *q) {
+    q->taddress = nextinstructionlabel();
+    instruction t = { .opcode = op_pusharg };
+    make_operand(q->arg1, &t.arg1);
+
+    // printf("PARAM for symbol '%s' at VM addr type=%d, val=%d\n",
+    //        q->arg1->sym ? q->arg1->sym->name : "NULL",
+    //        t.arg1.type, t.arg1.value);    
+    emit_instruction(t);
+}
+
+void generate_CALL(quad *q) {
+    q->taddress = nextinstructionlabel();
+    instruction t = { .opcode = op_callfunc };
+    make_operand(q->arg1, &t.arg1);
+    emit_instruction(t);
+}
+
+void generate_GETRETVAL(quad *q) {
+    q->taddress = nextinstructionlabel();
+    instruction t = { .opcode = op_assign };
+    make_operand(q->result, &t.result);
+    make_retvaloperand(&t.arg1);
+    emit_instruction(t);
+}
+
+void generate_RET(quad *q) {
+    q->taddress = nextinstructionlabel();
+    assert(q->result);
+    instruction t = { .opcode = op_assign };
+    make_operand(q->result, &t.arg1);
+    make_retvaloperand(&t.result);
+    reset_operand(&t.arg2);
+    emit_instruction(t);
+}
+
+int nextinstructionlabel(void) {
+    return currInstruction;
+}
+
+void emit_instruction(instruction t) {
+    assert(currInstruction < INSTRUCTION_ARRAY_SIZE);
+    instructions[currInstruction++] = t;
+}
+
+void reset_operand(vmarg *arg) {
+    arg->type = label_a;
+    arg->value = 0;
+}
+
+void make_booloperand(vmarg *arg, int boolean) {
+    arg->type = label_a;
+    arg->value = boolean;
+}
+
+void make_retvaloperand(vmarg *arg) {
+    arg->type = label_a;
+    arg->value = -1;
+}
+
+void add_incomplete_jump(int instrNo, int iaddress) {
+    incomplete_jump* j = malloc(sizeof(incomplete_jump));
+    j->instrNo = instrNo;
+    j->iaddress = iaddress;
+    j->next = ijumps_head;
+    ijumps_head = j;
+}
+
+/* PRINT/WRITE CODE */
+const char* opcode_names[] = {
+    "ADD", "SUB", "MUL", "DIV", "MOD",
+    "NEWTABLE", "TABLEGETELM", "TABLESETELEM", "ASSIGN", "NOP",
+    "JEQ", "JNE", "JGT", "JGE", "JLT", "JLE",
+    "PUSHARG", "CALLFUNC" /*We will add more*/
+};
+
+void print_instructions(FILE* out) {
+    for (unsigned i = 0; i < currInstruction; ++i) {
+        instruction* t = &instructions[i];
+        fprintf(out, "%3u: %-12s ", i, opcode_names[t->opcode]);
+        fprintf(out, "arg1=(%d,%d) ", t->arg1.type, t->arg1.value);
+        fprintf(out, "arg2=(%d,%d) ", t->arg2.type, t->arg2.value);
+        fprintf(out, "result=(%d,%d)\n", t->result.type, t->result.value);
+    }
+}
+
+void write_text(const char *filename, unsigned int instr_count) {
+    FILE *fp = fopen(filename, "w");
+    if (!fp) { perror("Cannot open text file"); exit(1); }
+    for (unsigned int i = 0; i < instr_count; ++i) {
+        instruction* t = &instructions[i];
+        fprintf(fp, "%3u: %-12s arg1=(%d,%d) arg2=(%d,%d) result=(%d,%d)\n",
+            i, opcode_names[t->opcode],
+            t->arg1.type, t->arg1.value,
+            t->arg2.type, t->arg2.value,
+            t->result.type, t->result.value
+        );
+    }
+    fclose(fp);
+}
+
+void write_binary(const char *filename, unsigned int instr_count) {
+    FILE *fp = fopen(filename, "wb");
+    if (!fp) { perror("Cannot open binary file"); exit(1); }
+    fwrite(&instr_count, sizeof(instr_count), 1, fp);
+    fwrite(instructions, sizeof(instruction), instr_count, fp);
+    fclose(fp);
+}
+

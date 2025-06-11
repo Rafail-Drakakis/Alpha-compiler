@@ -465,35 +465,58 @@ void libfunc_argument(void) {
     }
 }
 
+/* ---------- Function‐Call Mechanics ‐ PUSHARG ---------- */
 void execute_PUSHARG(instruction *instr) {
-    avm_memcell *source = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-1]);
+    avm_memcell *source = avm_translate_operand(&instr->arg1,
+                                                &stack[STACK_SIZE-1]);
     if (!source) {
         avm_error("PUSHARG: cannot translate argument");
         return;
     }
+    fprintf(stderr,
+            "[DEBUG VM] PUSHARG: pushing %s (type %d) into stack[%u]\n",
+            avm_tostring(source), source->type, top);
+
     stack[top--] = *source;
 }
 
-/* ---------- Function‐Call Mechanics   ---------- */
 void execute_CALLFUNC(instruction *instr) {
-    avm_memcell *funcCell = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-1]);
-    if (!funcCell) avm_error("CALLFUNC: cannot translate operand");
-
-    if (funcCell->type == userfunc_m) {
-        /* -- existing userfunc handling unchanged -- */
-        /* push old_topsp, old_top, ret_addr; set topsp; jump... */
-    }
-    else if (funcCell->type == libfunc_m) {
-        /* Library-call frame: stack[topsp] == arg-count */
-        unsigned saved_topsp = topsp;
-        topsp = top + 1;                         /* first param is the count */
-        avm_calllibfunc(funcCell->data.libfuncVal);
-        topsp = saved_topsp;                     /* restore previous frame */
+    avm_memcell *funcCell = avm_translate_operand(&instr->arg1,
+                                                  &stack[STACK_SIZE-1]);
+    if (!funcCell) {
+        avm_error("CALLFUNC: cannot translate operand");
         return;
     }
-    else {
-        avm_error("CALLFUNC: trying to call a non-function type '%s'", avm_tostring(funcCell));
+
+    if (funcCell->type == libfunc_m) {
+        unsigned saved_topsp = topsp;
+        fprintf(stderr,
+                "[DEBUG VM] CALLFUNC: before call top=%u → topsp=top+1\n",
+                top);
+
+        topsp = top + 1;  /* now stack[topsp] is the count */
+
+        {
+            avm_memcell *countCell    = &stack[topsp];
+            avm_memcell *firstArgCell = (topsp + 1 <= STACK_SIZE-1)
+                                         ? &stack[topsp + 1]
+                                         : NULL;
+            double countVal = (countCell->type == number_m
+                               ? countCell->data.numVal
+                               : -1.0);
+            double firstVal = (firstArgCell && firstArgCell->type == number_m
+                               ? firstArgCell->data.numVal
+                               : NAN);
+            fprintf(stderr,
+                    "[DEBUG VM] CALLFUNC: topsp=%u, count=%.2f, firstArg=%.2f\n",
+                    topsp, countVal, firstVal);
+        }
+
+        avm_calllibfunc(funcCell->data.libfuncVal);
+        topsp = saved_topsp;  /* restore previous frame */
+        return;
     }
+
 }
 
 void execute_GETRET(instruction *instr) {

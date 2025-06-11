@@ -1,25 +1,18 @@
-local a = 10;
-local b = 20;
-local c = a + b;
-local d = a * b - 5 / 2;
+b = 78;
+a = 34;
+c = 89;
+print(b, a, c);
 
-local flag = true and false or not false;
+b = 78;
+a = 34;
+c = 89;
+print(b, a, c);
 
-local greeting = "Hello\nWorld";
+a = 4;
+b = 5;
 
-function factorial(n) {
-    if (n == 0) {
-        return 1;
-    } else {
-        return n * factorial(n - 1);
-    }
-}
+e = -a+b; 
+print(e);
 
-local result = factorial(5);
-
-local t = [1, 2, 3];
-local x = t[0];
-t[1] = 42;
-
-print("test");
-print(result);
+e = -(a+b); 
+print(e);
