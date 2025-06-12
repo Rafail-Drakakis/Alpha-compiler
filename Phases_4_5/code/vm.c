@@ -618,16 +618,24 @@ void execute_DIV(instruction *instr) {
     if ((int)r->data.numVal == 0)
         avm_error("DIV: division by zero");
 
-    int left  = (int)l->data.numVal;
-    int right = (int)r->data.numVal;
-    int res   = left / right;
+    // int left  = (int)l->data.numVal;
+    // int right = (int)r->data.numVal;
+    // int res   = left / right;
 
-    // fprintf(stderr, "[DIV] %d / %d = %d\n", left, right, res);
+    // // fprintf(stderr, "[DIV] %d / %d = %d\n", left, right, res);
+
+    // lv->type = number_m;
+    // lv->data.numVal = (double)res;
+
+    double left  = l->data.numVal;
+    double right = r->data.numVal;
+
+    if (right == 0.0)
+        avm_error("DIV: division by zero");
 
     lv->type = number_m;
-    lv->data.numVal = (double)res;
+    lv->data.numVal = left / right;
 }
-
 
 void execute_MOD(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-3]);
