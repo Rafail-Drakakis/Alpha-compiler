@@ -531,6 +531,8 @@ expr *make_call_expr(expr *func_expr, expr *args) {
         return newexpr(nil_e);
     }
 
+    emit_params_rev(args);
+
     /* 2) count actuals */
     unsigned cnt = 0;
     for (expr *e = args; e; e = e->next) ++cnt;
