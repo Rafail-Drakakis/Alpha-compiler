@@ -581,12 +581,18 @@ void execute_ADD(instruction *instr) {
 
 void execute_SUB(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-3]);
-    avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
-    avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
+    // avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
+    // avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
+    avm_memcell *l  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE - 2]);  // left
+    avm_memcell *r  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE - 1]);  // right
+
     if (l->type != number_m || r->type != number_m)
         avm_error("SUB: non‐numeric operands '%s' - '%s'", avm_tostring(l), avm_tostring(r));
+    
     lv->type = number_m;
     lv->data.numVal = l->data.numVal - r->data.numVal;
+
+    // fprintf(stderr, "[SUB] %g - %g = %g\n", l->data.numVal, r->data.numVal, lv->data.numVal);
 }
 
 void execute_MUL(instruction *instr) {
@@ -601,28 +607,52 @@ void execute_MUL(instruction *instr) {
 
 void execute_DIV(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-3]);
-    avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
-    avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
+    // avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
+    // avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
+    avm_memcell *l  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE - 2]);  // left (dividend)
+    avm_memcell *r  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE - 1]);  // right (divisor)
+    
     if (l->type != number_m || r->type != number_m)
         avm_error("DIV: non‐numeric operands '%s' / '%s'", avm_tostring(l), avm_tostring(r));
-    if (r->data.numVal == 0)
+    
+    if ((int)r->data.numVal == 0)
         avm_error("DIV: division by zero");
+
+    int left  = (int)l->data.numVal;
+    int right = (int)r->data.numVal;
+    int res   = left / right;
+
+    // fprintf(stderr, "[DIV] %d / %d = %d\n", left, right, res);
+
     lv->type = number_m;
-    lv->data.numVal = l->data.numVal / r->data.numVal;
+    lv->data.numVal = (double)res;
 }
+
 
 void execute_MOD(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-3]);
     // avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
     // avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
-    avm_memcell *l  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
-    avm_memcell *r  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
-    if (l->type != number_m || r->type != number_m)
-        avm_error("MOD: non‐numeric operands '%s' %% '%s'", avm_tostring(l), avm_tostring(r));
-    if (r->data.numVal == 0)
+    avm_memcell *arg1 = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
+    avm_memcell *arg2 = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
+    
+    if (arg1->type != number_m || arg2->type != number_m) {
+        avm_error("MOD: non-numeric operands '%s' %% '%s'", avm_tostring(arg1), avm_tostring(arg2));
+    }
+
+    int dividend = (int)arg1->data.numVal;
+    int divisor  = (int)arg2->data.numVal;
+    
+    if (divisor == 0) {
         avm_error("MOD: modulo by zero");
+    }
+    
+    int result = dividend % divisor;
+
+    // fprintf(stderr, "[MOD] %d %% %d = %d\n", dividend, divisor, result);
+
     lv->type = number_m;
-    lv->data.numVal = fmod(l->data.numVal, r->data.numVal);
+    lv->data.numVal = (double)result;
 }
 
 void execute_ASSIGN(instruction *instr) {
