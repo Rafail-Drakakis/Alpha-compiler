@@ -73,42 +73,60 @@ static SymbolTableEntry *lookup_visible_var(SymbolTable *symbol_table, const cha
     return NULL;
 }
 
-/* modified insert_symbol: from void to SymbolTableEntry to store entries and use them from funcdef in call */
-SymbolTableEntry* insert_symbol(SymbolTable *symbol_table, const char *name, SymbolType type, unsigned int line, unsigned int scope) {
-
-    if (type == LOCAL_VAR) {                               
-        if (lookup_visible_var(symbol_table, name, scope))          
-            return NULL;                                        
+SymbolTableEntry* insert_symbol(SymbolTable *table,
+                                const char *name,
+                                SymbolType type,
+                                unsigned int line,
+                                unsigned int scope)
+{
+    // 1) LOCAL_VAR may not shadow any visible variable in the same or outer scopes
+    if (type == LOCAL_VAR) {
+        if (lookup_visible_var(table, name, scope)) {
+            // duplicate in local scope or outer → fail quietly
+            return NULL;
+        }
     }
 
-    /* note: are the {} correct ? */
-    for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
-        if (current->scope == scope && strcmp(current->name, name) == 0) {
-            int allow_duplicate = (current->type == ARGUMENT && type == ARGUMENT && current->line_number != line);
-            if (!allow_duplicate) {
-                fprintf(stderr, "Error: Symbol '%s' already defined in scope %u at line %u.\n", name, scope, line);
-                return NULL;
+    // 2) In the *same* scope, disallow redeclaring anything except
+    //    allow two ARGUMENT entries if they appear on different lines
+    for (SymbolTableEntry *cur = table->head; cur; cur = cur->next) {
+        if (cur->scope == scope && strcmp(cur->name, name) == 0) {
+            if (type == ARGUMENT && cur->type == ARGUMENT && cur->line_number != line) {
+                // two different formal args with same name on different lines? unlikely but allow
+                break;
             }
+            fprintf(stderr,
+                    "Error: Symbol '%s' already defined in scope %u (line %u).\n",
+                    name, scope, line);
+            return NULL;
         }
+    }
 
-        if (scope != 0) {
-            SymbolTableEntry *global_entry = lookup_symbol_global(symbol_table, name);
-            if (global_entry && global_entry->type == LIBRARY_FUNCTION) {
-                fprintf(stderr, "Error: Cannot redeclare library function '%s' (line %u).\n", name, line);
-                return NULL;
-            }
+    // 3) Never let a local or argument shadow a library function in global scope
+    if (scope != 0) {
+        SymbolTableEntry *g = lookup_symbol_global(table, name);
+        if (g && g->type == LIBRARY_FUNCTION) {
+            fprintf(stderr,
+                    "Error: Cannot redeclare library function '%s' (line %u).\n",
+                    name, line);
+            return NULL;
         }
+    }
 
-        SymbolTableEntry *new_entry = create_entry(name, type, line, scope);
+    // 4) All checks passed — create & link the new entry
+    SymbolTableEntry *entry = create_entry(name, type, line, scope);
+    assign_space_and_offset(entry);
 
-        if (!symbol_table->head) symbol_table->head = new_entry;
-        else {
-            SymbolTableEntry *current = symbol_table->head;
-            while (current->next) current = current->next;
-            current->next = new_entry;
-        }
-        assign_space_and_offset(new_entry);
-	return new_entry;
+    // append at tail for predictable ordering
+    if (!table->head) {
+        table->head = entry;
+    } else {
+        SymbolTableEntry *t = table->head;
+        while (t->next) t = t->next;
+        t->next = entry;
+    }
+
+    return entry;
 }
 
 SymbolTableEntry *lookup_symbol(SymbolTable *symbol_table, const char *name, unsigned int current_scope, int is_function_context) {

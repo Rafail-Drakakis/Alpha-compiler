@@ -525,38 +525,31 @@ static void emit_params_rev(expr *p) {
 // }
 
 expr *make_call_expr(expr *func_expr, expr *args) {
+    /* 1) ensure we have a callable value */
     func_expr = emit_iftableitem(func_expr);
-    if (!func_expr) return newexpr(nil_e);
+    if (!func_expr) {
+        return newexpr(nil_e);
+    }
 
-    expr *call_expr = newexpr(call_e);
-    call_expr->sym  = func_expr->sym ? func_expr->sym : newtemp();
-    call_expr->args = args;
-
-    /* 1) Count args */
+    /* 2) count actuals */
     unsigned cnt = 0;
     for (expr *e = args; e; e = e->next) ++cnt;
-    fprintf(stderr, "[DEBUG] make_call_expr: %u arg(s)\n", cnt);
 
-    /* 2) PARAM for each real argument */
-    unsigned idx = 1;
-    for (expr *e = args; e; e = e->next, ++idx) {
+    /* 3) push each argument */
+    for (expr *e = args; e; e = e->next) {
         expr *val = emit_iftableitem(e);
-        fprintf(stderr, "[DEBUG] make_call_expr: PARAM arg #%u = %s\n",
-                idx, val->sym->name);
         emit(param, val, NULL, NULL, 0, yylineno);
     }
 
-    /* 3) PARAM for count LAST */
-    fprintf(stderr, "[DEBUG] make_call_expr: PARAM count = %u\n", cnt);
+    /* 4) push the argument count */
     emit(param, newexpr_constnum(cnt), NULL, NULL, 0, yylineno);
 
-    /* 4) CALL + GETRETVAL */
-    fprintf(stderr, "[DEBUG] make_call_expr: CALL %s\n", call_expr->sym->name);
+    /* 5) emit the call */
     emit(call, func_expr, NULL, NULL, 0, yylineno);
+
+    /* 6) grab the return value */
     expr *retval = newexpr(var_e);
     retval->sym   = newtemp();
-    fprintf(stderr, "[DEBUG] make_call_expr: GETRET into %s\n",
-            retval->sym->name);
     emit(getretval, NULL, NULL, retval, 0, yylineno);
 
     return retval;

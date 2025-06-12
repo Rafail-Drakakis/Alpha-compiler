@@ -481,42 +481,58 @@ void execute_PUSHARG(instruction *instr) {
 }
 
 void execute_CALLFUNC(instruction *instr) {
-    avm_memcell *funcCell = avm_translate_operand(&instr->arg1,
-                                                  &stack[STACK_SIZE-1]);
+    /* Fetch the function value */
+    avm_memcell *funcCell = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-1]);
     if (!funcCell) {
         avm_error("CALLFUNC: cannot translate operand");
         return;
     }
 
-    if (funcCell->type == libfunc_m) {
-        unsigned saved_topsp = topsp;
-        fprintf(stderr,
-                "[DEBUG VM] CALLFUNC: before call top=%u → topsp=top+1\n",
-                top);
-
-        topsp = top + 1;  /* now stack[topsp] is the count */
-
-        {
-            avm_memcell *countCell    = &stack[topsp];
-            avm_memcell *firstArgCell = (topsp + 1 <= STACK_SIZE-1)
-                                         ? &stack[topsp + 1]
-                                         : NULL;
-            double countVal = (countCell->type == number_m
-                               ? countCell->data.numVal
-                               : -1.0);
-            double firstVal = (firstArgCell && firstArgCell->type == number_m
-                               ? firstArgCell->data.numVal
-                               : NAN);
-            fprintf(stderr,
-                    "[DEBUG VM] CALLFUNC: topsp=%u, count=%.2f, firstArg=%.2f\n",
-                    topsp, countVal, firstVal);
-        }
-
-        avm_calllibfunc(funcCell->data.libfuncVal);
-        topsp = saved_topsp;  /* restore previous frame */
+    /* Runtime error if not a function */
+    if (funcCell->type != libfunc_m && funcCell->type != userfunc_m) {
+        avm_error("call: cannot bind '%s' to function!", avm_tostring(funcCell));
         return;
     }
 
+    /* Library function call */
+    if (funcCell->type == libfunc_m) {
+        unsigned saved_topsp = topsp;
+        topsp = top + 1;
+        avm_calllibfunc(funcCell->data.libfuncVal);
+        topsp = saved_topsp;
+        return;
+    }
+
+    /* User function call: set up new stack frame */
+    {
+        /* 1) push return address (current pc) */
+        avm_memcell retAddr;
+        retAddr.type       = number_m;
+        retAddr.data.numVal = (double)pc;
+        retAddr.refCounter = 0;
+        stack[top--] = retAddr;
+
+        /* 2) push old TOPSP */
+        avm_memcell oldTopSp;
+        oldTopSp.type        = number_m;
+        oldTopSp.data.numVal = (double)topsp;
+        oldTopSp.refCounter  = 0;
+        stack[top--] = oldTopSp;
+
+        /* 3) push old TOP */
+        avm_memcell oldTop;
+        oldTop.type        = number_m;
+        oldTop.data.numVal = (double)top;
+        oldTop.refCounter  = 0;
+        stack[top--] = oldTop;
+
+        /* 4) start new frame */
+        topsp = top + 1;
+
+        /* 5) jump to the user‐function’s entry point */
+        pc = funcCell->data.funcVal;
+        return;
+    }
 }
 
 void execute_GETRET(instruction *instr) {
