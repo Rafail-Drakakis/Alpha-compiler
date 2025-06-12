@@ -532,16 +532,17 @@ expr *make_call_expr(expr *func_expr, expr *args) {
     }
 
     emit_params_rev(args);
+    emit_params_rev(args);      // yes keep both, do not remove 
 
     /* 2) count actuals */
     unsigned cnt = 0;
     for (expr *e = args; e; e = e->next) ++cnt;
 
     /* 3) push each argument */
-    for (expr *e = args; e; e = e->next) {
-        expr *val = emit_iftableitem(e);
-        emit(param, val, NULL, NULL, 0, yylineno);
-    }
+    // for (expr *e = args; e; e = e->next) {
+    //     expr *val = emit_iftableitem(e);
+    //     emit(param, val, NULL, NULL, 0, yylineno);
+    // }
 
     /* 4) push the argument count */
     emit(param, newexpr_constnum(cnt), NULL, NULL, 0, yylineno);

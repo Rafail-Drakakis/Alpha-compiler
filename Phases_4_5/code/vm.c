@@ -473,9 +473,9 @@ void execute_PUSHARG(instruction *instr) {
         avm_error("PUSHARG: cannot translate argument");
         return;
     }
-    fprintf(stderr,
-            "[DEBUG VM] PUSHARG: pushing %s (type %d) into stack[%u]\n",
-            avm_tostring(source), source->type, top);
+    // fprintf(stderr,
+    //         "[DEBUG VM] PUSHARG: pushing %s (type %d) into stack[%u]\n",
+    //         avm_tostring(source), source->type, top);
 
     stack[top--] = *source;
 }
