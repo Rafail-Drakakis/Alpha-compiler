@@ -235,6 +235,18 @@ void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsi
             arg1 = temp;
         }
     }
+
+    // Debug for uminus
+    /*
+    if (op == uminus) {
+        debug(1, "[EMIT] uminus: ");
+        if (arg1 && arg1->sym) debug(1, "arg1: %s, ", arg1->sym->name);
+        else debug(1, "arg1: <null>, ");
+        
+        if (result && result->sym) debug(1, "result: %s\n", result->sym->name);
+        else debug(1, "result: <null>\n");
+    }
+    */
     
     // Safety check for NULL or nil expressions in critical operations
     if ((op == if_eq || op == if_noteq || op == if_lesseq || op == if_greatereq || 

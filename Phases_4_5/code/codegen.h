@@ -78,6 +78,7 @@ void generate_TABLEGETELM  (quad *q);
 void generate_TABLESETELEM (quad *q);
 void generate_ASSIGN       (quad *q);
 void generate_NOP          (void);
+void generate_UMINUS       (quad *q);
 
 /* Jumps & relational */
 void generate_relational(opcode_t op, quad *q);

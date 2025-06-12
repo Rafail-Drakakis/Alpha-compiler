@@ -56,20 +56,25 @@ void generate_TABLESETELEM  (quad *q) { generate(op_tablesetelem,  q); }
 void generate_ASSIGN        (quad *q) { generate(op_assign,        q); }
 void generate_NOP           (void)   { instruction t = { .opcode = op_nop }; emit_instruction(t); }
 
+void generate_UMINUS(quad *q) {
+    // fprintf(stderr, "[GEN] Generating uminus instruction for quad at line %d\n", q->line);
+    generate(op_uminus, q);
+}
+
 static unsigned add_numconst(double x) {
-  for (unsigned i=0; i<totalNumConsts; ++i)
-    if (numConsts[i]==x) return i;
-  numConsts = realloc(numConsts, (totalNumConsts+1)*sizeof *numConsts);
-  numConsts[totalNumConsts] = x;
-  return totalNumConsts++;
+    for (unsigned i=0; i<totalNumConsts; ++i)
+        if (numConsts[i]==x) return i;
+    numConsts = realloc(numConsts, (totalNumConsts+1)*sizeof *numConsts);
+    numConsts[totalNumConsts] = x;
+    return totalNumConsts++;
 }
 
 static unsigned add_strconst(const char* s) {
-  for (unsigned i=0; i<totalStringConsts; ++i)
-    if (strcmp(stringConsts[i],s)==0) return i;
-  stringConsts = realloc(stringConsts,(totalStringConsts+1)*sizeof *stringConsts);
-  stringConsts[totalStringConsts] = strdup(s);
-  return totalStringConsts++;
+    for (unsigned i=0; i<totalStringConsts; ++i)
+        if (strcmp(stringConsts[i],s)==0) return i;
+    stringConsts = realloc(stringConsts,(totalStringConsts+1)*sizeof *stringConsts);
+    stringConsts[totalStringConsts] = strdup(s);
+    return totalStringConsts++;
 }
 
 void make_operand(expr *e, vmarg *arg) {
@@ -222,6 +227,7 @@ void generate_target_code(void) {
           case mul:     generate_MUL(q);  break;
           case idiv:    generate_DIV(q);  break;
           case mod:     generate_MOD(q);  break;
+	  case uminus:  generate_UMINUS(q); break;
           /* Table / Assign */
           case tablecreate:
             generate_NEWTABLE(q); break;

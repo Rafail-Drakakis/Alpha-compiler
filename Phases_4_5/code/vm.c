@@ -47,6 +47,7 @@ void execute_SUB(instruction *instr);
 void execute_MUL(instruction *instr);
 void execute_DIV(instruction *instr);
 void execute_MOD(instruction *instr);
+void execute_NEG(instruction *instr);
 void execute_ASSIGN(instruction *instr);
 void execute_JEQ(instruction *instr);
 void execute_JNE(instruction *instr);
@@ -766,14 +767,24 @@ void execute_NOT(instruction *instr) {
 
 void execute_NEG(instruction *instr) {
     static avm_memcell lv_temp, rv_temp;
-    avm_memcell *lv = avm_translate_operand(&instr->result, &lv_temp);
+
     avm_memcell *rv = avm_translate_operand(&instr->arg1, &rv_temp);
-    if (rv->type != number_m) {
+    avm_memcell *lv = avm_translate_operand(&instr->result, &lv_temp);
+
+    if (!rv || rv->type != number_m) {
         avm_error("NEG: operand is not a number '%s'", avm_tostring(rv));
         return;
     }
+    if (!lv) {
+        avm_error("NEG: invalid result target");
+        return;
+    }
+
     lv->type = number_m;
     lv->data.numVal = -rv->data.numVal;
+
+    // fprintf(stderr, "[NEG] -%g stored into target cell (type: %d)\n",
+    //     rv->data.numVal, lv->type);
 }
 
 static void load_numConsts(const char *filename) {
