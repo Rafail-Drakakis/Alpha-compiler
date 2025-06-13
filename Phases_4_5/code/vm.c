@@ -35,6 +35,13 @@ typedef struct {
 static userfunc_entry userfuncs[256];
 static unsigned num_userfuncs = 0;
 
+static const char *opname[] = {
+    "ADD","SUB","MUL","DIV","MOD",
+    "NEWTABLE","TGET","TSET","ASSIGN","NOP",
+    "JEQ","JNE","JGT","JGE","JLT","JLE",
+    "PUSHARG","CALLFUNC","GETRET","UMINUS"
+};
+
 /* ---------- Helper Prototypes ---------- */
 
 static unsigned hash_number(double key);
@@ -69,6 +76,26 @@ void execute_NOT(instruction *instr);
 void execute_NOP(instruction *instr);
 
 avm_memcell* avm_translate_operand(vmarg *arg, avm_memcell *reg);
+
+/* ---------- VM Execution Helpers ---------- */
+static inline int is_unconditional_jump(const vmarg *a1, const vmarg *a2) {
+    return a1->type == label_a && a2->type == label_a;
+}
+
+static inline double to_number_or_die(avm_memcell *m, const char *opname)
+{
+    if (m->type == number_m)
+        return m->data.numVal;
+
+    if (m->type == bool_m)
+        return (double)m->data.boolVal;
+
+    avm_error("%s: operand '%s' is not comparable",
+              opname, avm_tostring(m));
+    /* avm_error exits, so return is never reached */
+    return 0.0;
+}
+/* ------------------------------------------ */
 
 /* ---------- Error‐printing helper ---------- */
 void avm_error(const char *fmt, ...) {
@@ -345,7 +372,7 @@ avm_memcell* avm_translate_operand(vmarg *arg, avm_memcell *reg) {
         case global_a:
             return &stack[0 + arg->value];            /* globals start at index 0 */
         case local_a:
-            return &stack[top + 1 + arg->value];      /* ‘top’ is the current top‐of‐stack */
+            return &stack[topsp + arg->value];        /* locals are at topsp - offset */
         case formal_a:
             return &stack[topsp - 1 - arg->value];    /* ‘topsp’ is where formals begin */        
         case retval_a:
@@ -735,9 +762,10 @@ void execute_JEQ(instruction *instr) {
     else if (l->type == table_m && r->type == table_m) result = (l->data.tableVal == r->data.tableVal);
     else if (l->type == userfunc_m && r->type == userfunc_m) result = (l->data.funcVal == r->data.funcVal);
     else if (l->type == libfunc_m && r->type == libfunc_m) result = (strcmp(l->data.libfuncVal, r->data.libfuncVal) == 0);
-    if (!result) pc = instr->result.value - 1; /* skip to label if false */
+    if (result) pc = instr->result.value - 1; /* skip to label if false */
 }
 
+/*
 void execute_JNE(instruction *instr) {
     avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
     avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
@@ -749,35 +777,100 @@ void execute_JNE(instruction *instr) {
     else if (l->type == table_m && r->type == table_m) result = (l->data.tableVal == r->data.tableVal);
     else if (l->type == userfunc_m && r->type == userfunc_m) result = (l->data.funcVal == r->data.funcVal);
     else if (l->type == libfunc_m && r->type == libfunc_m) result = (strcmp(l->data.libfuncVal, r->data.libfuncVal) == 0);
-    if (result) pc = instr->result.value - 1; /* skip if equal */
+    if (result) pc = instr->result.value - 1; // skip if equal //
 }
+*/
 
-void execute_JLE(instruction *instr) {
+void execute_JNE(instruction *instr)
+{
+    /* quick-path: unconditional jump emitted as "JNE label,label" */
+    if (is_unconditional_jump(&instr->arg1, &instr->arg2)) {
+        pc = instr->result.value;   /* no "-1" because arg 'pc++' already happened */
+        return;
+    }
+
+    /* normal inequality test */
     avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
     avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
-    CHECK_NUMERIC_OP(l, r, "JLE");
-    if (l->data.numVal > r->data.numVal) pc = instr->result.value - 1;
+
+    int equal = 0;
+    if (l->type == number_m && r->type == number_m)          equal = (l->data.numVal == r->data.numVal);
+    else if (l->type == string_m && r->type == string_m)     equal = !strcmp(l->data.strVal, r->data.strVal);
+    else if (l->type == bool_m   && r->type == bool_m)       equal = (l->data.boolVal == r->data.boolVal);
+    else if (l->type == nil_m    && r->type == nil_m)        equal = 1;
+    else                                                     equal = 0;
+
+    if ( !equal )  pc = instr->result.value;
 }
 
-void execute_JLT(instruction *instr) {
-    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
-    avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
-    CHECK_NUMERIC_OP(l, r, "JLT");
-    if (l->data.numVal >= r->data.numVal) pc = instr->result.value - 1;
+
+
+void execute_JLE(instruction *instr)
+{
+    if (is_unconditional_jump(&instr->arg1, &instr->arg2)) {
+        pc = instr->result.value;
+        return;
+    }
+
+    avm_memcell *lv = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
+    avm_memcell *rv = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
+
+    double lnum = to_number_or_die(lv, "JLE");
+    double rnum = to_number_or_die(rv, "JLE");
+
+    if (!(lnum <= rnum))
+        pc = instr->result.value;
 }
 
-void execute_JGE(instruction *instr) {
-    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
-    avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
-    CHECK_NUMERIC_OP(l, r, "JGE");
-    if (l->data.numVal < r->data.numVal) pc = instr->result.value - 1;
+void execute_JLT(instruction *instr)
+{
+    if (is_unconditional_jump(&instr->arg1, &instr->arg2)) {
+        pc = instr->result.value;
+        return;
+    }
+
+    avm_memcell *lv = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
+    avm_memcell *rv = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
+
+    double lnum = to_number_or_die(lv, "JLT");
+    double rnum = to_number_or_die(rv, "JLT");
+
+    if (!(lnum < rnum))
+        pc = instr->result.value;
 }
 
-void execute_JGT(instruction *instr) {
-    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
-    avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
-    CHECK_NUMERIC_OP(l, r, "JGT");
-    if (l->data.numVal <= r->data.numVal) pc = instr->result.value - 1;
+void execute_JGE(instruction *instr)
+{
+    if (is_unconditional_jump(&instr->arg1, &instr->arg2)) {
+        pc = instr->result.value;
+        return;
+    }
+
+    avm_memcell *lv = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
+    avm_memcell *rv = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
+
+    double lnum = to_number_or_die(lv, "JGE");
+    double rnum = to_number_or_die(rv, "JGE");
+
+    if (!(lnum >= rnum))
+        pc = instr->result.value;
+}
+
+void execute_JGT(instruction *instr)
+{
+    if (is_unconditional_jump(&instr->arg1, &instr->arg2)) {
+        pc = instr->result.value;
+        return;
+    }
+
+    avm_memcell *lv = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
+    avm_memcell *rv = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
+
+    double lnum = to_number_or_die(lv, "JGT");
+    double rnum = to_number_or_die(rv, "JGT");
+
+    if (!(lnum > rnum))
+        pc = instr->result.value;
 }
 
 void execute_AND(instruction *instr) {
@@ -950,6 +1043,15 @@ void avm_destroy(void) {
 void vm_run(void) {
     while (pc < total_instructions) {
         instruction *instr = &code[pc++];
+        /*
+         printf("pc=%3u │ %-8s │ "
+           "a1=(%d,%d) a2=(%d,%d) res=(%d,%d)\n",
+           pc-1,
+           opname[instr->opcode],
+           instr->arg1.type,  instr->arg1.value,
+           instr->arg2.type,  instr->arg2.value,
+           instr->result.type,instr->result.value);
+           */
         switch (instr->opcode) {
             case op_add:            execute_ADD(instr);           break;
             case op_sub:            execute_SUB(instr);           break;
