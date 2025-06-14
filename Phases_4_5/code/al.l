@@ -309,45 +309,35 @@ punctuation (:|\.|\{|\}|\[|\]|\(|\)|;|,)
 <STRING_MODE>[^"\\\n]+ { yymore(); }
 <STRING_MODE>\\.       { yymore(); }
 
-<STRING_MODE>\" {
-    int startLine = pop_string();
-    if (startLine != -1) {
-        char *processed_str = strdup(yytext);
-        int len = strlen(processed_str);
+<STRING_MODE>\"  {
+    int startLine = pop_string();               /* where it started */
 
-        if (len > 0 && processed_str[len - 1] == '"') {
-            processed_str[len - 1] = '\0';
-        }
+    /* copy literal minus the closing quote */
+    int literal_len = yyleng - 1;               /* drop last "      */
+    char *lit = (char*)malloc(literal_len + 1);
+    memcpy(lit, yytext, literal_len);
+    lit[literal_len] = '\0';
 
-        if (processed_str[0] == '"') {
-            memmove(processed_str, processed_str + 1, strlen(processed_str));
-        }
-
-        for (int i = 0; processed_str[i]; i++) {
-            if (processed_str[i] == '\\' && processed_str[i + 1]) {
-                char replacement_char;
-                if (processed_str[i + 1] == 't') {
-                    replacement_char = '\t';
-                } else if (processed_str[i + 1] == 'n') {
-                    replacement_char = '\n';
-                } else if (processed_str[i + 1] == '"') {
-                    replacement_char = '"';
-                } else if (processed_str[i + 1] == '\\') {
-                    replacement_char = '\\';
-                } else {
-                    continue;
-                }
-                processed_str[i] = replacement_char;
-                memmove(&processed_str[i + 1],
-                        &processed_str[i + 2],
-                        strlen(&processed_str[i + 2]) + 1);
+    /* un-escape \t \n \" \\ */
+    char *src = lit, *dst = lit;
+    while (*src) {
+        if (*src == '\\' && src[1]) {
+            switch (src[1]) {
+            case 't':  *dst++ = '\t'; src += 2; continue;
+            case 'n':  *dst++ = '\n'; src += 2; continue;
+            case '"':  *dst++ = '"';  src += 2; continue;
+            case '\\': *dst++ = '\\'; src += 2; continue;
             }
         }
-
-        insert_token(startLine, processed_str, "STRING", "char*");
-        free(processed_str);
+        *dst++ = *src++;
     }
-    BEGIN(INITIAL);
+    *dst = '\0';
+
+    yylval.stringValue = lit;                   /* hand to Bison    */
+    insert_token(startLine, lit, "STRING", "char*");
+
+    BEGIN(INITIAL);                             /* back to normal   */
+    return STRING;                              /* token for parser */
 }
 
 <STRING_MODE>\n {

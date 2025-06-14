@@ -122,6 +122,25 @@ char *avm_tostring(avm_memcell *m) {
         case nil_m:
             return "nil";
         case undef_m:
+            const char *zone  = "heap/unknown";
+    long        index = -1;
+
+    /* Is the address inside the VM stack? */
+    if (m >= stack && m < stack + STACK_SIZE) {
+        index = (long)(m - stack);
+        zone  = "stack";
+
+        /* Optional: try a quick classification */
+        if (index < topsp)
+            zone = "global/data";
+        else if (index >= topsp && index <= top)
+            zone = "runtime frame";
+    }
+
+    fprintf(stderr,
+            "[VM-WARN] UNDEF cell at %p  "
+            "(pc=%u → next instr, %s idx=%ld, top=%u, topsp=%u)\n",
+            (void*)m, pc, zone, index, top, topsp);
             return "undef";
         case table_m:
             return "[table]";
@@ -926,6 +945,12 @@ static void load_numConsts(const char *filename) {
     total_const_nums = count;
     const_nums = malloc(count * sizeof(double));
     fread(const_nums, sizeof(double), count, fp);
+
+    /*
+    printf("[loader] numeric consts: %u\n", count);
+    for (uint32_t i = 0; i < count; ++i)
+        printf("  const_nums[%u] = %.17g\n", i, const_nums[i]);
+    */
     fclose(fp);
 }
 
@@ -944,6 +969,12 @@ static void load_stringConsts(const char *filename) {
         buf[len] = '\0';
         const_strs[i] = buf;
     }
+
+    /*
+    printf("[loader] string consts: %u\n", count);
+    for (uint32_t i = 0; i < count; ++i)
+        printf("  const_strs[%u] = \"%s\"\n", i, const_strs[i]);
+    */
     fclose(fp);
 }
 
@@ -955,6 +986,21 @@ static void load_instructions(const char *filename) {
     total_instructions = instr_count;
     code = malloc(instr_count * sizeof(instruction));
     fread(code, sizeof(instruction), instr_count, fp);
+
+    /*
+    printf("[loader] instructions: %u\n", instr_count);
+    for (uint32_t i = 0; i < instr_count; ++i) {
+        instruction *ins = &code[i];
+        printf("  %3u │ %-8s │ "
+               "a1=(%d,%d) a2=(%d,%d) res=(%d,%d)\n",
+               i,
+               opname[ins->opcode],
+               ins->arg1.type,  ins->arg1.value,
+               ins->arg2.type,  ins->arg2.value,
+               ins->result.type,ins->result.value);
+    }
+    */
+
     fclose(fp);
 }
 

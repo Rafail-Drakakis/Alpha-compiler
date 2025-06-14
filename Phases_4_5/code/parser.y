@@ -38,6 +38,8 @@
     static unsigned checkFuncDepth = 0;
     unsigned int returnlist = 0;
 
+    expr *call_lhs;
+
 
     typedef struct formal_argument_node {
         char *name;
@@ -70,6 +72,22 @@
         deactivate_entries_from_curr_scope(symbol_table, checkScope-1);
         --checkScope;
     }
+
+    /*
+    static void dbg_print_expr(FILE *out, expr *e)
+    {
+        if (!e) { fputs("<null>", out); return; }
+
+        switch (e->type) {
+        case constnum_e:    fprintf(out, "%g",   e->numConst);          break;
+        case conststring_e: fprintf(out, "\"%s\"", e->strConst);        break;
+        case constbool_e:   fputs(e->boolConst ? "true" : "false", out);break;
+        default:
+            if (e->sym && e->sym->name) fputs(e->sym->name, out);
+            else                       fprintf(out, "<type %d>", e->type);
+        }
+    }
+    */
 
    /**
     * we use this function to reset loop depth when entering a new function
@@ -417,7 +435,7 @@ expr
     | assignexpr { $$ = $1; }
     | immediately_invoked_func_expr { $$ = $1; }
     | term       { $$ = $1; } 
-    | expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); $$ = newexpr(nil_e);}
+    //| expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); $$ = newexpr(nil_e);}
     ;
 
 
@@ -564,15 +582,16 @@ term
     | primary 
     { 
         print_rule("term -> primary"); 
+        $$=$1;
     }
     ;
 
 primary
-    : lvalue { print_rule("primary -> lvalue"); }
-    | call { print_rule("primary -> call"); }
-    | objectdef { print_rule("primary -> objectdef"); }
+    : lvalue { print_rule("primary -> lvalue"); $$ = emit_iftableitem($1); }
+    | call { print_rule("primary -> call"); $$ = emit_iftableitem($1); }
+    | objectdef { print_rule("primary -> objectdef"); $$ = $1; }
     | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS { print_rule("primary -> ( funcdef )"); $$ = $2;}
-    | const { print_rule("primary -> const"); }
+    | const { print_rule("primary -> const"); $$ = $1; }
     ;
 
 lvalue
@@ -676,22 +695,23 @@ call_member
     ;
 
 call
-    : call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS 
-    { 
-        $$ = make_call_expr($1, $3); // $1 = previous call expr, $3 = argument list
-        print_rule("call -> call (elist)"); 
-        }
-    | lvalue {
-        is_calling = 1;
-        } callsuffix { 
-        is_calling = 0;
-        $$ = make_call_expr($1, $3);
-        print_rule("call -> lvalue callsuffix"); 
+  : lvalue
+    {
+      call_lhs = $1;
     }
-    /*  | LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { 
-        if (!$2) { debug(1, "Warning: Invalid function definition at line %d\n", yylineno); $$ = newexpr(nil_e); // Return a safe nil expression
-        } else { $$ = make_call_expr($2, $5); } print_rule("call -> ( funcdef ) ( elist )"); }    */
-    ;
+    callsuffix
+      {
+        /* now callsuffix can safely use call_lhs */
+        $$ = $3;
+      }
+  | call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
+      {
+        /* chaining: f(...)(...) */
+        $$ = make_call_expr($1, $3);
+        print_rule("call -> call ( elist )");
+      }
+  ;
+
 
 immediately_invoked_func_expr
     : LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS {
@@ -714,36 +734,94 @@ immediately_invoked_func_expr
 
 
 callsuffix
-    : normcall { print_rule("callsuffix -> normcall"); }
-    | methodcall { print_rule("callsuffix -> methodcall"); }
-    ;
+  : normcall
+      {
+        $$ = $1;
+        print_rule("callsuffix -> ( elist )");
+      }
+  | methodcall
+      {
+        $$ = $1;
+        print_rule("callsuffix -> .. IDENTIFIER ( elist )");
+      }
+  ;
 
+
+/* normal call:  ( elist ) */
 normcall
-    : LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { $$ = $2; print_rule("normcall -> ( elist )"); }
-    ;
+  : LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
+      {
+        $$ = make_call_expr(call_lhs, $2);
+      }
+  ;
 
+/* method call: ..IDENTIFIER(elist) */
 methodcall
-    : lvalue DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS { $$ = create_expr_list($1 , $5); print_rule("methodcall -> lvalue .. IDENTIFIER ( elist )"); }
-    ;
+  : DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
+      {
+        /* look up the method in the table */
+        expr *mname   = newexpr_conststring($2);
+        expr *method  = newexpr(tableitem_e);
+        method->sym   = newtemp();
+        emit(tablegetelem, call_lhs, mname, method, 0, yylineno);
+
+        /* prepend self and call */
+        expr *full_args = create_expr_list(call_lhs, $4);
+        $$ = make_call_expr(method, full_args);
+      }
+  ;
 
 elist
-    : expr 
-    { 
-        if ($1 && !$1->sym && $1->type != constnum_e && $1->type != conststring_e && $1->type != constbool_e)
-            $1->sym = newtemp();
-        $$ = $1;
-        print_rule("elist -> expr"); 
-        }
-    | expr COMMA elist { 
-        if ($1 && !$1->sym && $1->type != constnum_e && $1->type != conststring_e && $1->type != constbool_e)
-            $1->sym = newtemp();
-        $$ = create_expr_list($1, $3);
-        print_rule("elist -> expr , elist"); 
-        }
-    | /* empty */ { 
-        $$ = NULL;
-        print_rule("elist -> epsilon");
-    }
+    : expr
+      {
+          /*
+          
+          fprintf(stderr, "[elist-expr]  type=%d  sym=%s  @line %d → ",
+                  $1 ? $1->type : -1,
+                  ($1 && $1->sym) ? $1->sym->name : "<null>",
+                  yylineno);
+          dbg_print_expr(stderr, $1);
+          fputc('\n', stderr);
+          
+          */
+          /* ensure the expression has a temp symbol if it needs one */
+          if ($1 && !$1->sym &&
+              $1->type != constnum_e &&
+              $1->type != conststring_e &&
+              $1->type != constbool_e)
+              $1->sym = newtemp();
+
+          $$ = $1;
+          print_rule("elist -> expr");
+      }
+    | expr COMMA elist
+      {
+          /*
+          fprintf(stderr,
+                  "[elist-expr,elist]  lhs.type=%d  rhs.head.type=%d  @line %d\n",
+                  $1 ? $1->type : -1,
+                  $3 ? $3->type : -1,
+                  yylineno);
+           */
+
+          if ($1 && !$1->sym &&
+              $1->type != constnum_e &&
+              $1->type != conststring_e &&
+              $1->type != constbool_e)
+              $1->sym = newtemp();
+
+          $$ = create_expr_list($1, $3);
+          print_rule("elist -> expr , elist");
+      }
+    | /* empty */
+      {
+          /* 
+          fprintf(stderr, "[elist-empty]  @line %d\n", yylineno);
+           */
+
+          $$ = NULL;
+          print_rule("elist -> epsilon");
+      }
 ;
 
 objectdef
