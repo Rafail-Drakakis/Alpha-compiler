@@ -802,27 +802,43 @@ void execute_JNE(instruction *instr) {
 }
 */
 
+/* ---------- Helper: deep / pointer equality for every Alpha type ---------- */
+static int avm_cells_equal(avm_memcell *l, avm_memcell *r)
+{
+    if (l->type != r->type)
+        return 0;                                   /* different kinds → unequal */
+
+    switch (l->type)
+    {
+        case number_m:   return l->data.numVal  == r->data.numVal;
+        case string_m:   return strcmp(l->data.strVal, r->data.strVal) == 0;
+        case bool_m:     return l->data.boolVal == r->data.boolVal;
+        case nil_m:      return 1;                  /* nil == nil */
+        case table_m:    return l->data.tableVal  == r->data.tableVal;
+        case userfunc_m: return l->data.funcVal   == r->data.funcVal;
+        case libfunc_m:  return strcmp(l->data.libfuncVal, r->data.libfuncVal) == 0;
+        case undef_m:    /* falls through */
+        default:         return 0;                  /* treat undefined as unequal */
+    }
+}
+
+/* ---------- JNE  (jump if NOT equal)  ---------- */
 void execute_JNE(instruction *instr)
 {
-    /* quick-path: unconditional jump emitted as "JNE label,label" */
+    /* optimisation: code-generator emits   JNE label,label   for “jump always” */
     if (is_unconditional_jump(&instr->arg1, &instr->arg2)) {
-        pc = instr->result.value;   /* no "-1" because arg 'pc++' already happened */
+        pc = instr->result.value;        /* pc already ++, so no “-1” here     */
         return;
     }
 
-    /* normal inequality test */
-    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
-    avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
+    /* normal case -‐ translate operands */
+    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE - 2]);
+    avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE - 1]);
 
-    int equal = 0;
-    if (l->type == number_m && r->type == number_m)          equal = (l->data.numVal == r->data.numVal);
-    else if (l->type == string_m && r->type == string_m)     equal = !strcmp(l->data.strVal, r->data.strVal);
-    else if (l->type == bool_m   && r->type == bool_m)       equal = (l->data.boolVal == r->data.boolVal);
-    else if (l->type == nil_m    && r->type == nil_m)        equal = 1;
-    else                                                     equal = 0;
-
-    if ( !equal )  pc = instr->result.value;
+    if (!avm_cells_equal(l, r))          /* unequal?  →  take the jump         */
+        pc = instr->result.value - 1;    /* “-1” because fetch loop has pc++   */
 }
+
 
 
 
@@ -840,7 +856,7 @@ void execute_JLE(instruction *instr)
     double rnum = to_number_or_die(rv, "JLE");
 
     if (!(lnum <= rnum))
-        pc = instr->result.value;
+        pc = instr->result.value -1;
 }
 
 void execute_JLT(instruction *instr)
@@ -857,7 +873,7 @@ void execute_JLT(instruction *instr)
     double rnum = to_number_or_die(rv, "JLT");
 
     if (!(lnum < rnum))
-        pc = instr->result.value;
+        pc = instr->result.value -1;
 }
 
 void execute_JGE(instruction *instr)
@@ -874,7 +890,7 @@ void execute_JGE(instruction *instr)
     double rnum = to_number_or_die(rv, "JGE");
 
     if (!(lnum >= rnum))
-        pc = instr->result.value;
+        pc = instr->result.value -1;
 }
 
 void execute_JGT(instruction *instr)
@@ -891,7 +907,7 @@ void execute_JGT(instruction *instr)
     double rnum = to_number_or_die(rv, "JGT");
 
     if (!(lnum > rnum))
-        pc = instr->result.value;
+        pc = instr->result.value -1;
 }
 
 void execute_AND(instruction *instr) {
