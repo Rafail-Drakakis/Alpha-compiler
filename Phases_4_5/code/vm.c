@@ -9,7 +9,8 @@
 /* ---------- Global VM State ---------- */
 
 avm_memcell stack[STACK_SIZE];
-#define MAX_EXEC_STEPS  1000
+#define MAX_EXEC_STEPS  580
+#define AVM_STACKENV_SIZE 4
 
 unsigned top    = STACK_SIZE - 1;  /* initially, stack is empty */
 unsigned topsp  = 0;
@@ -403,8 +404,8 @@ avm_memcell* avm_translate_operand(vmarg *arg, avm_memcell *reg)
         case local_a:
             return &stack[topsp + arg->value];
 
-        case formal_a:
-            return &stack[topsp - 1 - arg->value];
+        case formal_a:   /* actuals start right after the frame header          */
+            return &stack[topsp + AVM_STACKENV_SIZE + arg->value];
 
         case retval_a:
             return retval_reg;
@@ -783,7 +784,7 @@ void execute_JEQ(instruction *instr) {
     else if (l->type == table_m && r->type == table_m) result = (l->data.tableVal == r->data.tableVal);
     else if (l->type == userfunc_m && r->type == userfunc_m) result = (l->data.funcVal == r->data.funcVal);
     else if (l->type == libfunc_m && r->type == libfunc_m) result = (strcmp(l->data.libfuncVal, r->data.libfuncVal) == 0);
-    if (result) pc = instr->result.value - 1; /* skip to label if false */
+    if (result) pc = instr->result.value; /* skip to label if false */
 }
 
 /*
@@ -836,7 +837,7 @@ void execute_JNE(instruction *instr)
     avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE - 1]);
 
     if (!avm_cells_equal(l, r))          /* unequal?  →  take the jump         */
-        pc = instr->result.value - 1;    /* “-1” because fetch loop has pc++   */
+        pc = instr->result.value;    /* “-1” because fetch loop has pc++   */
 }
 
 
@@ -855,8 +856,8 @@ void execute_JLE(instruction *instr)
     double lnum = to_number_or_die(lv, "JLE");
     double rnum = to_number_or_die(rv, "JLE");
 
-    if (!(lnum <= rnum))
-        pc = instr->result.value -1;
+    if (lnum <= rnum)
+        pc = instr->result.value;
 }
 
 void execute_JLT(instruction *instr)
@@ -872,8 +873,8 @@ void execute_JLT(instruction *instr)
     double lnum = to_number_or_die(lv, "JLT");
     double rnum = to_number_or_die(rv, "JLT");
 
-    if (!(lnum < rnum))
-        pc = instr->result.value -1;
+    if (lnum < rnum)
+        pc = instr->result.value;
 }
 
 void execute_JGE(instruction *instr)
@@ -889,8 +890,8 @@ void execute_JGE(instruction *instr)
     double lnum = to_number_or_die(lv, "JGE");
     double rnum = to_number_or_die(rv, "JGE");
 
-    if (!(lnum >= rnum))
-        pc = instr->result.value -1;
+    if (lnum >= rnum)
+        pc = instr->result.value;
 }
 
 void execute_JGT(instruction *instr)
@@ -906,8 +907,8 @@ void execute_JGT(instruction *instr)
     double lnum = to_number_or_die(lv, "JGT");
     double rnum = to_number_or_die(rv, "JGT");
 
-    if (!(lnum > rnum))
-        pc = instr->result.value -1;
+    if (lnum > rnum)
+        pc = instr->result.value;
 }
 
 void execute_AND(instruction *instr) {
@@ -915,7 +916,7 @@ void execute_AND(instruction *instr) {
     avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
     if (l->type != bool_m || r->type != bool_m)
         avm_error("AND: non‐bool operands '%s' and '%s'", avm_tostring(l), avm_tostring(r));
-    if (!(l->data.boolVal && r->data.boolVal)) pc = instr->result.value - 1;
+    if (!(l->data.boolVal && r->data.boolVal)) pc = instr->result.value;
 }
 
 void execute_OR(instruction *instr) {
@@ -923,14 +924,14 @@ void execute_OR(instruction *instr) {
     avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
     if (l->type != bool_m || r->type != bool_m)
         avm_error("OR: non‐bool operands '%s' and '%s'", avm_tostring(l), avm_tostring(r));
-    if (!(l->data.boolVal || r->data.boolVal)) pc = instr->result.value - 1;
+    if (!(l->data.boolVal || r->data.boolVal)) pc = instr->result.value;
 }
 
 void execute_NOT(instruction *instr) {
     avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-1]);
     if (l->type != bool_m)
         avm_error("NOT: non‐bool operand '%s'", avm_tostring(l));
-    if (!l->data.boolVal) pc = instr->result.value - 1;
+    if (!l->data.boolVal) pc = instr->result.value;
 }
 
 void execute_NEG(instruction *instr) {

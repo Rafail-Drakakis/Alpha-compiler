@@ -129,7 +129,7 @@ void make_operand(expr *e, vmarg *arg) {
                     break;
                 case formalarg:
                     arg->type  = formal_a;
-                    arg->value = TOPSP - offset - 1;
+                    arg->value = TOPSP - offset;
                     break;
                 case functionlocal:
                     arg->type  = local_a;
