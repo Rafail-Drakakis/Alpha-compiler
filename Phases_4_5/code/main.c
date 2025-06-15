@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
         printf("\n------ Target VM Instructions ------\n");
         print_instructions(stdout);
         write_text("out.txt", currInstruction);
-        write_binary("out.bin"  );
+        write_binary("out.abc"  );
     } else {
         fprintf(stderr, "No quads to print or empty quads array\n");
     }
