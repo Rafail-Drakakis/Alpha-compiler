@@ -412,7 +412,10 @@ expr *newexpr(expr_t t) {
     memset(e, 0, sizeof(expr));
     e->type = t;
     e->sym = NULL;
-    
+
+    if (t == boolexpr_e) {
+        e->sym = newtemp();
+    }
     // for nil expressions, ensure they have safe default values
     if (t == nil_e) {
         e->sym = newtemp();

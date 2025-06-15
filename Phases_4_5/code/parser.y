@@ -527,9 +527,8 @@ term
         print_rule("term -> - expr"); 
     }
     | NOT expr {
-        expr *e = newexpr(not_e);
-        e->index = $2;      /* store the operand */
-        $$ = e;
+        /* build a proper boolexpr node right here */
+        $$ = make_not($2);          /* ← only one call does everything */
     }
     | PLUS_PLUS lvalue 
     { 
