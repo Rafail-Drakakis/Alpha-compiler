@@ -998,7 +998,7 @@ static void register_libfuncs(void) {
 }
 
 void vm_init(void) {
-    load_binary("out.bin");
+    load_binary("out.abc");
 
     /* Initialize everything to undef */
     for (unsigned i = 0; i < STACK_SIZE; ++i)

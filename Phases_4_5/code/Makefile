@@ -69,4 +69,4 @@ vm.o: $(VM_C) $(VM_H) $(CODEGEN_H)
 	$(CC) $(CFLAGS) -c $(VM_C) -o $@
 
 clean:
-	rm -f $(OBJS) $(TARGET) $(LEX_C) $(BISON_C) $(BISON_H) out.txt out.bin
+	rm -f $(OBJS) $(TARGET) $(LEX_C) $(BISON_C) $(BISON_H) out.txt out.abc
