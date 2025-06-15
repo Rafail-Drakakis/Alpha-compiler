@@ -23,6 +23,7 @@ extern FILE* yyin;
 extern int semantic_errors;
 extern unsigned total;
 extern unsigned int currQuad;
+extern unsigned int currInstruction;
 
 SymbolTable *symbol_table;
 quad* quads = (quad*) 0;
@@ -108,10 +109,8 @@ int main(int argc, char **argv) {
         generate_target_code();
         printf("\n------ Target VM Instructions ------\n");
         print_instructions(stdout);
-        write_text("out_instructions.txt", currInstruction);
-        write_binary("out_instructions.bin", currInstruction);
-        write_numConsts("out_numConsts.bin"); 
-        write_stringConsts("out_stringConsts.bin");
+        write_text("out.txt", currInstruction);
+        write_binary("out.bin"  );
     } else {
         fprintf(stderr, "No quads to print or empty quads array\n");
     }

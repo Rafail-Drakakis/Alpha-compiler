@@ -203,28 +203,6 @@ void generate_FUNCEND(quad *q) {
     emit_instruction(t3);
 }
 
-void write_numConsts(const char *filename) {
-    FILE *fp = fopen(filename,"wb");
-    if (!fp) { perror("Cannot open numConsts file"); exit(1); }
-    uint32_t count = totalNumConsts;
-    fwrite(&count, sizeof(count), 1, fp);
-    fwrite(numConsts, sizeof(double), totalNumConsts, fp);
-    fclose(fp);
-}
-
-void write_stringConsts(const char *filename) {
-    FILE *fp = fopen(filename,"wb");
-    if (!fp) { perror("Cannot open stringConsts file"); exit(1); }
-    uint32_t count = totalStringConsts;
-    fwrite(&count, sizeof(count), 1, fp);
-    for (uint32_t i = 0; i < count; ++i) {
-        uint32_t len = (uint32_t)strlen(stringConsts[i]);
-        fwrite(&len, sizeof(len), 1, fp);
-        fwrite(stringConsts[i], sizeof(char), len, fp);
-    }
-    fclose(fp);
-}
-
 void generate_target_code(void) {
     currInstruction = 0;   /* clear out any old instructions */
     ijumps_head   = NULL; 
@@ -518,10 +496,26 @@ void write_text(const char *filename, unsigned int instr_count) {
     fclose(fp);
 }
 
-void write_binary(const char *filename, unsigned int instr_count) {
-    FILE *fp = fopen(filename, "wb");
-    if (!fp) { perror("Cannot open binary file"); exit(1); }
+void write_binary(const char *filename) {
+    FILE *fp = fopen(filename,"wb");
+    if(!fp) { perror("Cannot open output file"); exit(1); }
+
+    // 1) instructions
+    uint32_t instr_count = currInstruction;
     fwrite(&instr_count, sizeof(instr_count), 1, fp);
     fwrite(instructions, sizeof(instruction), instr_count, fp);
+
+    // 2) numConsts
+    fwrite(&totalNumConsts, sizeof(totalNumConsts), 1, fp);
+    fwrite(numConsts, sizeof(double), totalNumConsts, fp);
+
+    // 3) stringConsts
+    fwrite(&totalStringConsts, sizeof(totalStringConsts), 1, fp);
+    for(uint32_t i = 0; i < totalStringConsts; ++i){
+        uint32_t len = (uint32_t)strlen(stringConsts[i]);
+        fwrite(&len, sizeof(len), 1, fp);
+        fwrite(stringConsts[i], sizeof(char), len, fp);
+    }
+
     fclose(fp);
 }

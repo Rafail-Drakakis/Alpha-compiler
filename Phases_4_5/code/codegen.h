@@ -107,9 +107,9 @@ void generate_RET(quad *q);
 void generate_target_code(void);
 
 /* Print/write */
-void print_instructions(FILE* out);
+void print_instructions(FILE *out);
 void write_text(const char *filename, unsigned int instr_count);
-void write_binary(const char *filename, unsigned int instr_count);
+void write_binary(const char *filename);
 
 void write_numConsts(const char *filename);
 void write_stringConsts(const char *filename);

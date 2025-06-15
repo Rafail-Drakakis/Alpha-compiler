@@ -955,31 +955,29 @@ void execute_NEG(instruction *instr) {
     //     rv->data.numVal, lv->type);
 }
 
-static void load_numConsts(const char *filename) {
-    FILE *fp = fopen(filename, "rb");
-    if (!fp) avm_error("Cannot open %s", filename);
+static void load_binary(const char *filename) {
+    FILE *fp = fopen(filename,"rb");
+    if(!fp) avm_error("Cannot open %s", filename);
+
     uint32_t count;
+
+    // 1) instructions
+    fread(&count, sizeof(count), 1, fp);
+    total_instructions = count;
+    code = malloc(count * sizeof(instruction));
+    fread(code, sizeof(instruction), count, fp);
+
+    // 2) numConsts
     fread(&count, sizeof(count), 1, fp);
     total_const_nums = count;
     const_nums = malloc(count * sizeof(double));
     fread(const_nums, sizeof(double), count, fp);
 
-    /*
-    printf("[loader] numeric consts: %u\n", count);
-    for (uint32_t i = 0; i < count; ++i)
-        printf("  const_nums[%u] = %.17g\n", i, const_nums[i]);
-    */
-    fclose(fp);
-}
-
-static void load_stringConsts(const char *filename) {
-    FILE *fp = fopen(filename, "rb");
-    if (!fp) avm_error("Cannot open %s", filename);
-    uint32_t count;
+    // 3) stringConsts
     fread(&count, sizeof(count), 1, fp);
     total_const_strs = count;
     const_strs = malloc(count * sizeof(char*));
-    for (uint32_t i = 0; i < count; ++i) {
+    for(uint32_t i = 0; i < count; ++i) {
         uint32_t len;
         fread(&len, sizeof(len), 1, fp);
         char *buf = malloc(len+1);
@@ -987,37 +985,6 @@ static void load_stringConsts(const char *filename) {
         buf[len] = '\0';
         const_strs[i] = buf;
     }
-
-    /*
-    printf("[loader] string consts: %u\n", count);
-    for (uint32_t i = 0; i < count; ++i)
-        printf("  const_strs[%u] = \"%s\"\n", i, const_strs[i]);
-    */
-    fclose(fp);
-}
-
-static void load_instructions(const char *filename) {
-    FILE *fp = fopen(filename, "rb");
-    if (!fp) avm_error("Cannot open %s", filename);
-    uint32_t instr_count;
-    fread(&instr_count, sizeof(instr_count), 1, fp);
-    total_instructions = instr_count;
-    code = malloc(instr_count * sizeof(instruction));
-    fread(code, sizeof(instruction), instr_count, fp);
-
-    /*
-    printf("[loader] instructions: %u\n", instr_count);
-    for (uint32_t i = 0; i < instr_count; ++i) {
-        instruction *ins = &code[i];
-        printf("  %3u │ %-8s │ "
-               "a1=(%d,%d) a2=(%d,%d) res=(%d,%d)\n",
-               i,
-               opname[ins->opcode],
-               ins->arg1.type,  ins->arg1.value,
-               ins->arg2.type,  ins->arg2.value,
-               ins->result.type,ins->result.value);
-    }
-    */
 
     fclose(fp);
 }
@@ -1030,9 +997,7 @@ static void register_libfuncs(void) {
 }
 
 void vm_init(void) {
-    load_numConsts("out_numConsts.bin");
-    load_stringConsts("out_stringConsts.bin");
-    load_instructions("out_instructions.bin");
+    load_binary("out.bin");
 
     /* Initialize everything to undef */
     for (unsigned i = 0; i < STACK_SIZE; ++i)
