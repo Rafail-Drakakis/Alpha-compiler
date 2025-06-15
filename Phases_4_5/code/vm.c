@@ -9,6 +9,7 @@
 /* ---------- Global VM State ---------- */
 
 avm_memcell stack[STACK_SIZE];
+#define MAX_EXEC_STEPS  1000
 
 unsigned top    = STACK_SIZE - 1;  /* initially, stack is empty */
 unsigned topsp  = 0;
@@ -374,35 +375,49 @@ void avm_tablesetelem(avm_table *tbl, avm_memcell *key, avm_memcell *value) {
 
 static avm_memcell *retval_reg = NULL;
 
-avm_memcell* avm_translate_operand(vmarg *arg, avm_memcell *reg) {
+avm_memcell* avm_translate_operand(vmarg *arg, avm_memcell *reg)
+{
     switch (arg->type) {
         case number_a:
             reg->type = number_m;
             reg->data.numVal = const_nums[arg->value];
             return reg;
+
         case string_a:
             reg->type = string_m;
             reg->data.strVal = strdup(const_strs[arg->value]);
             return reg;
+
         case bool_a:
             reg->type = bool_m;
             reg->data.boolVal = (unsigned char)arg->value;
             return reg;
+
+        case nil_a:                               /* ←── ■ NEW ■ */
+            reg->type = nil_m;
+            return reg;
+
         case global_a:
-            return &stack[0 + arg->value];            /* globals start at index 0 */
+            return &stack[arg->value];            /* globals start at 0 */
+
         case local_a:
-            return &stack[topsp + arg->value];        /* locals are at topsp - offset */
+            return &stack[topsp + arg->value];
+
         case formal_a:
-            return &stack[topsp - 1 - arg->value];    /* ‘topsp’ is where formals begin */        
+            return &stack[topsp - 1 - arg->value];
+
         case retval_a:
             return retval_reg;
+
         case label_a:
-            reg->type = number_m;
-            reg->data.numVal = (double)arg->value;
+            reg->type       = number_m;
+            reg->data.numVal= (double)arg->value;
             return reg;
+
         default:
-            avm_error("Invalid operand type %d in avm_translate_operand()", arg->type);
-            return NULL;
+            avm_error("Invalid operand type %d in avm_translate_operand()",
+                      arg->type);
+            return NULL;          /* never reached – avm_error exits */
     }
 }
 
@@ -527,59 +542,46 @@ void execute_PUSHARG(instruction *instr) {
     stack[top--] = *source;
 }
 
-void execute_CALLFUNC(instruction *instr) {
-    /* Fetch the function value */
-    avm_memcell *funcCell = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-1]);
-    if (!funcCell) {
+void execute_CALLFUNC(instruction *instr)
+{
+    /* translate operand holding the “function object” */
+    avm_memcell *func =
+        avm_translate_operand(&instr->arg1, &stack[STACK_SIZE - 1]);
+    if (!func)
         avm_error("CALLFUNC: cannot translate operand");
+
+    /* ------------------------------------------------------------------ */
+    /* 1.  library function  (either a libfunc_m cell or a string name)    */
+    /* ------------------------------------------------------------------ */
+    if (func->type == libfunc_m || func->type == string_m) {
+        const char *name = (func->type == libfunc_m)
+                            ? func->data.libfuncVal
+                            : func->data.strVal;
+
+        unsigned saved_topsp = topsp;       /* keep caller’s frame pointer */
+
+        topsp = top + 1;                    /* callee’s frame starts here  */
+        avm_calllibfunc(name);              /* run C routine – it pops!    */
+
+        topsp = saved_topsp;                /* give the caller his frame   */
+        return;                             /* **do NOT restore `top`**    */
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* 2.  user-defined Alpha function                                    */
+    /* ------------------------------------------------------------------ */
+    if (func->type == userfunc_m) {
+        /* push return-addr, old topsp & old top */
+        stack[top--] = (avm_memcell){ .type = number_m, .data.numVal = (double)pc };
+        stack[top--] = (avm_memcell){ .type = number_m, .data.numVal = (double)topsp };
+        stack[top--] = (avm_memcell){ .type = number_m, .data.numVal = (double)top };
+
+        topsp = top + 1;                /* activate new frame             */
+        pc    = func->data.funcVal;     /* jump to function body          */
         return;
     }
 
-    /* Runtime error if not a function */
-    if (funcCell->type != libfunc_m && funcCell->type != userfunc_m) {
-        avm_error("call: cannot bind '%s' to function!", avm_tostring(funcCell));
-        return;
-    }
-
-    /* Library function call */
-    if (funcCell->type == libfunc_m) {
-        unsigned saved_topsp = topsp;
-        topsp = top + 1;
-        avm_calllibfunc(funcCell->data.libfuncVal);
-        topsp = saved_topsp;
-        return;
-    }
-
-    /* User function call: set up new stack frame */
-    {
-        /* 1) push return address (current pc) */
-        avm_memcell retAddr;
-        retAddr.type       = number_m;
-        retAddr.data.numVal = (double)pc;
-        retAddr.refCounter = 0;
-        stack[top--] = retAddr;
-
-        /* 2) push old TOPSP */
-        avm_memcell oldTopSp;
-        oldTopSp.type        = number_m;
-        oldTopSp.data.numVal = (double)topsp;
-        oldTopSp.refCounter  = 0;
-        stack[top--] = oldTopSp;
-
-        /* 3) push old TOP */
-        avm_memcell oldTop;
-        oldTop.type        = number_m;
-        oldTop.data.numVal = (double)top;
-        oldTop.refCounter  = 0;
-        stack[top--] = oldTop;
-
-        /* 4) start new frame */
-        topsp = top + 1;
-
-        /* 5) jump to the user‐function’s entry point */
-        pc = funcCell->data.funcVal;
-        return;
-    }
+    avm_error("call: cannot bind '%s' to function!", avm_tostring(func));
 }
 
 void execute_GETRET(instruction *instr) {
@@ -1087,7 +1089,16 @@ void avm_destroy(void) {
 }
 
 void vm_run(void) {
+    unsigned long long steps = 0; 
+
     while (pc < total_instructions) {
+
+        if (++steps > MAX_EXEC_STEPS) {
+            fprintf(stderr, "infinite loop\n");
+            fflush(stderr); 
+            exit(EXIT_FAILURE);
+        }
+
         instruction *instr = &code[pc++];
         /*
          printf("pc=%3u │ %-8s │ "

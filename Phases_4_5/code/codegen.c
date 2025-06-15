@@ -52,7 +52,17 @@ void generate_DIV           (quad *q) { generate(op_div,           q); }
 void generate_MOD           (quad *q) { generate(op_mod,           q); }
 void generate_NEWTABLE      (quad *q) { generate(op_newtable,      q); }
 void generate_TABLEGETELM   (quad *q) { generate(op_tablegetelem,  q); }
-void generate_TABLESETELEM  (quad *q) { generate(op_tablesetelem,  q); }
+void generate_TABLESETELEM(quad *q)
+{
+    instruction t;
+    t.opcode = op_tablesetelem;
+    make_operand(q->result, &t.arg1);   /* the table   */
+    make_operand(q->arg1,   &t.arg2);   /* the key     */
+    make_operand(q->arg2,   &t.result); /* the value   */
+
+    q->taddress = nextinstructionlabel();
+    emit_instruction(t);
+}
 void generate_ASSIGN        (quad *q) { generate(op_assign,        q); }
 void generate_NOP           (void)   { instruction t = { .opcode = op_nop }; emit_instruction(t); }
 
