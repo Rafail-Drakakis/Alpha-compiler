@@ -1,0 +1,52 @@
+---------------- Lexical Analysis ----------------
+1: #1 "Comment 1 - 1" COMMENT BLOCK_COMMENT <-enumerated
+4: #2 "Nested Comment 4 - 4" COMMENT BLOCK_COMMENT <-enumerated
+3: #3 "Comment 3 - 5" COMMENT BLOCK_COMMENT <-enumerated
+8: #4 "Comment 8 - 10" COMMENT BLOCK_COMMENT <-enumerated
+11: #5 "23" INTCONST 23 <-integer
+11: #6 "5.5" REALCONST 5.5 <-float
+12: #7 "myvariable" IDENTIFIER "myvariable" <-char*
+13: #8 "32" INTCONST 32 <-integer
+13: #9 "s" IDENTIFIER "s" <-char*
+14: #10 "Hello
+Example" STRING "Hello
+Example" <-char*
+16: #11 "!" ERROR UNDEFINED CHARACTER AT LINE 16 <-enumerated
+16: #12 "asdasd" IDENTIFIER "asdasd" <-char*
+16: #13 "//asdasda" COMMENT LINE_COMMENT <-enumerated
+18: #14 "0x1A" INTCONST 0x1A <-integer
+18: #15 "123" INTCONST 123 <-integer
+18: #16 "3.14e-2" REALCONST 3.14e-2 <-float
+19: #17 "if" KEYWORD IF <-enumerated
+19: #18 "while" KEYWORD WHILE <-enumerated
+19: #19 "function" KEYWORD FUNCTION <-enumerated
+21: #20 "// This is a comment" COMMENT LINE_COMMENT <-enumerated
+23: #21 "//kati edw/*kati allo" COMMENT LINE_COMMENT <-enumerated
+25: #22 "pame" IDENTIFIER "pame" <-char*
+25: #23 "katwme" IDENTIFIER "katwme" <-char*
+25: #24 "enter" IDENTIFIER "enter" <-char*
+25: #25 "*" OPERATOR MULT <-enumerated
+25: #26 "/" OPERATOR DIVIDE <-enumerated
+26: #27 "if" KEYWORD IF <-enumerated
+26: #28 "(" PUNCTUATION LEFT_PARENTHESIS <-enumerated
+26: #29 "a" IDENTIFIER "a" <-char*
+26: #30 "!=" OPERATOR NOT_EQUAL <-enumerated
+26: #31 "b" IDENTIFIER "b" <-char*
+26: #32 ")" PUNCTUATION RIGHT_PARENTHESIS <-enumerated
+26: #33 "{" PUNCTUATION LEFT_BRACE <-enumerated
+26: #34 "x" IDENTIFIER "x" <-char*
+26: #35 "::" PUNCTUATION COLON_COLON <-enumerated
+26: #36 "y" IDENTIFIER "y" <-char*
+26: #37 ".." PUNCTUATION DOT_DOT <-enumerated
+26: #38 "z" IDENTIFIER "z" <-char*
+26: #39 ":" PUNCTUATION COLON <-enumerated
+26: #40 "." PUNCTUATION DOT <-enumerated
+26: #41 "}" PUNCTUATION RIGHT_BRACE <-enumerated
+28: #42 "complete string" STRING "complete string" <-char*
+30: #43 "ERROR UNCLOSED STRING AT LINE 30" ERROR <-enumerated
+32: #44 "Comment 32 - 32" COMMENT BLOCK_COMMENT <-enumerated
+35: #45 "Nested Comment 35 - 35" COMMENT BLOCK_COMMENT <-enumerated
+34: #46 "Comment 34 - 36" COMMENT BLOCK_COMMENT <-enumerated
+38: #47 "Nested Comment 38 - 38" COMMENT BLOCK_COMMENT <-enumerated
+40: #48 "ERROR UNCLOSED COMMENT STARTED AT 40" ERROR <-enumerated
+38: #49 "ERROR UNCLOSED COMMENT STARTED AT 38" ERROR <-enumerated

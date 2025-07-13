@@ -1,6 +1,0 @@
-[31mError[0m: return ouside function in line 8
-[31mError[0m: break outside of loop in line 9
-[31mError[0m: continue outside of loop in line 10
-[31mError[0m: return ouside function in line 15
-[31mError[0m: break outside of loop in line 16
-[31mError[0m: continue outside of loop in line 17

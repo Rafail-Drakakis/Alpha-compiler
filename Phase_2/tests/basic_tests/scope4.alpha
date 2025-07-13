@@ -1,4 +1,0 @@
-function f(y) { 
-	function g(x) { return x * y; } 
-	return g(x); 
-}

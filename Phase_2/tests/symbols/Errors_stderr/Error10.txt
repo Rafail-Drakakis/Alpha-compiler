@@ -1,4 +1,0 @@
-[31mError[0m: Can't shadow library function 'print' in line 1
-[31mError[0m: Can't shadow library function 'input' in line 1
-[31mError[0m: function 'print' in line 5 alredy declared in this scope
-[31mError[0m: Can't shadow library function 'print' in line 10

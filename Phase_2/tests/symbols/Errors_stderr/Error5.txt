@@ -1,1 +1,0 @@
-[31mError[0m: function 'f' in line 5 alredy declared in this scope
