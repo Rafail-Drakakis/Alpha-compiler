@@ -1,3 +1,12 @@
+/**
+ * HY-340 Project Phase 2 2024-2025
+ *
+ * Members:
+ *      csd5171 Fytaki Maria
+ *      csd5310 Rafail Drakakis
+ *      csd5082 Theologos Kokkinellis
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "symbol_table.h"
@@ -42,11 +51,6 @@ int main(int argc, char *argv[]) {
     for (int k = 0; k < (sizeof(library_functions) / sizeof(library_functions[0])); k++) {
         insert_symbol(symbol_table, library_functions[k], LIBRARY_FUNCTION, 0, 0);
     }    
-
-    //printf("Starting syntax analysis...\n");
-    
-    //if (yyparse() == 0) {printf("Syntax analysis completed successfully.\n");}
-    //else printf("Syntax analysis encountered errors.\n");
     
     print_symbol_table(symbol_table);
 

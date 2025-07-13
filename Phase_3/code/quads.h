@@ -69,7 +69,6 @@ typedef struct quad {
 } quad;
 
 
-/* quads.h – put this just after the #includes */
 #ifndef LC_STACK_DEFINED
 #define LC_STACK_DEFINED
 

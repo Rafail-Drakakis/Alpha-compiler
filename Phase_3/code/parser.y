@@ -105,15 +105,13 @@
         return e;
     }
 
-    /*  is_inc    : 1 → ++   , 0 → --                         */
-    /*  is_prefix : 1 → ++x  , 0 → x++                        */
     static expr *incdec_lvalue(expr *lv, int is_inc, int is_prefix)
     {
         expr *one = newexpr_constnum(1);
 
         if (lv->type == tableitem_e) {
-            expr *table = emit_iftableitem(lv->table);      /* may be nested  */
-            expr *index = lv->index;                        /* already ok     */
+            expr *table = emit_iftableitem(lv->table);      
+            expr *index = lv->index;                      
 
             /* fetch current value */
             expr *old  = newexpr(var_e); old ->sym = newtemp();
@@ -121,7 +119,6 @@
 
             expr *ret  = NULL;                              /* value to return */
 
-            /*  x++ / x--  – save the *original* value BEFORE we change it */
             if (!is_prefix) {
                 ret = newexpr(var_e); ret->sym = newtemp();
                 emit(assign, old, NULL, ret, 0, yylineno);  /* ret = old      */
@@ -131,20 +128,16 @@
             expr *newv = newexpr(var_e); newv->sym = newtemp();
             emit(is_inc ? add : sub, old, one, newv, 0, yylineno);
 
-            /* store it back */
             emit(tablesetelem, newv, index, table, 0, yylineno);
-
-            /* ++x / --x -> result is the updated value, x++ / x-- -> old  */
             return is_prefix ? newv : ret;
         }
 
-        /* ────────────────  PLAIN VARIABLE  ─────────────── */
         expr *ret = newexpr(var_e); ret->sym = newtemp();
 
-        if (is_prefix) {                     /* ++x / --x   */
+        if (is_prefix) {                     
             emit(is_inc ? add : sub, lv, one, lv , 0, yylineno);
             emit(assign, lv , NULL, ret, 0, yylineno);      /* result = new   */
-        } else {                             /* x++ / x--   */
+        } else {                             
             emit(assign, lv , NULL, ret, 0, yylineno);      /* result = old   */
             emit(is_inc ? add : sub, lv, one, lv , 0, yylineno);
         }
@@ -191,7 +184,7 @@
 %nonassoc GREATER_THAN GREATER_EQUAL LESS_THAN LESS_EQUAL
 %right NOT
 %left  PLUS 
-%left MINUS              /* changed to UMINUS for (x-y) - z */
+%left MINUS             
 %left MULTIPLY DIVIDE MODULO
 %right PLUS_PLUS
 %right MINUS_MINUS
@@ -201,8 +194,6 @@
 %nonassoc ELSE
 
 %nonassoc UMINUS         /* unary minus operator */
-
-// %expect 2
 
 %start program
 
@@ -223,7 +214,6 @@ stmt
     : expr SEMICOLON 
         {
 
-        // for a[3];
         if ($1 && $1->type == tableitem_e) {
             emit_iftableitem($1);
         }
@@ -234,18 +224,6 @@ stmt
                 temp->sym = newtemp();
                 emit(add, newexpr_constnum($1->numConst), NULL, temp, 0, yylineno); 
             }
-            /* 
-
-            NOTE:   turns out this is WRONG because then tests like this one: 
-                    [   (function four(four){four=4;});   ]
-                    fail with extra assign anonymous
-            
-            if ($1 && $1->type != nil_e && $1->type != constnum_e && $1->type != conststring_e && $1->type != constbool_e) {
-                expr *temp = newexpr(var_e);
-                temp->sym = newtemp();
-                emit(assign, $1, NULL, temp, 0, yylineno);
-            }
-            */
 
             print_rule("stmt -> expr ;");
             $$ = $1;
@@ -275,7 +253,6 @@ expr
         else
             r->sym = newtemp();
 
-        // emit(add, $1, $3, r, 0, yylineno);
         emit(add, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
     }
@@ -318,7 +295,6 @@ expr
         else
             r->sym = newtemp();
     
-        // emit(idiv, $1, $3, r, 0, yylineno);
         emit(idiv, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
     }
@@ -333,7 +309,6 @@ expr
         else
             r->sym = newtemp();
 
-        // emit(mod, $1, $3, r, 0, yylineno);
         emit(mod, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
     }
@@ -344,12 +319,10 @@ expr
 
         if (!$1) $1 = newexpr(nil_e);
         if (!$3) $3 = newexpr(nil_e);
-        // Check if either operand is NULL or nil
         if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
            
             emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         } else {
-            // emit(if_greater, $1, $3, NULL, nextquad()+2, yylineno);
             expr *left = emit_iftableitem($1);
             expr *right = emit_iftableitem($3);
             emit(if_greater, left, right, NULL, nextquad()+2, yylineno);
@@ -367,7 +340,6 @@ expr
         if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
             emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         } else {
-            // emit(if_less, $1, $3, NULL, nextquad()+2, yylineno);
             expr *left = emit_iftableitem($1);
             expr *right = emit_iftableitem($3);
             emit(if_less, left, right, NULL, nextquad()+2, yylineno);
@@ -385,7 +357,6 @@ expr
         if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
             emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         } else {
-            // emit(if_greatereq, $1, $3, NULL, nextquad()+2, yylineno);
             expr *left = emit_iftableitem($1);
             expr *right = emit_iftableitem($3);
             emit(if_greatereq, left, right, NULL, nextquad()+2, yylineno);
@@ -403,7 +374,6 @@ expr
         if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
             emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
         } else {
-            // emit(if_lesseq, $1, $3, NULL, nextquad()+2, yylineno);
             expr *left = emit_iftableitem($1);
             expr *right = emit_iftableitem($3);
             emit(if_lesseq, left, right, NULL, nextquad()+2, yylineno);
@@ -418,8 +388,7 @@ expr
     | expr AND expr { $$ = make_and($1, $3); }
     | assignexpr { $$ = $1; }
     | immediately_invoked_func_expr { $$ = $1; }
-    | term       { $$ = $1; } 
-    //| expr DOT_DOT expr { print_rule("expr DOT_DOT expr"); $$ = newexpr(nil_e);}
+    | term       { $$ = $1; }
     ;
 
 
@@ -448,11 +417,7 @@ assignexpr
             
             $$ = result;
         } else {
-            // emit: a := rhs
-            // regular var assing
             emit(assign, rhs, NULL, $1, 0, yylineno);
-
-            // create a temp to hold the result
             expr *final = newexpr(var_e);
             final->sym = newtemp();
             emit(assign, $1, NULL, final, 0, yylineno);
@@ -517,50 +482,18 @@ term
     }
     | PLUS_PLUS lvalue 
     { 
-        /*
-        if ($2->type == programfunc_e || $2->type == libraryfunc_e) fprintf(stderr,"Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->sym->name, yylineno); 
-        expr *r = newexpr(var_e); 
-        r->sym = newtemp(); 
-        emit(assign, $2, NULL, r, 0, yylineno); 
-        emit(add, $2, newexpr_constnum(1), $2, 0, yylineno); 
-        $$ = r; 
-        */
         $$ = incdec_lvalue($2, 1, 1);
     }
     | lvalue PLUS_PLUS 
     { 
-        /*
-        if ($1->type == programfunc_e || $1->type == libraryfunc_e) fprintf(stderr,"Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->sym->name, yylineno); 
-        expr *r = newexpr(var_e); 
-        r->sym = newtemp(); 
-        emit(assign, $1, NULL, r, 0, yylineno); 
-        emit(add, $1, newexpr_constnum(1), $1, 0, yylineno); 
-        $$ = r; 
-        */
         $$ = incdec_lvalue($1, 1, 0); 
     }
     | MINUS_MINUS lvalue 
     { 
-        /*
-        if ($2->type == programfunc_e || $2->type == libraryfunc_e) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->sym->name, yylineno);
-        expr *r = newexpr(var_e); 
-        r->sym = newtemp(); 
-        emit(assign, $2, NULL, r, 0, yylineno); 
-        emit(sub, $2, newexpr_constnum(1), $2, 0, yylineno); 
-        $$ = r; 
-        */
         $$ = incdec_lvalue($2, 0, 1);
     }
     | lvalue MINUS_MINUS 
     { 
-        /*
-        if ($1->type == programfunc_e || $1->type == libraryfunc_e) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->sym->name, yylineno); 
-        expr *r = newexpr(var_e); 
-        r->sym = newtemp(); 
-        emit(assign, $1, NULL, r, 0, yylineno); 
-        emit(sub, $1, newexpr_constnum(1), $1, 0, yylineno); 
-        $$ = r;
-        */
         $$ = incdec_lvalue($1, 0, 0); 
     }
     | primary 
@@ -636,7 +569,6 @@ member
         result->sym = newtemp();
         result->index = newexpr_conststring($3);
         result->table = $1; // new
-        //emit(tablegetelem, $1, result->index, result, 0, yylineno);
         $$ = result;
         print_rule("member -> lvalue . IDENTIFIER"); 
     }
@@ -645,8 +577,7 @@ member
         expr* result = newexpr(tableitem_e);
         result->sym = newtemp();
         result->index = $3;
-        result->table = $1; // new
-        //emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        result->table = $1;
         $$ = result;
         print_rule("member -> lvalue [ expr ]"); 
     }
@@ -660,8 +591,7 @@ call_member
         expr* result = newexpr(tableitem_e);
         result->sym = newtemp();
         result->index = newexpr_conststring($3);
-        result->table = $1; // new
-        //emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        result->table = $1; 
         $$ = result;
         print_rule("call_member -> call . IDENTIFIER"); 
     }
@@ -670,8 +600,7 @@ call_member
         expr* result = newexpr(tableitem_e);
         result->sym = newtemp();
         result->index = $3;
-        result->table = $1;  // new
-        //emit(tablegetelem, $1, result->index, result, 0, yylineno);
+        result->table = $1; 
         $$ = result;
         print_rule("call_member -> call [ expr ]"); 
     }
@@ -684,12 +613,10 @@ call
     }
     callsuffix
       {
-        /* now callsuffix can safely use call_lhs */
         $$ = $3;
       }
   | call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
       {
-        /* chaining: f(...)(...) */
         $$ = make_call_expr($1, $3);
         print_rule("call -> call ( elist )");
       }
@@ -715,7 +642,6 @@ immediately_invoked_func_expr
     }
 ;
 
-
 callsuffix
   : normcall
       {
@@ -729,8 +655,6 @@ callsuffix
       }
   ;
 
-
-/* normal call:  ( elist ) */
 normcall
   : LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
       {
@@ -738,7 +662,6 @@ normcall
       }
   ;
 
-/* method call: ..IDENTIFIER(elist) */
 methodcall
   : DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
       {
@@ -780,12 +703,10 @@ objectdef
         expr* t = newexpr(newtable_e);
         t->sym = newtemp();
         emit(tablecreate, NULL, NULL, t, 0, yylineno);
-        
-        // Add elements from elist
+
         int i = 0;
         expr* curr = $2;
         while(curr) {
-            // --- NEW CODE: Ensure curr has a symbol! ---
             if (!curr->sym) curr->sym = newtemp();
 
             expr* index = newexpr_constnum(i++);
@@ -805,7 +726,6 @@ objectdef
         // Process indexed elements
         expr* curr = $2;
         while(curr) {
-            // --- NEW CODE: Defensive checks ---
             if (!curr->args) {
                 fprintf(stderr, "ERROR: indexedelem->args is NULL at line %d\n", yylineno);
                 curr = curr->next;
@@ -816,7 +736,6 @@ objectdef
                 curr = curr->next;
                 continue;
             }
-            // --- Ensure both have symbols! ---
             if (!curr->args->sym) curr->args->sym = newtemp();
             if (!curr->index->sym && curr->index->type != constnum_e && curr->index->type != conststring_e) curr->index->sym = newtemp();
 
@@ -832,8 +751,7 @@ objectdef
 indexed
     : indexedelem { $$ = $1; print_rule("indexed -> indexedelem"); }
     | indexedelem COMMA indexed 
-    { 
-        // Link the current indexedelem with the rest of the indexed list
+    {
         $1->next = $3;
         $$ = $1;
         print_rule("indexed -> indexedelem, indexed"); 
@@ -849,7 +767,6 @@ indexedelem
         elem->args = $4;
         elem->next = NULL;
 
-        // --- New: Make sure $2 and $4 have sym ---
         if (elem->index && !elem->index->sym &&
             elem->index->type != constnum_e &&
             elem->index->type != conststring_e) {
@@ -873,18 +790,6 @@ formal_arguments
 funcdef
   : FUNCTION IDENTIFIER
     {
-        /*SymbolTableEntry *func_sym = insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
-        expr* f = newexpr(programfunc_e);
-        f->sym = func_sym;
-	    current_function_expr = f;
-        //$<expression>3 = e;
-
-        enter_scope();
-        ++inside_function_depth;
-        inside_function_scope = 1;
-        first_brace_of_func = 1;  // Indicates the first brace of the function
-	    enter_function_scope();   // for loop */
-
         SymbolTableEntry *func_sym = insert_symbol(symbol_table, $2, USER_FUNCTION, yylineno, checkScope);
         expr* f = newexpr(programfunc_e);
         f->sym = func_sym;
@@ -915,18 +820,11 @@ funcdef
     }
     block
     {
-        /*--inside_function_depth;
-        exit_scope();
-        exit_function_scope();      // for loop
-        $$ = $<expression>3;        // use previously stored expr*
-        */
-
         --inside_function_depth;
         exit_scope();
         exit_function_scope();      // for loop
         emit(funcend, $<expression>3, NULL, NULL, 0, yylineno); // emit funcend
 
-        // new
         patchlist(returnlist, nextquad());
 
         $$ = $<expression>3;        // use previously stored expr*
@@ -950,7 +848,6 @@ funcdef
         emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
         emit(funcstart, func_expr, NULL, NULL, 0, yylineno);
 
-        // new
         returnlist = 0;
 
         current_function_expr = func_expr;  // we save this function as current
@@ -977,7 +874,6 @@ funcdef
 
         emit(funcend, $<expression>2, NULL, NULL, 0, yylineno); // emit funcend after block
 
-	    // new
         patchlist(returnlist, nextquad());
 
         $$ = $<expression>2;    // rtrn func_expr
@@ -1009,7 +905,6 @@ ifstmt
         {
         //printf("IF-LABEL: %d , %d\n",$1, $3);
         patchlabel($1, $3 + 1);
-        //patchlabel($2, nextquad()); // $2 is stmt not a quad number so we use $3
         patchlabel($3, nextquad());
         print_rule("ifstmt -> if ( expr ) stmt else stmt");
         }
@@ -1050,10 +945,10 @@ whilestmt
           push_loopcounter();
 
           expr *cond = $4;
-          if (cond->type == boolexpr_e)        /* a chain of or/and/not           */
-            cond = convert_to_value(cond);     /* generate t := true/false      */
+          if (cond->type == boolexpr_e)        /* a chain of or/and/not */
+            cond = convert_to_value(cond);     /* generate t := true/false*/
           else
-            cond = emit_iftableitem(cond);     /* still handle tableitem         */
+            cond = emit_iftableitem(cond);     /* still handle tableitem*/
 
           /* IF cond == TRUE jump somewhere (patch later) */
           emit(if_eq, cond, newexpr_constbool(1), NULL, 0, yylineno);
@@ -1085,11 +980,11 @@ whilestmt
 
 forstmt
     : FOR
-        { push_loopcounter(); enter_scope(); }     /* housekeeping     */
+        { push_loopcounter(); enter_scope(); }     
       LEFT_PARENTHESIS
-      elist SEMICOLON                              /* expr1 (init)     */
+      elist SEMICOLON                             
       MP
-      expr                                         /* expr2 (cond)     */
+      expr                                      
         {
             // Ensure expr has a symbol
             $7 = ensure_expr_has_symbol($7);
@@ -1110,11 +1005,8 @@ forstmt
       stmt
             {
         int ifQuad = $<intValue>8;
-
         emit(jump, NULL, NULL, NULL, $10, yylineno);
-
         patchlabel(ifQuad, $14);
-
         patchlabel(ifQuad + 1, nextquad());
 
         lc_stack_t *loop = current_loop();
@@ -1128,7 +1020,6 @@ forstmt
         pop_loopcounter();
     }
     ;
-
 
 
 returnstmt
@@ -1149,10 +1040,8 @@ returnstmt
         expr *val = convert_to_value($2);
         emit(ret, val, NULL, NULL, 0, yylineno);
 
- 	    // new
         emit(jump, NULL, NULL, NULL, 0, yylineno);  // label to patch later
         returnlist = mergelist(returnlist, newlist(nextquad() - 1));
-        // new end
 
         print_rule("returnstmt -> return expr ;");
     }
@@ -1161,7 +1050,6 @@ returnstmt
 break_stmt
     : BREAK SEMICOLON 
     {
-        //if (checkLoopDepth < 1) { 
         if (loopcounter() == 0) {
             fprintf(stderr, "Error: 'break' used outside of any loop (line %d)\n", yylineno);
             semantic_errors++;
@@ -1186,7 +1074,6 @@ break_stmt
 continue_stmt
     : CONTINUE SEMICOLON 
     {
-        //if (checkLoopDepth < 1) { 
         if (loopcounter() == 0) {
             fprintf(stderr, "Error: 'continue' used outside of any loop (line %d)\n", yylineno);
             semantic_errors++;

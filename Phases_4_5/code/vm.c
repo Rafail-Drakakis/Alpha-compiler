@@ -1,3 +1,12 @@
+/**
+ * HY-340 Project Phases 4 & 5 2024-2025
+ *
+ * Members:
+ *      csd5171 Fytaki Maria
+ *      csd5310 Rafail Drakakis
+ *      csd5082 Theologos Kokkinellis
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -132,7 +141,6 @@ char *avm_tostring(avm_memcell *m) {
         index = (long)(m - stack);
         zone  = "stack";
 
-        /* Optional: try a quick classification */
         if (index < topsp)
             zone = "global/data";
         else if (index >= topsp && index <= top)
@@ -394,7 +402,7 @@ avm_memcell* avm_translate_operand(vmarg *arg, avm_memcell *reg)
             reg->data.boolVal = (unsigned char)arg->value;
             return reg;
 
-        case nil_a:                               /* ←── ■ NEW ■ */
+        case nil_a:                        
             reg->type = nil_m;
             return reg;
 
@@ -630,8 +638,6 @@ void execute_ADD(instruction *instr) {
 
 void execute_SUB(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-3]);
-    // avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
-    // avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
     avm_memcell *l  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE - 2]);  // left
     avm_memcell *r  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE - 1]);  // right
 
@@ -656,8 +662,6 @@ void execute_MUL(instruction *instr) {
 
 void execute_DIV(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-3]);
-    // avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
-    // avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
     avm_memcell *l  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE - 2]);  // left (dividend)
     avm_memcell *r  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE - 1]);  // right (divisor)
     
@@ -666,15 +670,6 @@ void execute_DIV(instruction *instr) {
     
     if ((int)r->data.numVal == 0)
         avm_error("DIV: division by zero");
-
-    // int left  = (int)l->data.numVal;
-    // int right = (int)r->data.numVal;
-    // int res   = left / right;
-
-    // // fprintf(stderr, "[DIV] %d / %d = %d\n", left, right, res);
-
-    // lv->type = number_m;
-    // lv->data.numVal = (double)res;
 
     double left  = l->data.numVal;
     double right = r->data.numVal;
@@ -688,8 +683,6 @@ void execute_DIV(instruction *instr) {
 
 void execute_MOD(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(&instr->result, &stack[STACK_SIZE-3]);
-    // avm_memcell *r  = avm_translate_operand(&instr->arg1,   &stack[STACK_SIZE-2]);
-    // avm_memcell *l  = avm_translate_operand(&instr->arg2,   &stack[STACK_SIZE-1]);
     avm_memcell *arg1 = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
     avm_memcell *arg2 = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
     
@@ -787,22 +780,6 @@ void execute_JEQ(instruction *instr) {
     if (result) pc = instr->result.value; /* skip to label if false */
 }
 
-/*
-void execute_JNE(instruction *instr) {
-    avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE-2]);
-    avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE-1]);
-    int result = 0;
-    if (l->type == nil_m && r->type == nil_m) result = 1;
-    else if (l->type == bool_m && r->type == bool_m) result = (l->data.boolVal == r->data.boolVal);
-    else if (l->type == number_m && r->type == number_m) result = (l->data.numVal == r->data.numVal);
-    else if (l->type == string_m && r->type == string_m) result = (strcmp(l->data.strVal, r->data.strVal) == 0);
-    else if (l->type == table_m && r->type == table_m) result = (l->data.tableVal == r->data.tableVal);
-    else if (l->type == userfunc_m && r->type == userfunc_m) result = (l->data.funcVal == r->data.funcVal);
-    else if (l->type == libfunc_m && r->type == libfunc_m) result = (strcmp(l->data.libfuncVal, r->data.libfuncVal) == 0);
-    if (result) pc = instr->result.value - 1; // skip if equal //
-}
-*/
-
 /* ---------- Helper: deep / pointer equality for every Alpha type ---------- */
 static int avm_cells_equal(avm_memcell *l, avm_memcell *r)
 {
@@ -836,12 +813,9 @@ void execute_JNE(instruction *instr)
     avm_memcell *l = avm_translate_operand(&instr->arg1, &stack[STACK_SIZE - 2]);
     avm_memcell *r = avm_translate_operand(&instr->arg2, &stack[STACK_SIZE - 1]);
 
-    if (!avm_cells_equal(l, r))          /* unequal?  →  take the jump         */
-        pc = instr->result.value;    /* “-1” because fetch loop has pc++   */
+    if (!avm_cells_equal(l, r))   
+        pc = instr->result.value;  
 }
-
-
-
 
 void execute_JLE(instruction *instr)
 {
@@ -951,9 +925,6 @@ void execute_NEG(instruction *instr) {
 
     lv->type = number_m;
     lv->data.numVal = -rv->data.numVal;
-
-    // fprintf(stderr, "[NEG] -%g stored into target cell (type: %d)\n",
-    //     rv->data.numVal, lv->type);
 }
 
 static void load_binary(const char *filename) {
@@ -1082,15 +1053,6 @@ void vm_run(void) {
         }
 
         instruction *instr = &code[pc++];
-        /*
-         printf("pc=%3u │ %-8s │ "
-           "a1=(%d,%d) a2=(%d,%d) res=(%d,%d)\n",
-           pc-1,
-           opname[instr->opcode],
-           instr->arg1.type,  instr->arg1.value,
-           instr->arg2.type,  instr->arg2.value,
-           instr->result.type,instr->result.value);
-           */
         switch (instr->opcode) {
             case op_add:            execute_ADD(instr);           break;
             case op_sub:            execute_SUB(instr);           break;

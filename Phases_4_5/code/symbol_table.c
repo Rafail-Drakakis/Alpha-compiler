@@ -1,5 +1,5 @@
 /**
- * HY-340 Project Phase 3 2024-2025
+ * HY-340 Project Phases 4 & 5 2024-2025
  *
  * Members:
  *      csd5171 Fytaki Maria
@@ -220,8 +220,6 @@ void deactivate_entries_from_curr_scope(SymbolTable *symbol_table, unsigned int 
             if (!previous) symbol_table->head = current->next;
             else previous->next = current->next;
             current = current->next;
-            //free(entry_to_delete->name); 
-            //free(entry_to_delete);
         } else { previous = current; current = current->next; }
     }
 }
@@ -235,8 +233,6 @@ void free_symbol_table(SymbolTable *symbol_table) {
     }
     free(symbol_table);
 }
-
-/* based on lec 10 slide 32 (custom) */
 
 void comperror(char* format, ...) {             
     va_list args;

@@ -286,7 +286,6 @@ objectdef
     | LEFT_BRACKET indexed RIGHT_BRACKET { print_rule("objectdef -> [ indexed ]"); }
     ;
 
-// can be empty but due to shift reduce to ebgala 
 indexed
     : indexedelem { print_rule("indexed -> indexedelem"); }
     | indexedelem COMMA indexed { print_rule("indexed -> indexedelem, indexed"); }

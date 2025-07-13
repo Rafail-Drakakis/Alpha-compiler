@@ -16,7 +16,6 @@
 /* ── forward declarations for helpers used later ── */
 static void print_number_to_buf(char *buf, size_t sz, double n);
 static const char *bool_str(unsigned char b);
-/* ------------------------------------------------------ */
 
 unsigned programVarOffset = 0;
 unsigned functionLocalOffset = 0;
@@ -528,7 +527,6 @@ expr *make_call_expr(expr *func_expr, expr *args) {
     /* Safely handle arguments */
     call_expr->args = args;
 
-    /* ---------------------- new -------------------------- */
     emit_params_rev(args);
 
     emit(call, func_expr, NULL, NULL, 0, yylineno);   /* emit CALL quad */
@@ -538,8 +536,6 @@ expr *make_call_expr(expr *func_expr, expr *args) {
     retval->sym  = newtemp();
 
     emit(getretval, NULL, NULL, retval, 0, yylineno); /* emit GETRETVAL quad */
-
-    /* ------------------------------------------------------------ */
 
     /* return the expression that represents the call’s value */
     return retval;
@@ -582,7 +578,6 @@ expr *emit_iftableitem(expr *e) {
 
     expr *result = newexpr(var_e);
     result->sym = newtemp();
-    // emit(tablegetelem, e, e->index, result, 0, yylineno);
     emit(tablegetelem, table, e->index, result, 0, yylineno);
 
 
@@ -628,7 +623,7 @@ void make_stmt(stmt_t *s) {
 
 
 static void print_number(FILE *f, double n) {
-    double diff = n - (long)n;          /* cheap fabs */
+    double diff = n - (long)n;
     if (diff < 0) diff = -diff;
 
     if (diff < 0.0000001)
@@ -724,7 +719,7 @@ static inline unsigned shown_label(const quad *q)
         case if_lesseq:    case if_greatereq:
             return 1; 
         default:
-            return 0;                       /* keep the zero */
+            return 0;                  
         }
     }
 
@@ -993,15 +988,11 @@ expr* make_not(expr *e) {
 expr *make_and(expr *lhs, expr *rhs)
 {
     unsigned test = emit_bool_test(lhs);
-
-   /* new:  patch the TRUE edge        */
-   patchlabel(test, nextquad());       /* E1.True  →  start of E2 */
+    patchlabel(test, nextquad());      
 
     expr *rb = lower_if_not(rhs);
     expr *r  = newexpr(boolexpr_e);
-
-   /* new: E.True is only what comes from the RHS                    */
-   r->truelist  = rb->truelist;
+    r->truelist  = rb->truelist;
 
    r->falselist = mergelist(newlist(test + 1), rb->falselist);  /* same */
     return r;

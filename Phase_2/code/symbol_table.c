@@ -1,3 +1,12 @@
+/**
+ * HY-340 Project Phase 2 2024-2025
+ *
+ * Members:
+ *      csd5171 Fytaki Maria
+ *      csd5310 Rafail Drakakis
+ *      csd5082 Theologos Kokkinellis
+ */
+
 #include "symbol_table.h"
 
 static const char *get_symbol_type_str(SymbolType symbol_type) {
@@ -35,7 +44,7 @@ SymbolTableEntry *create_entry(const char *name, SymbolType type, unsigned int l
     return entry;
 }
 
-static SymbolTableEntry *lookup_visible_var(SymbolTable *symbol_table, const char *name, unsigned scope) {                                   /* ψάχνουμε από scope-1 ως 0 */
+static SymbolTableEntry *lookup_visible_var(SymbolTable *symbol_table, const char *name, unsigned scope) {
     for (int s = (int)scope - 1; s >= 0; --s)
         for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
             if (current->scope == (unsigned)s &&

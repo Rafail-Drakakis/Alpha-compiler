@@ -64,7 +64,6 @@ SymbolTableEntry* insert_symbol(SymbolTable *symbol_table, const char *name, Sym
             return NULL;                                        
     }
 
-    /* note: are the {} correct ? */
     for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
         if (current->scope == scope && strcmp(current->name, name) == 0) {
             int allow_duplicate = (current->type == ARGUMENT && type == ARGUMENT && current->line_number != line);
@@ -200,8 +199,6 @@ void free_symbol_table(SymbolTable *symbol_table) {
     }
     free(symbol_table);
 }
-
-/* based on lec 10 slide 32 (custom) */
 
 void comperror(char* format, ...) {             
     va_list args;

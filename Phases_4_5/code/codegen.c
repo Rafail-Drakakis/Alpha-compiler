@@ -1,3 +1,12 @@
+/**
+ * HY-340 Project Phases 4 & 5 2024-2025
+ *
+ * Members:
+ *      csd5171 Fytaki Maria
+ *      csd5310 Rafail Drakakis
+ *      csd5082 Theologos Kokkinellis
+ */
+
 #include "codegen.h"
 #include "symbol_table.h"
 #include "quads.h"

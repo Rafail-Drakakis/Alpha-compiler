@@ -1,5 +1,5 @@
 /**
- * HY-340 Project Phase 3 2024-2025
+ * HY-340 Project Phases 4 & 5 2024-2025
  *
  * Members:
  *      csd5171 Fytaki Maria
@@ -517,28 +517,6 @@ static void emit_params_rev(expr *p) {
     emit(param, p, NULL, NULL, 0, yylineno);
 }
 
-// static void emit_params_rev(expr *p) {
-//     if (!p) return;
-
-//     emit_params_rev(p->next); // recurse to emit right-to-left
-
-//     expr *e = emit_iftableitem(p); // ensure tables are handled
-
-//     expr *evaled;
-
-//     // Constants and variables can be used directly
-//     if (e->type == constnum_e || e->type == constbool_e || e->type == conststring_e || e->type == nil_e || e->type == var_e) {
-//         evaled = e;
-//     } else {
-//         // Otherwise, evaluate into a new temp
-//         evaled = newexpr(var_e);
-//         evaled->sym = newtemp();
-//         emit(assign, e, NULL, evaled, 0, yylineno);
-//     }
-
-//     emit(param, evaled, NULL, NULL, 0, yylineno);
-// }
-
 expr *make_call_expr(expr *func_expr, expr *args) {
     /* 1) ensure we have a callable value */
     func_expr = emit_iftableitem(func_expr);
@@ -552,12 +530,6 @@ expr *make_call_expr(expr *func_expr, expr *args) {
     /* 2) count actuals */
     unsigned cnt = 0;
     for (expr *e = args; e; e = e->next) ++cnt;
-
-    /* 3) push each argument */
-    // for (expr *e = args; e; e = e->next) {
-    //     expr *val = emit_iftableitem(e);
-    //     emit(param, val, NULL, NULL, 0, yylineno);
-    // }
 
     /* 4) push the argument count */
     emit(param, newexpr_constnum(cnt), NULL, NULL, 0, yylineno);
@@ -738,13 +710,9 @@ static void print_expr(FILE *f, expr *e) {
     }
 }
 
-
 static inline unsigned shown_label(const quad *q)
 {
-    /* real label is 0 → means "no label yet"  */
     if (q->label == 0) {
-        /* Show "1" only for jumps or IF-quads so that
-           the printed text never says "jump to 0". */
         switch (q->op) {
         case jump:
         case if_eq:        case if_noteq:
@@ -756,7 +724,6 @@ static inline unsigned shown_label(const quad *q)
         }
     }
 
-    /* any other label → add 1 because quad indices are 0-based  */
     return q->label + 1;
 }
 
