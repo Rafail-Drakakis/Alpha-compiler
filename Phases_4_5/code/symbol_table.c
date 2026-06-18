@@ -10,20 +10,29 @@
 #include "symbol_table.h"
 #include "quads.h" 
 
+extern int inside_function_depth;
+
 unsigned global_offset = 0;
 unsigned local_offset = 0;
 unsigned formal_offset = 0;
 
+void reset_function_offsets(void) {
+    local_offset = 0;
+    formal_offset = 0;
+}
+
 void assign_space_and_offset(SymbolTableEntry* sym) {
-    if (sym->scope == 0) {
-        sym->space = programvar;
-        sym->offset = global_offset++;
-    } else if (sym->type == ARGUMENT) {
+    if (sym->type == ARGUMENT && inside_function_depth > 0) {
         sym->space = formalarg;
         sym->offset = formal_offset++;
-    } else {
+    } else if ((sym->type == LOCAL_VAR || sym->type == TEMP_VAR) &&
+               inside_function_depth > 0) {
         sym->space = functionlocal;
         sym->offset = local_offset++;
+    } else {
+        sym->space = programvar;
+        sym->offset = global_offset++;
+        programVarOffset = global_offset;
     }
 }
 
@@ -59,6 +68,7 @@ SymbolTableEntry *create_entry(const char *name, SymbolType type, unsigned int l
     entry->type = type;
     entry->line_number = line;  
     entry->scope = scope;
+    entry->is_active = 1;
     entry->next = NULL;
     return entry;
 }
@@ -67,7 +77,7 @@ SymbolTableEntry *create_entry(const char *name, SymbolType type, unsigned int l
 static SymbolTableEntry *lookup_visible_var(SymbolTable *symbol_table, const char *name, unsigned scope) {
     for (int s = (int)scope - 1; s >= 0; --s)
         for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
-            if (current->scope == (unsigned)s &&
+            if (current->scope == (unsigned)s && current->is_active &&
                 (current->type == GLOBAL || current->type == LOCAL_VAR || current->type == ARGUMENT) && strcmp(current->name, name) == 0)
                 return current;
     return NULL;
@@ -79,18 +89,10 @@ SymbolTableEntry* insert_symbol(SymbolTable *table,
                                 unsigned int line,
                                 unsigned int scope)
 {
-    // 1) LOCAL_VAR may not shadow any visible variable in the same or outer scopes
-    if (type == LOCAL_VAR) {
-        if (lookup_visible_var(table, name, scope)) {
-            // duplicate in local scope or outer → fail quietly
-            return NULL;
-        }
-    }
-
     // 2) In the *same* scope, disallow redeclaring anything except
     //    allow two ARGUMENT entries if they appear on different lines
     for (SymbolTableEntry *cur = table->head; cur; cur = cur->next) {
-        if (cur->scope == scope && strcmp(cur->name, name) == 0) {
+        if (cur->scope == scope && cur->is_active && strcmp(cur->name, name) == 0) {
             if (type == ARGUMENT && cur->type == ARGUMENT && cur->line_number != line) {
                 // two different formal args with same name on different lines? unlikely but allow
                 break;
@@ -132,27 +134,14 @@ SymbolTableEntry* insert_symbol(SymbolTable *table,
 SymbolTableEntry *lookup_symbol(SymbolTable *symbol_table, const char *name, unsigned int current_scope, int is_function_context) {
     for (int scope = (int)current_scope; scope >= 0; --scope)
         for (SymbolTableEntry *current = symbol_table->head; current; current = current->next)
-            if (current->scope == (unsigned)scope && strcmp(current->name, name) == 0) {
+            if (current->scope == (unsigned)scope && current->is_active && strcmp(current->name, name) == 0) {
 
                 if (current->type == USER_FUNCTION || current->type == LIBRARY_FUNCTION)
                     return current;
 
-                if (current->type == GLOBAL || current->type == LOCAL_VAR || current->type == ARGUMENT || current->type == TEMP_VAR) {
-
-                    if (scope == (int)current_scope || scope == 0)
-                        return current;
-
-                    if (is_function_context) {
-                        int other_scope = 0;
-                        for (int t = (int)current_scope; t > scope && !other_scope; --t)
-                            for (SymbolTableEntry *x = symbol_table->head; x; x = x->next)
-                                if (x->scope == (unsigned)t && x->type == USER_FUNCTION) {
-                                    other_scope = 1; break;
-                                }
-                        if (!other_scope) return current;
-                        printf("Error: Symbol '%s' defined at line %u in enclosing function.\n", current->name, current->line_number);
-                    }
-                }
+                if (current->type == GLOBAL || current->type == LOCAL_VAR ||
+                    current->type == ARGUMENT || current->type == TEMP_VAR)
+                    return current;
             }
     return NULL;
 }
@@ -208,19 +197,14 @@ void print_symbol_table(SymbolTable *symbol_table) {
 }
 
 void deactivate_entries_from_curr_scope(SymbolTable *symbol_table, unsigned int scope) {
-    SymbolTableEntry *current = symbol_table->head, *previous = NULL;
-    while (current) {
-        int removable = (current->scope == scope) &&
-                        current->type != USER_FUNCTION &&
-                        current->type != LOCAL_VAR   &&
-                        current->type != ARGUMENT;
-
-        if (removable && scope != 0 && current->type != LIBRARY_FUNCTION) {
-            SymbolTableEntry *entry_to_delete = current;
-            if (!previous) symbol_table->head = current->next;
-            else previous->next = current->next;
-            current = current->next;
-        } else { previous = current; current = current->next; }
+    for (SymbolTableEntry *current = symbol_table->head; current; current = current->next) {
+        if (current->scope == scope &&
+            current->is_active &&
+            current->type != USER_FUNCTION &&
+            current->type != LIBRARY_FUNCTION &&
+            current->type != GLOBAL) {
+            current->is_active = 0;
+        }
     }
 }
 

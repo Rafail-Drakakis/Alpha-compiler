@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <stdarg.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "quads.h"
 #include "symbol_table.h"
@@ -32,7 +33,7 @@ void debug(int level, const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
 
-    if (level > 0) {
+    if (level > 0 && getenv("ALPHA_DEBUG")) {
         fprintf(stderr, "[DEBUG] ");
         vfprintf(stderr, fmt, args);
     }
@@ -75,7 +76,11 @@ int main(int argc, char **argv) {
     }
 
     // Register built-in library functions in global scope
-    const char *builtins[] = { "typeof", "totalarguments", "argument", "print" };
+    const char *builtins[] = {
+        "print", "input", "objectmemberkeys", "objecttotalmembers",
+        "objectcopy", "totalarguments", "argument", "typeof",
+        "strtonum", "sqrt", "cos", "sin"
+    };
     for (size_t i = 0; i < sizeof(builtins)/sizeof(*builtins); ++i) {
         SymbolTableEntry *sym = insert_symbol(
             symbol_table,
@@ -86,43 +91,53 @@ int main(int argc, char **argv) {
         );
         if (!sym) {
             fprintf(stderr, "Warning: could not register builtin %s\n", builtins[i]);
-        } else {
-            // Place it as a true global at the next available slot
-            sym->space  = programvar;
-            sym->offset = programVarOffset++;
         }
     }
 
-    if (yyparse() == 0) {
+    int parse_ok = (yyparse() == 0);
+    int run_vm = 0;
+    const char *alpha_debug = getenv("ALPHA_DEBUG");
+
+    if (parse_ok) {
         if (semantic_errors > 0) {
             fprintf(stderr, "\nParsing completed with %d semantic error(s).\n", semantic_errors);
         } else {
-            printf("Parsing completed successfully.\n");
+            if (alpha_debug)
+                printf("Parsing completed successfully.\n");
+            run_vm = 1;
         }
     } else {
         fprintf(stderr, "Parsing failed.\n");
     }
  
-    if (quads && currQuad > 0) {
-        print_quads(stdout);
+    if (run_vm && quads && currQuad > 0) {
+        if (alpha_debug)
+            print_quads(stdout);
 
         generate_target_code();
-        printf("\n------ Target VM Instructions ------\n");
-        print_instructions(stdout);
+        export_userfuncs_to_vm();
+        if (alpha_debug) {
+            printf("\n------ Target VM Instructions ------\n");
+            print_instructions(stdout);
+        }
         write_text("out.txt", currInstruction);
-        write_binary("out.abc"  );
+        write_binary("out.abc");
+
+        vm_init();
+        vm_run();
+        avm_destroy();
+    } else if (!parse_ok || semantic_errors > 0) {
+        /* skip VM */
     } else {
         fprintf(stderr, "No quads to print or empty quads array\n");
     }
-
-    vm_init();
-    vm_run();
-    avm_destroy();
 
     free_symbol_table(symbol_table);
     if (argc == 2 && yyin) {
         fclose(yyin);
     }
  
+    if (!parse_ok || semantic_errors > 0)
+        return 1;
     return 0;
 }

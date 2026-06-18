@@ -68,4 +68,8 @@ void check_arith(struct expr* e, const char* context);
 
 void assign_space_and_offset(SymbolTableEntry* sym);
 
+extern unsigned local_offset;
+extern unsigned formal_offset;
+void reset_function_offsets(void);
+
 #endif

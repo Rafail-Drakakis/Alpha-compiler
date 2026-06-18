@@ -1,14 +1,23 @@
-**/*.o
+# Build artifacts
+*.o
+lex.yy.c
+parser.c
+parser.h
+parser.tab.c
+parser.tab.h
 
-**/parser
-**/al
-**/intermediate
+# Phase executables
+al
+parser
+intermediate
+final
 
-**/lex.yy.c
-**/parser.c
-**/parser.h
+# Generated runtime outputs
+quads.txt
+out.txt
+out.abc
+output.txt
 
-**/.DS_Store
-**/*.swp
-
-**/.vscode/
+# Generated test outputs
+**/tests/out/actual/
+Phases_4_5/tests/out/*.out

@@ -22,6 +22,7 @@ typedef enum {
     number_a,   /* constant number */
     string_a,   /* constant string */
     bool_a,     /* constant boolean */
+    userfunc_a, /* user function entry address */
     global_a,   /* global variable */
     formal_a,   /* function formal argument */
     local_a,    /* function-local var */
@@ -42,7 +43,7 @@ typedef enum {
     op_assign, op_nop,
     op_jeq, op_jne, op_jgt, op_jge, op_jlt, op_jle,
     op_pusharg, op_callfunc, op_getretval,
-    op_uminus
+    op_uminus, op_funcenter, op_funcexit
 } opcode_t;
 
 /* One final instruction */
@@ -119,6 +120,7 @@ void generate_target_code(void);
 void print_instructions(FILE *out);
 void write_text(const char *filename, unsigned int instr_count);
 void write_binary(const char *filename);
+void export_userfuncs_to_vm(void);
 
 void write_numConsts(const char *filename);
 void write_stringConsts(const char *filename);

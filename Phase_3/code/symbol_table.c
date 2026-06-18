@@ -106,6 +106,11 @@ SymbolTableEntry *lookup_symbol(SymbolTable *symbol_table, const char *name, uns
                     if (scope == (int)current_scope || scope == 0)
                         return current;
 
+                    /* In normal block nesting (not function-boundary checks), outer-scope
+                     * locals are visible and should be resolved here. */
+                    if (!is_function_context)
+                        return current;
+
                     if (is_function_context) {
                         int other_scope = 0;
                         for (int t = (int)current_scope; t > scope && !other_scope; --t)

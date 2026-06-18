@@ -36,7 +36,7 @@
     char* current_function_char = NULL;
     int semantic_errors = 0;
     static unsigned checkFuncDepth = 0;
-    unsigned int returnlist = 0;
+    int returnlist = 0;
 
     expr *call_lhs;
 
@@ -314,72 +314,54 @@ expr
     }
     | expr GREATER_THAN expr
     {
+        expr *left = convert_to_value($1);
+        expr *right = convert_to_value($3);
         expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-
-        if (!$1) $1 = newexpr(nil_e);
-        if (!$3) $3 = newexpr(nil_e);
-        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
-           
-            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
-        } else {
-            expr *left = emit_iftableitem($1);
-            expr *right = emit_iftableitem($3);
-            emit(if_greater, left, right, NULL, nextquad()+2, yylineno);
-
-            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
-        }
+        unsigned ifq = nextquad();
+        emit(if_greater, emit_iftableitem(left), emit_iftableitem(right), NULL, 0, yylineno);
+        unsigned jq = nextquad();
+        emit(jump, NULL, NULL, NULL, 0, yylineno);
+        r->truelist = newlist(ifq);
+        r->falselist = newlist(jq);
         $$ = r;
     }
     | expr LESS_THAN expr
     {
+        expr *left = convert_to_value($1);
+        expr *right = convert_to_value($3);
         expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        if (!$1) $1 = newexpr(nil_e);
-        if (!$3) $3 = newexpr(nil_e);
-        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
-            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
-        } else {
-            expr *left = emit_iftableitem($1);
-            expr *right = emit_iftableitem($3);
-            emit(if_less, left, right, NULL, nextquad()+2, yylineno);
-            
-            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
-        }
+        unsigned ifq = nextquad();
+        emit(if_less, emit_iftableitem(left), emit_iftableitem(right), NULL, 0, yylineno);
+        unsigned jq = nextquad();
+        emit(jump, NULL, NULL, NULL, 0, yylineno);
+        r->truelist = newlist(ifq);
+        r->falselist = newlist(jq);
         $$ = r;
     }
     | expr GREATER_EQUAL expr
     {
+        expr *left = convert_to_value($1);
+        expr *right = convert_to_value($3);
         expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        if (!$1) $1 = newexpr(nil_e);
-        if (!$3) $3 = newexpr(nil_e);
-        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
-            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
-        } else {
-            expr *left = emit_iftableitem($1);
-            expr *right = emit_iftableitem($3);
-            emit(if_greatereq, left, right, NULL, nextquad()+2, yylineno);
-
-            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
-        }
+        unsigned ifq = nextquad();
+        emit(if_greatereq, emit_iftableitem(left), emit_iftableitem(right), NULL, 0, yylineno);
+        unsigned jq = nextquad();
+        emit(jump, NULL, NULL, NULL, 0, yylineno);
+        r->truelist = newlist(ifq);
+        r->falselist = newlist(jq);
         $$ = r;
     }
     | expr LESS_EQUAL expr
     {
+        expr *left = convert_to_value($1);
+        expr *right = convert_to_value($3);
         expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        if (!$1) $1 = newexpr(nil_e);
-        if (!$3) $3 = newexpr(nil_e);
-        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
-            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
-        } else {
-            expr *left = emit_iftableitem($1);
-            expr *right = emit_iftableitem($3);
-            emit(if_lesseq, left, right, NULL, nextquad()+2, yylineno);
-
-            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
-        }
+        unsigned ifq = nextquad();
+        emit(if_lesseq, emit_iftableitem(left), emit_iftableitem(right), NULL, 0, yylineno);
+        unsigned jq = nextquad();
+        emit(jump, NULL, NULL, NULL, 0, yylineno);
+        r->truelist = newlist(ifq);
+        r->falselist = newlist(jq);
         $$ = r;
     }
     | expr EQUAL_EQUAL expr { $$ = make_eq_neq($1, $3, if_eq); }
@@ -898,13 +880,12 @@ idlist
 ifstmt
     : ifprefix stmt %prec LOWER_THAN_ELSE
         {
-        patchlabel($1, nextquad());
+        patchlist($1, nextquad());
         print_rule("ifstmt -> if ( expr ) stmt");
         }
     | ifprefix stmt elseprefix stmt
         {
-        //printf("IF-LABEL: %d , %d\n",$1, $3);
-        patchlabel($1, $3 + 1);
+        patchlist($1, $3 + 1);
         patchlabel($3, nextquad());
         print_rule("ifstmt -> if ( expr ) stmt else stmt");
         }
@@ -913,21 +894,9 @@ ifstmt
 ifprefix
     : IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS
     {
-        // Ensure expr has a symbol
-        $3 = ensure_expr_has_symbol($3);
-
-	    // we ensure the expression is in boolean form
-        if ($3->type != boolexpr_e) {
-            expr* true_const = newexpr_constbool(1);
-            emit(if_eq, $3, true_const, NULL, nextquad() + 2, yylineno);
-        } else {
-            emit(if_eq, $3, NULL, NULL, nextquad() + 2, yylineno);
-        }
-
-	    // we emit jump and record its position for patching
-        emit(jump, NULL, NULL, NULL, 0, yylineno);
-        $$ = nextquad() - 1;
-
+        expr *cond = convert_to_bool($3);
+        patchlist(cond->truelist, nextquad());
+        $$ = cond->falselist;
     }
 
 elseprefix

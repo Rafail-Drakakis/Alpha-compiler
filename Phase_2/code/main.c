@@ -13,6 +13,7 @@
 #include "parser.h"
 
 extern FILE *yyin;
+extern int yyparse(void);
 SymbolTable *symbol_table;
 
 static const char *library_functions[] = {
@@ -52,6 +53,10 @@ int main(int argc, char *argv[]) {
         insert_symbol(symbol_table, library_functions[k], LIBRARY_FUNCTION, 0, 0);
     }    
     
+    if (yyparse() != 0) {
+        fprintf(stderr, "Parsing failed.\n");
+    }
+
     print_symbol_table(symbol_table);
 
     fclose(yyin);

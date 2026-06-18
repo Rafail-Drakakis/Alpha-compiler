@@ -14,6 +14,7 @@
 #include <assert.h>
 
 #define YY_DECL int alpha_yylex(void* yylval)
+#define YY_USER_ACTION current_yylval = (alpha_token_t*)yylval;
 
 #define token_string_compare(val1, val2) strcmp((val1), (val2))
 
@@ -45,6 +46,7 @@ typedef struct alpha_token_t {
     struct alpha_token_t *next_t;
 } alpha_token_t;
 
+alpha_token_t* current_yylval = NULL;
 alpha_token_t* list_head = NULL;
 int counter_tk_number = 0;
 int comment_line_start = 0;
@@ -68,6 +70,15 @@ void insert_token(int line, const char* text, const char* type, const char* type
         while (temp->next_t)
             temp = temp->next_t;
         temp->next_t = new_token;
+    }
+
+    if (current_yylval) {
+        current_yylval->line_number = new_token->line_number;
+        current_yylval->token_number = new_token->token_number;
+        current_yylval->content = strdup(text);
+        current_yylval->token_type = strdup(type);
+        current_yylval->data_type = strdup(type_of_data);
+        current_yylval->next_t = NULL;
     }
 }
 
@@ -205,6 +216,7 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
 {realconst}   { insert_token(yylineno, yytext, "REALCONST", "float"); return 1; }
 {string} {
     char *processed_str = strdup(yytext);
+    int has_illegal_escape = 0;
     
     // Remove outer quotes
     processed_str[strlen(processed_str) - 1] = '\0';
@@ -223,7 +235,8 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
             } else if (processed_str[i + 1] == '\\') {
                 replacement_regex = '\\';
             } else {
-                continue;
+                has_illegal_escape = 1;
+                break;
             }
             processed_str[i] = replacement_regex;
             memmove(&processed_str[i + 1], &processed_str[i + 2],
@@ -231,7 +244,17 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
         }
     }
 
-    insert_token(yylineno, processed_str, "STRING", "char*");
+    if (has_illegal_escape) {
+        int msg_size = snprintf(NULL, 0, "ERROR ILLEGAL ESCAPE SEQUENCE AT LINE %d", yylineno) + 1;
+        char *error_msg = (char *)malloc(msg_size);
+        if (error_msg) {
+            snprintf(error_msg, msg_size, "ERROR ILLEGAL ESCAPE SEQUENCE AT LINE %d", yylineno);
+            insert_token(yylineno, error_msg, "ERROR", "enumerated");
+            free(error_msg);
+        }
+    } else {
+        insert_token(yylineno, processed_str, "STRING", "char*");
+    }
     free(processed_str);
     return 1;
 }
@@ -320,7 +343,16 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
                 } else if (processed_str[i + 1] == '\\') {
                     replacement_char = '\\';
                 } else {
-                    continue;
+                    int msg_size = snprintf(NULL, 0, "ERROR ILLEGAL ESCAPE SEQUENCE AT LINE %d", startLine) + 1;
+                    char *error_msg = (char *)malloc(msg_size);
+                    if (error_msg) {
+                        snprintf(error_msg, msg_size, "ERROR ILLEGAL ESCAPE SEQUENCE AT LINE %d", startLine);
+                        insert_token(startLine, error_msg, "ERROR", "enumerated");
+                        free(error_msg);
+                    }
+                    free(processed_str);
+                    BEGIN(INITIAL);
+                    return 1;
                 }
                 processed_str[i] = replacement_char;
                 memmove(&processed_str[i + 1],
@@ -383,7 +415,7 @@ punctuation (::|\.\.|:|\.|\{|\}|\[|\]|\(|\)|;|,)
     char *error_msg = (char *)malloc(msg_size);
     if (error_msg) {
         snprintf(error_msg, msg_size, "ERROR UNDEFINED CHARACTER AT LINE %d", yylineno);
-        insert_token(yylineno, yytext, error_msg, "enumerated");
+        insert_token(yylineno, error_msg, "ERROR", "enumerated");
         free(error_msg);
     }
 }
@@ -413,6 +445,16 @@ int pop_string() {
 
 int isStringStackEmpty() {
     return isStackEmpty(&stringStack);
+}
+
+void free_yylval_token(alpha_token_t* token) {
+    if (!token) return;
+    free(token->content);
+    free(token->token_type);
+    free(token->data_type);
+    token->content = NULL;
+    token->token_type = NULL;
+    token->data_type = NULL;
 }
 
 void print_unclosed_string_error() {
@@ -477,6 +519,7 @@ void print_output() {
 int main(int argc, char *argv[]) {
     initStack(&commentStack);
     initStack(&stringStack);
+    alpha_token_t yylval_token = {0};
 
     if (argc < 2 || argc > 3) {
         fprintf(stderr, "Usage: %s <input file> [output file]\n", argv[0]);
@@ -490,7 +533,10 @@ int main(int argc, char *argv[]) {
     }
     yyin = input_file;
 
-    while (alpha_yylex(NULL));
+    while (alpha_yylex(&yylval_token)) {
+        free_yylval_token(&yylval_token);
+    }
+    free_yylval_token(&yylval_token);
     fclose(input_file);
 
     if (argc == 3) {

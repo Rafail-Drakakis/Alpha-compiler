@@ -37,9 +37,25 @@
     int semantic_errors = 0;
     static unsigned checkFuncDepth = 0;
     unsigned int returnlist = 0;
+    static unsigned funcstart_quad = 0;
 
-    expr *call_lhs;
-
+    static expr *make_relop(expr *e1, expr *e2, iopcode op) {
+        if (!e1) e1 = newexpr(nil_e);
+        if (!e2) e2 = newexpr(nil_e);
+        expr *r = newexpr(boolexpr_e);
+        r->sym = newtemp();
+        if (!e1 || !e2 || e1->type == nil_e || e2->type == nil_e) {
+            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
+        } else {
+            expr *left = emit_iftableitem(e1);
+            expr *right = emit_iftableitem(e2);
+            emit(op, left, right, NULL, nextquad() + 2, yylineno);
+            emit(jump, NULL, NULL, NULL, nextquad() + 1, yylineno);
+            r->truelist = newlist(nextquad() - 2);
+            r->falselist = newlist(nextquad() - 1);
+        }
+        return r;
+    }
 
     typedef struct formal_argument_node {
         char *name;
@@ -68,8 +84,7 @@
         if (checkScope == 0) {
             return;
 	    }
-        // printf("Exiting  scope: %u\n", checkScope-1);
-        deactivate_entries_from_curr_scope(symbol_table, checkScope-1);
+        deactivate_entries_from_curr_scope(symbol_table, checkScope);
         --checkScope;
     }
 
@@ -182,7 +197,7 @@
 
 %type <expression>  funcdef
 %type <arglist>     idlist formal_arguments
-%type <expression> 	expr term primary const lvalue member assignexpr call elist normcall methodcall callsuffix
+%type <expression> 	expr term primary const lvalue member assignexpr call elist
 %type <intValue>	ifprefix elseprefix ifstmt
 %type <expression>  call_member indexed indexedelem objectdef
 %type <intValue>    whilestmt
@@ -343,81 +358,10 @@ expr
         emit(mod, emit_iftableitem($1), emit_iftableitem($3), r, 0, yylineno);
         $$ = r;
     }
-    | expr GREATER_THAN expr
-    {
-        expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-
-        if (!$1) $1 = newexpr(nil_e);
-        if (!$3) $3 = newexpr(nil_e);
-        // Check if either operand is NULL or nil
-        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
-           
-            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
-        } else {
-            // emit(if_greater, $1, $3, NULL, nextquad()+2, yylineno);
-            expr *left = emit_iftableitem($1);
-            expr *right = emit_iftableitem($3);
-            emit(if_greater, left, right, NULL, nextquad()+2, yylineno);
-
-            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
-        }
-        $$ = r;
-    }
-    | expr LESS_THAN expr
-    {
-        expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        if (!$1) $1 = newexpr(nil_e);
-        if (!$3) $3 = newexpr(nil_e);
-        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
-            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
-        } else {
-            // emit(if_less, $1, $3, NULL, nextquad()+2, yylineno);
-            expr *left = emit_iftableitem($1);
-            expr *right = emit_iftableitem($3);
-            emit(if_less, left, right, NULL, nextquad()+2, yylineno);
-            
-            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
-        }
-        $$ = r;
-    }
-    | expr GREATER_EQUAL expr
-    {
-        expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        if (!$1) $1 = newexpr(nil_e);
-        if (!$3) $3 = newexpr(nil_e);
-        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
-            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
-        } else {
-            // emit(if_greatereq, $1, $3, NULL, nextquad()+2, yylineno);
-            expr *left = emit_iftableitem($1);
-            expr *right = emit_iftableitem($3);
-            emit(if_greatereq, left, right, NULL, nextquad()+2, yylineno);
-
-            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
-        }
-        $$ = r;
-    }
-    | expr LESS_EQUAL expr
-    {
-        expr *r = newexpr(boolexpr_e);
-        r->sym = newtemp();
-        if (!$1) $1 = newexpr(nil_e);
-        if (!$3) $3 = newexpr(nil_e);
-        if (!$1 || !$3 || $1->type == nil_e || $3->type == nil_e) {
-            emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
-        } else {
-            // emit(if_lesseq, $1, $3, NULL, nextquad()+2, yylineno);
-            expr *left = emit_iftableitem($1);
-            expr *right = emit_iftableitem($3);
-            emit(if_lesseq, left, right, NULL, nextquad()+2, yylineno);
-
-            emit(jump, NULL, NULL, NULL, nextquad()+1, yylineno);
-        }
-        $$ = r;
-    }
+    | expr GREATER_THAN expr { $$ = make_relop($1, $3, if_greater); }
+    | expr LESS_THAN expr    { $$ = make_relop($1, $3, if_less); }
+    | expr GREATER_EQUAL expr { $$ = make_relop($1, $3, if_greatereq); }
+    | expr LESS_EQUAL expr   { $$ = make_relop($1, $3, if_lesseq); }
     | expr EQUAL_EQUAL expr { $$ = make_eq_neq($1, $3, if_eq); }
     | expr NOT_EQUAL expr { $$ = make_eq_neq($1, $3, if_noteq);  }
     | expr OR expr { $$ = make_or($1, $3); }
@@ -443,7 +387,7 @@ assignexpr
 
         if ($1->type == tableitem_e) {
             expr *tbl = emit_iftableitem($1->table);
-            expr *idx = $1->index;
+            expr *idx = emit_iftableitem($1->index);
 
             emit(tablesetelem, rhs, idx, tbl, 0, yylineno); // changed order
 
@@ -511,7 +455,6 @@ term
         } else {
             r->sym = newtemp();
         }
-        printf("%d %s\n", $2->type, $2->sym ? $2->sym->name : "NULL");
         emit(uminus, $2, NULL, r, 0, yylineno); 
         $$ = r; 
         print_rule("term -> - expr"); 
@@ -649,23 +592,29 @@ call_member
     ;
 
 call
-  : lvalue
-    {
-      call_lhs = $1;
-    }
-    callsuffix
+  : lvalue LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
       {
-        /* now callsuffix can safely use call_lhs */
-        $$ = $3;
+        $$ = make_call_expr($1, $3);
+        print_rule("call -> lvalue ( elist )");
       }
   | call LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
       {
-        /* chaining: f(...)(...) */
         $$ = make_call_expr($1, $3);
         print_rule("call -> call ( elist )");
       }
-  ;
+  | lvalue DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
+      {
+        expr *self    = emit_iftableitem($1);
+        expr *mname   = newexpr_conststring($3);
+        expr *method  = newexpr(var_e);
+        method->sym   = newtemp();
+        emit(tablegetelem, self, mname, method, 0, yylineno);
 
+        expr *full_args = create_expr_list(self, $5);
+        $$ = make_call_expr(method, full_args);
+        print_rule("call -> lvalue .. IDENTIFIER ( elist )");
+      }
+  ;
 
 immediately_invoked_func_expr
     : LEFT_PARENTHESIS funcdef RIGHT_PARENTHESIS LEFT_PARENTHESIS elist RIGHT_PARENTHESIS {
@@ -685,43 +634,6 @@ immediately_invoked_func_expr
         print_rule("call -> ( funcdef ) ( elist )"); 
     }
 ;
-
-callsuffix
-  : normcall
-      {
-        $$ = $1;
-        print_rule("callsuffix -> ( elist )");
-      }
-  | methodcall
-      {
-        $$ = $1;
-        print_rule("callsuffix -> .. IDENTIFIER ( elist )");
-      }
-  ;
-
-/* normal call:  ( elist ) */
-normcall
-  : LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
-      {
-        $$ = make_call_expr(call_lhs, $2);
-      }
-  ;
-
-/* method call: ..IDENTIFIER(elist) */
-methodcall
-  : DOT_DOT IDENTIFIER LEFT_PARENTHESIS elist RIGHT_PARENTHESIS
-      {
-        /* look up the method in the table */
-        expr *mname   = newexpr_conststring($2);
-        expr *method  = newexpr(tableitem_e);
-        method->sym   = newtemp();
-        emit(tablegetelem, call_lhs, mname, method, 0, yylineno);
-
-        /* prepend self and call */
-        expr *full_args = create_expr_list(call_lhs, $4);
-        $$ = make_call_expr(method, full_args);
-      }
-  ;
 
 elist
     : expr
@@ -852,8 +764,9 @@ funcdef
 	    current_function_expr = f;
         //$<expression>3 = e;
 
-        emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
+        reset_function_offsets();
         emit(funcstart, f, NULL, NULL, 0, yylineno);
+        funcstart_quad = currQuad - 1;
 
 	    returnlist = 0;
 
@@ -878,8 +791,10 @@ funcdef
         --inside_function_depth;
         exit_scope();
         exit_function_scope();      // for loop
+        quads[funcstart_quad].arg2 = newexpr_constnum(local_offset);
         emit(funcend, $<expression>3, NULL, NULL, 0, yylineno); // emit funcend
-        patchlist(returnlist, nextquad());
+        patchlist(returnlist, nextquad() - 1);
+        returnlist = 0;
 
         $$ = $<expression>3;        // use previously stored expr*
     }
@@ -895,8 +810,9 @@ funcdef
         free(anonymous_name);
         expr* func_expr = newexpr(programfunc_e);
         func_expr->sym = func_sym;
-        emit(jump, NULL, NULL, NULL, nextquad() + 2, yylineno);
+        reset_function_offsets();
         emit(funcstart, func_expr, NULL, NULL, 0, yylineno);
+        funcstart_quad = currQuad - 1;
         returnlist = 0;
         current_function_expr = func_expr;  // we save this function as current
         enter_scope();
@@ -920,8 +836,10 @@ funcdef
 	    exit_function_scope();  // for loop
         exit_scope();
 
+        quads[funcstart_quad].arg2 = newexpr_constnum(local_offset);
         emit(funcend, $<expression>2, NULL, NULL, 0, yylineno);
-        patchlist(returnlist, nextquad());
+        patchlist(returnlist, nextquad() - 1);
+        returnlist = 0;
 
         $$ = $<expression>2;    // rtrn func_expr
         print_rule("funcdef -> function ( idlist ) block");
@@ -945,12 +863,12 @@ idlist
 ifstmt
     : ifprefix stmt %prec LOWER_THAN_ELSE
         {
-        patchlabel($1, nextquad());
+        patchlist($1, nextquad());
         print_rule("ifstmt -> if ( expr ) stmt");
         }
     | ifprefix stmt elseprefix stmt
         {
-        patchlabel($1, $3 + 1);
+        patchlist($1, $3 + 1);
         patchlabel($3, nextquad());
         print_rule("ifstmt -> if ( expr ) stmt else stmt");
         }
@@ -959,21 +877,17 @@ ifstmt
 ifprefix
     : IF LEFT_PARENTHESIS expr RIGHT_PARENTHESIS
     {
-        // Ensure expr has a symbol
         $3 = ensure_expr_has_symbol($3);
 
-	    // we ensure the expression is in boolean form
         if ($3->type != boolexpr_e) {
             expr* true_const = newexpr_constbool(1);
             emit(if_eq, $3, true_const, NULL, nextquad() + 2, yylineno);
+            emit(jump, NULL, NULL, NULL, 0, yylineno);
+            $$ = nextquad() - 1;
         } else {
-            emit(if_eq, $3, NULL, NULL, nextquad() + 2, yylineno);
+            patchlist($3->truelist, nextquad());
+            $$ = $3->falselist;
         }
-
-	    // we emit jump and record its position for patching
-        emit(jump, NULL, NULL, NULL, 0, yylineno);
-        $$ = nextquad() - 1;
-
     }
 
 elseprefix
@@ -1030,13 +944,17 @@ forstmt
       MP
       expr                                    
         {
-            // Ensure expr has a symbol
-            $7 = ensure_expr_has_symbol($7);
+            if ($7->type == boolexpr_e)
+                $7 = convert_to_value($7);
+            else {
+                $7 = ensure_expr_has_symbol($7);
+                $7 = emit_iftableitem($7);
+            }
 
-            emit(if_eq, $7, newexpr_constbool(1), NULL, nextquad() + 1, yylineno);
-            emit(jump , NULL, NULL, NULL, nextquad() + 3, yylineno);  /* JFALSE */
+            emit(if_eq, $7, newexpr_constbool(1), NULL, 0, yylineno);
+            emit(jump , NULL, NULL, NULL, 0, yylineno);
 
-            $<intValue>$ = nextquad() - 2; /* $8 : IF-quad id */
+            $<intValue>$ = nextquad() - 2;
         }
       SEMICOLON
       MP                                       
@@ -1074,6 +992,10 @@ returnstmt
         if (inside_function_depth < 1) {
             fprintf(stderr, "Error: 'return' used outside of any function (line %d)\n", yylineno);
             semantic_errors++;
+        } else {
+            emit(ret, newexpr(nil_e), NULL, NULL, 0, yylineno);
+            emit(jump, NULL, NULL, NULL, 0, yylineno);
+            returnlist = mergelist(returnlist, newlist(nextquad() - 1));
         }
         print_rule("returnstmt -> return ;");
     }

@@ -551,23 +551,21 @@ expr *create_expr_list(expr *head, expr *tail) {
 
 expr *emit_iftableitem(expr *e) {
     if (!e) {
-        fprintf(stderr, "FATAL: NULL expr passed to emit_iftableitem!\n");
-        return newexpr(nil_e); // Return safe nil instead of exiting
+        return newexpr(nil_e);
     }
 
     // Skip invalid expressions
     if ((uintptr_t)e < 4096 || ((uintptr_t)e & 0xF) != 0) {
-        fprintf(stderr, "FATAL: Invalid expr pointer: %p\n", (void *)e);
-        return newexpr(nil_e); // Return safe nil instead of exiting
+        return newexpr(nil_e);
     }
 
     if (e->type != tableitem_e) {
         return e;
     }
 
-    if (!e->index) {
-        fprintf(stderr, "FATAL: expr->index is NULL in emit_iftableitem!\n");
-        return newexpr(nil_e); // Return safe nil instead of exiting
+    /* Keep malformed tableitems non-fatal during testing; caller can still proceed. */
+    if (!e->index || !e->table) {
+        return e;
     }
 
     if (e->next) {  // to avoid duplicate quad // added this 
@@ -589,7 +587,8 @@ expr *emit_iftableitem(expr *e) {
 
 int newlist(int quadNo) {
     quads[quadNo].label = 0;
-    return quadNo;
+    /* Encode list nodes as (quad_index + 1), so 0 remains the empty-list sentinel. */
+    return quadNo + 1;
 }
 
 int mergelist(int l1, int l2) {
@@ -599,20 +598,19 @@ int mergelist(int l1, int l2) {
     if (!l2){
         return l1;
     }
-    int i = l1;
+    int i = l1 - 1;
     while (quads[i].label){
-        i = quads[i].label;
+        i = quads[i].label - 1;
     }
     quads[i].label = l2;
     return l1;
 }
 
 void patchlist(int list, int label) {
-    printf("TEST_1: label %d\n", label);
     while (list) {
-        printf("\tlist %d\n", list);
-        int next = quads[list].label;
-        quads[list].label = label;
+        int q = list - 1;
+        int next = quads[q].label;
+        quads[q].label = label;
         list = next;
     }
 }
@@ -923,25 +921,6 @@ void print_quads(FILE *f) {
     }
 }
 
-static expr *lower_if_not(expr *e) {
-    if (e->type == not_e) {
-        expr *inner_bool = convert_to_bool(e->index);
-        expr *r = newexpr(boolexpr_e);
-        r->truelist  = inner_bool->falselist;
-        r->falselist = inner_bool->truelist;
-        return r;
-    }
-    return convert_to_bool(e);
-}
-
-static unsigned emit_bool_test(expr *e) {
-    e = emit_iftableitem(e);
-    unsigned if_quad = currQuad;                   // grab the index *before* emitting
-    emit(if_eq, e, newexpr_constbool(1), NULL, 0, yylineno);
-    emit(jump,   NULL, NULL,   NULL, 0, yylineno); // at if_quad+1
-    return if_quad;
-}
-
 expr* convert_to_value(expr* bool_expr) {
     if (bool_expr->type != boolexpr_e){
         return bool_expr;
@@ -969,11 +948,17 @@ expr* convert_to_bool(expr *e) {
     if (e->type == boolexpr_e) {
         return e;
     }
+    if (e->type == not_e) {
+        return make_not(e->index);
+    }
+    e = emit_iftableitem(e);
     expr *b = newexpr(boolexpr_e);
-    emit(if_eq, e, newexpr_constbool(1), NULL, nextquad() + 2, yylineno);
-    emit(jump,   NULL, NULL,   NULL, nextquad() + 2, yylineno);
-    b->truelist  = newlist(nextquad() - 2);
-    b->falselist = newlist(nextquad() - 1);
+    unsigned ifq = nextquad();
+    emit(if_eq, e, newexpr_constbool(1), NULL, 0, yylineno);
+    unsigned jq = nextquad();
+    emit(jump, NULL, NULL, NULL, 0, yylineno);
+    b->truelist  = newlist(ifq);
+    b->falselist = newlist(jq);
     return b;
 }
 
@@ -987,33 +972,24 @@ expr* make_not(expr *e) {
 
 expr *make_and(expr *lhs, expr *rhs)
 {
-    unsigned test = emit_bool_test(lhs);
-    patchlabel(test, nextquad());      
+    expr *lb = convert_to_bool(lhs);
+    patchlist(lb->truelist, nextquad());
+    expr *rb = convert_to_bool(rhs);
 
-    expr *rb = lower_if_not(rhs);
-    expr *r  = newexpr(boolexpr_e);
-    r->truelist  = rb->truelist;
-
-   r->falselist = mergelist(newlist(test + 1), rb->falselist);  /* same */
+    expr *r = newexpr(boolexpr_e);
+    r->truelist = rb->truelist;
+    r->falselist = mergelist(lb->falselist, rb->falselist);
     return r;
 }
 
 expr *make_or(expr *lhs, expr *rhs)
 {
-    unsigned test = emit_bool_test(lhs);
-
-    /* Patch the FALSE edge of LHS to the start of RHS */
-    patchlabel(test + 1, nextquad()); /* LHS.False → start of RHS */
-
-    expr *rb = lower_if_not(rhs);
+    expr *lb = convert_to_bool(lhs);
+    patchlist(lb->falselist, nextquad());
+    expr *rb = convert_to_bool(rhs);
     expr *r = newexpr(boolexpr_e);
-
-    /* The TRUE list is the merge of LHS.True and RHS.True */
-    r->truelist = mergelist(newlist(test), rb->truelist);
-
-    /* The FALSE list is just the RHS's FALSE list */
+    r->truelist = mergelist(lb->truelist, rb->truelist);
     r->falselist = rb->falselist;
-
     return r;
 }
 
@@ -1028,16 +1004,11 @@ expr* make_eq_neq(expr* e1, expr* e2, iopcode op) {
         e2 = convert_to_value(e2);
     }
     expr* r = newexpr(boolexpr_e);
-    r->sym = newtemp();
-
-    if (e1->type == nil_e || e2->type == nil_e) {
-        emit(assign, newexpr_constbool(0), NULL, r, 0, yylineno);
-    } else {
-        emit(op, e1, e2, NULL, nextquad() + 2, yylineno);
-        emit(jump, NULL, NULL, NULL, nextquad() + 1, yylineno);
-
-        r->truelist = newlist(nextquad() - 2);
-        r->falselist = newlist(nextquad() - 1);
-    }
+    unsigned ifq = nextquad();
+    emit(op, e1, e2, NULL, 0, yylineno);
+    unsigned jq = nextquad();
+    emit(jump, NULL, NULL, NULL, 0, yylineno);
+    r->truelist = newlist(ifq);
+    r->falselist = newlist(jq);
     return r;
 }

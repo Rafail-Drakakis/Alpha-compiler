@@ -19,6 +19,8 @@
 #define TABLE_HASHSIZE  1024
 #define MAX_LIBFUNCS   16
 
+void vm_register_userfunc(const char *name, unsigned addr);
+
 typedef enum {
   number_m,
   string_m,
@@ -56,6 +58,9 @@ typedef struct avm_table {
   avm_table_bucket*  numIndexed[TABLE_HASHSIZE];
   avm_table_bucket*  strIndexed[TABLE_HASHSIZE];
   avm_table_bucket*  boolIndexed[2];
+  avm_table_bucket*  userfuncIndexed[TABLE_HASHSIZE];
+  avm_table_bucket*  libfuncIndexed[TABLE_HASHSIZE];
+  avm_table_bucket*  tableIndexed[TABLE_HASHSIZE];
 } avm_table;
 
 extern avm_memcell  stack[STACK_SIZE];
@@ -110,6 +115,14 @@ void libfunc_typeof(void);
 void libfunc_totalarguments(void);
 void libfunc_argument(void);
 void libfunc_print(void);
+void libfunc_input(void);
+void libfunc_objectmemberkeys(void);
+void libfunc_objecttotalmembers(void);
+void libfunc_objectcopy(void);
+void libfunc_strtonum(void);
+void libfunc_sqrt(void);
+void libfunc_cos(void);
+void libfunc_sin(void);
 unsigned totalactuals(void);
 
 avm_memcell* avm_translate_operand(vmarg *arg, avm_memcell *reg);

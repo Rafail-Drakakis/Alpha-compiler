@@ -21,7 +21,7 @@
     int anonymus_function_counter = 0;
 
     void print_rule(const char* rule) {
-        (void)0; // printf("Reduced by rule: %s\n", rule);
+        printf("Reduced by rule: %s\n", rule);
     }
 
     unsigned int checkScope = 0;
@@ -30,6 +30,12 @@
     int inside_function_depth = 0;
     static int first_brace_of_func = 0;
     int is_calling = 0;
+    int function_scope_stack[1024];
+    int function_scope_top = 0;
+
+    static int is_value_symbol(SymbolType type) {
+        return type == GLOBAL || type == LOCAL_VAR || type == ARGUMENT;
+    }
 
 
     typedef struct formal_argument_node {
@@ -58,8 +64,8 @@
         if (checkScope == 0) {
             return;
 	    }
-        //printf("Exiting  scope: %u\n", checkScope-1);
-        deactivate_entries_from_curr_scope(symbol_table, checkScope-1);
+        //printf("Exiting  scope: %u\n", checkScope);
+        deactivate_entries_from_curr_scope(symbol_table, checkScope);
         --checkScope;
     }
 
@@ -119,6 +125,7 @@ stmt_list
 
 stmt
     : expr SEMICOLON { print_rule("stmt -> expr ;"); }
+    | SEMICOLON { print_rule("stmt -> ;"); }
     | error SEMICOLON { print_rule("stmt -> error ;"); yyerrok; }
     | ifstmt { print_rule("stmt -> ifstmt"); }
     | whilestmt { print_rule("stmt -> whilestmt"); }
@@ -144,6 +151,10 @@ assignexpr
           if ($1 && ($1->type == USER_FUNCTION || $1->type == LIBRARY_FUNCTION)) {
               fprintf(stderr, "Error: Symbol '%s' is not a valid lvalue (line %d).\n", $1->name, yylineno);
           } 
+      }
+    | call ASSIGNMENT expr {
+          print_rule("assignexpr -> call = expr");
+          fprintf(stderr, "Error: Cannot assign to call result (line %d).\n", yylineno);
       }
     ;
 
@@ -185,6 +196,10 @@ term
     | lvalue PLUS_PLUS { if ($1 && ($1->type == USER_FUNCTION || $1->type == LIBRARY_FUNCTION)) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->name, yylineno); } { print_rule("term -> lvalue ++"); }
     | MINUS_MINUS lvalue { if ($2 && ($2->type == USER_FUNCTION || $2->type == LIBRARY_FUNCTION)) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $2->name, yylineno); } { print_rule("term -> -- lvalue"); }
     | lvalue MINUS_MINUS { if ($1 && ($1->type == USER_FUNCTION || $1->type == LIBRARY_FUNCTION)) fprintf(stderr, "Error: Symbol '%s' is not a modifiable lvalue (line %d).\n", $1->name, yylineno); } { print_rule("term -> lvalue --"); }
+    | PLUS_PLUS call { fprintf(stderr, "Error: Call result is not a modifiable lvalue (line %d).\n", yylineno); print_rule("term -> ++ call"); }
+    | call PLUS_PLUS { fprintf(stderr, "Error: Call result is not a modifiable lvalue (line %d).\n", yylineno); print_rule("term -> call ++"); }
+    | MINUS_MINUS call { fprintf(stderr, "Error: Call result is not a modifiable lvalue (line %d).\n", yylineno); print_rule("term -> -- call"); }
+    | call MINUS_MINUS { fprintf(stderr, "Error: Call result is not a modifiable lvalue (line %d).\n", yylineno); print_rule("term -> call --"); }
     | primary { print_rule("term -> primary"); }
     ;
 
@@ -203,10 +218,18 @@ lvalue
           if (!found_identifier) {
             // Create it only if we're in assignment (e.g., x = 5;)
             insert_symbol(symbol_table, $1, (checkScope == 0) ? GLOBAL : LOCAL_VAR, yylineno, checkScope);
-            $$ = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
+            found_identifier = lookup_symbol(symbol_table, $1, checkScope, inside_function_scope);
         } else if (inside_function_scope && found_identifier->type == ARGUMENT && found_identifier->scope < checkScope) {
             fprintf(stderr, "Error: Cannot access argument '%s' from outer function inside nested function (line %d).\n", $1, yylineno);
-            $$ = NULL;
+            found_identifier = NULL;
+        }
+
+        if (found_identifier && inside_function_depth > 0 && is_value_symbol(found_identifier->type) &&
+            found_identifier->scope != 0 && function_scope_top > 0 &&
+            found_identifier->scope < (unsigned)function_scope_stack[function_scope_top - 1]) {
+            fprintf(stderr, "Error: Symbol '%s' defined at line %u in enclosing function is not accessible.\n",
+                    found_identifier->name, found_identifier->line_number);
+            found_identifier = NULL;
         } 
         $$ = found_identifier;
       }
@@ -235,13 +258,17 @@ const
     ;
 
 member
-    : lvalue DOT IDENTIFIER { 
+    : lvalue DOT IDENTIFIER {
+          $$ = NULL;
           print_rule("member -> lvalue . IDENTIFIER"); 
       }
     | lvalue LEFT_BRACKET expr RIGHT_BRACKET { 
+          $$ = NULL;
           print_rule("member -> lvalue [ expr ]"); 
       }
-    | call_member { print_rule("member -> call_member"); 
+    | call_member {
+          $$ = NULL;
+          print_rule("member -> call_member"); 
       }
     ;
 
@@ -306,6 +333,7 @@ funcdef
           enter_scope();
           ++inside_function_depth;
           inside_function_scope = 1;
+          function_scope_stack[function_scope_top++] = (int)checkScope;
           first_brace_of_func = 1;  // Indicates the first brace of the function
       }
       LEFT_PARENTHESIS formal_arguments RIGHT_PARENTHESIS
@@ -320,6 +348,10 @@ funcdef
       block
       {
           --inside_function_depth;
+          if (function_scope_top > 0) {
+              --function_scope_top;
+          }
+          inside_function_scope = (inside_function_depth > 0);
           exit_scope();
       }
 
@@ -335,6 +367,8 @@ funcdef
           
           enter_scope();
           ++inside_function_depth;
+          inside_function_scope = 1;
+          function_scope_stack[function_scope_top++] = (int)checkScope;
           first_brace_of_func = 1;
 
           free(anonymous_name);
@@ -351,6 +385,10 @@ funcdef
       block
       {
           --inside_function_depth;
+          if (function_scope_top > 0) {
+              --function_scope_top;
+          }
+          inside_function_scope = (inside_function_depth > 0);
           exit_scope();
           print_rule("funcdef -> function ( idlist ) block");
       }
@@ -386,8 +424,18 @@ forstmt
     ;
 
 returnstmt
-    : RETURN SEMICOLON { print_rule("returnstmt -> return ;"); }
-    | RETURN expr SEMICOLON { print_rule("returnstmt -> return expr ;"); }
+    : RETURN SEMICOLON { 
+        if (inside_function_depth < 1) {
+            fprintf(stderr, "Error: 'return' used outside of any function (line %d)\n", yylineno);
+        }
+        print_rule("returnstmt -> return ;");
+      }
+    | RETURN expr SEMICOLON { 
+        if (inside_function_depth < 1) {
+            fprintf(stderr, "Error: 'return' used outside of any function (line %d)\n", yylineno);
+        }
+        print_rule("returnstmt -> return expr ;");
+      }
     ;
 
 break_stmt

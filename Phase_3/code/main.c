@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
 #include "quads.h"
 #include "symbol_table.h"
@@ -25,10 +26,15 @@ SymbolTable *symbol_table;
 quad* quads = (quad*) 0;
  
 void debug(int level, const char* fmt, ...) {
+    static int debug_enabled = -1;
     va_list args;
     va_start(args, fmt);
 
-    if (level > 0) {
+    if (debug_enabled == -1) {
+        debug_enabled = (getenv("ALPHA_DEBUG") != NULL);
+    }
+
+    if (debug_enabled && level > 0) {
         fprintf(stderr, "[DEBUG] ");
         vfprintf(stderr, fmt, args);
     }
@@ -70,21 +76,29 @@ int main(int argc, char **argv) {
         return 1;
     }
  
-    if (yyparse() == 0) {
-        if (semantic_errors > 0) {
+    int parse_ok = (yyparse() == 0);
+    int semantic_ok = (semantic_errors == 0);
+
+    if (parse_ok) {
+        if (!semantic_ok) {
             fprintf(stderr, "\nParsing completed with %d semantic error(s).\n", semantic_errors);
         } else {
-            printf("Parsing completed successfully.\n");
+            FILE *quad_out = fopen("quads.txt", "w");
+            if (!quad_out) {
+                perror("quads.txt");
+                free_symbol_table(symbol_table);
+                if (argc == 2 && yyin) {
+                    fclose(yyin);
+                }
+                return 1;
+            }
+
+            print_quads(quad_out);
+            fclose(quad_out);
+            printf("Parsing completed successfully. Wrote quads to quads.txt\n");
         }
     } else {
         fprintf(stderr, "Parsing failed.\n");
-    }
- 
-    // Only print quads if we have valid quads
-    if (quads && currQuad > 0) {
-        print_quads(stdout);
-    } else {
-        fprintf(stderr, "No quads to print or empty quads array\n");
     }
  
     free_symbol_table(symbol_table);

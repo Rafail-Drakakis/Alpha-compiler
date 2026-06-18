@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <stdint.h> // uintptr_t
 #include "quads.h"
 #include "symbol_table.h"
@@ -16,6 +17,8 @@
 /* ── forward declarations for helpers used later ── */
 static void print_number_to_buf(char *buf, size_t sz, double n);
 static const char *bool_str(unsigned char b);
+expr *convert_to_value(expr *bool_expr);
+void materialize_newtable(expr *t);
 /* ------------------------------------------------------ */
 
 unsigned programVarOffset = 0;
@@ -167,8 +170,7 @@ static const char *expr_to_str_buf(expr *e, char *buf, size_t bufsize) {
 }
 
 void emit(iopcode op, expr *arg1, expr *arg2, expr *result, unsigned label, unsigned line) {
-    // Debug output for critical quads
-    if (currQuad >= 48 && currQuad <= 55) {
+    if (getenv("ALPHA_DEBUG") && currQuad >= 48 && currQuad <= 55) {
         debug(1, "About to emit quad %d - op: %s\n", currQuad+1, op_to_str(op));
         if (arg1) debug(1, "  arg1 type: %d, addr: %p\n", arg1->type, (void*)arg1);
         if (result) {
@@ -459,18 +461,20 @@ char *newtempname(void) {
 }
 
 SymbolTableEntry *newtemp(void) {
-    char *name = newtempname();
-    SymbolTableEntry *sym = lookup_symbol(symbol_table, name, currscope(), 0);
-    if (!sym)
-    {
-        insert_symbol(symbol_table, name, TEMP_VAR, yylineno, currscope());
-        sym = lookup_symbol(symbol_table, name, currscope(), 0);
+    for (;;) {
+        char *name = newtempname();
+        if (!lookup_symbol(symbol_table, name, currscope(), 0)) {
+            SymbolTableEntry *sym =
+                insert_symbol(symbol_table, name, TEMP_VAR, yylineno, currscope());
+            if (sym)
+                return sym;
+        }
     }
-    return sym;
 }
 
 void resettemp(void) {
-    tempcounter = 0;
+    /* Keep temp names monotonic; reusing _t0/_t1 across statements recycled
+     * the same global stack slots and clobbered live values during calls. */
 }
 
 unsigned int istempname(char *s) {
@@ -510,39 +514,96 @@ expr *lvalue_expr(SymbolTableEntry *sym) {
     return e;
 }
 
+static expr *materialize_call_arg(expr *e) {
+    e = emit_iftableitem(e);
+    if (e && e->type == boolexpr_e)
+        return convert_to_value(e);
+    return e;
+}
+
+static void materialize_params_ltr(expr *p) {
+    for (expr *e = p; e; e = e->next) {
+        if (e->type == boolexpr_e) {
+            expr *v = materialize_call_arg(e);
+            e->type = v->type;
+            e->sym = v->sym;
+            e->truelist = v->truelist;
+            e->falselist = v->falselist;
+        } else {
+            emit_iftableitem(e);
+        }
+    }
+}
+
 /* Helper function to emit PARAM quads right-to-left */
 static void emit_params_rev(expr *p) {
     if (!p) return;
     emit_params_rev(p->next);           /* go to list tail first */
-    emit(param, p, NULL, NULL, 0, yylineno);
+    emit(param, emit_iftableitem(p), NULL, NULL, 0, yylineno);
 }
 
 expr *make_call_expr(expr *func_expr, expr *args) {
-    /* 1) ensure we have a callable value */
-    func_expr = emit_iftableitem(func_expr);
-    if (!func_expr) {
+    expr *call_target = emit_iftableitem(func_expr);
+    if (!call_target) {
         return newexpr(nil_e);
     }
 
+    materialize_params_ltr(args);
     emit_params_rev(args);
-    emit_params_rev(args);      // yes keep both, do not remove 
 
-    /* 2) count actuals */
     unsigned cnt = 0;
     for (expr *e = args; e; e = e->next) ++cnt;
 
-    /* 4) push the argument count */
     emit(param, newexpr_constnum(cnt), NULL, NULL, 0, yylineno);
 
-    /* 5) emit the call */
-    emit(call, func_expr, NULL, NULL, 0, yylineno);
+    emit(call, call_target, NULL, NULL, 0, yylineno);
 
-    /* 6) grab the return value */
     expr *retval = newexpr(var_e);
     retval->sym   = newtemp();
     emit(getretval, NULL, NULL, retval, 0, yylineno);
 
     return retval;
+}
+
+void materialize_newtable(expr *t) {
+    if (!t || t->type != newtable_e || !t->truelist)
+        return;
+
+    t->sym = newtemp();
+    emit(tablecreate, NULL, NULL, t, 0, yylineno);
+
+    if (t->truelist == 1) {
+        int i = 0;
+        for (expr *curr = t->next; curr; curr = curr->next) {
+            if (!curr->sym &&
+                curr->type != constnum_e &&
+                curr->type != conststring_e &&
+                curr->type != constbool_e)
+                curr->sym = newtemp();
+            emit(tablesetelem, curr, newexpr_constnum(i++), t, 0, yylineno);
+        }
+        t->next = NULL;
+    } else if (t->truelist == 2) {
+        for (expr *curr = t->args; curr; curr = curr->next) {
+            if (!curr->args) continue;
+            if (curr->args->type == newtable_e)
+                materialize_newtable(curr->args);
+            if (curr->index && !curr->index->sym &&
+                curr->index->type != constnum_e &&
+                curr->index->type != conststring_e)
+                curr->index->sym = newtemp();
+            if (curr->args->type != constnum_e &&
+                curr->args->type != conststring_e &&
+                curr->args->type != constbool_e &&
+                curr->args->type != programfunc_e &&
+                !curr->args->sym)
+                curr->args->sym = newtemp();
+            emit(tablesetelem, curr->args, curr->index, t, 0, yylineno);
+        }
+        t->args = NULL;
+    }
+
+    t->truelist = 0;
 }
 
 expr *create_expr_list(expr *head, expr *tail) {
@@ -566,6 +627,8 @@ expr *emit_iftableitem(expr *e) {
     }
 
     if (e->type != tableitem_e) {
+        if (e->type == newtable_e)
+            materialize_newtable(e);
         return e;
     }
 
@@ -579,11 +642,11 @@ expr *emit_iftableitem(expr *e) {
     }
 
     expr *table = emit_iftableitem(e->table);   // for nested tableitem_e
+    expr *index = emit_iftableitem(e->index);
 
     expr *result = newexpr(var_e);
     result->sym = newtemp();
-    // emit(tablegetelem, e, e->index, result, 0, yylineno);
-    emit(tablegetelem, table, e->index, result, 0, yylineno);
+    emit(tablegetelem, table, index, result, 0, yylineno);
 
 
     e->next = result; // added this to memoize
@@ -613,9 +676,7 @@ int mergelist(int l1, int l2) {
 }
 
 void patchlist(int list, int label) {
-    printf("TEST_1: label %d\n", label);
     while (list) {
-        printf("\tlist %d\n", list);
         int next = quads[list].label;
         quads[list].label = label;
         list = next;
@@ -987,6 +1048,16 @@ expr* make_not(expr *e) {
 
 expr *make_and(expr *lhs, expr *rhs)
 {
+    if (lhs->type == boolexpr_e) {
+        expr *rb = lower_if_not(rhs);
+        /* RHS quads are already emitted; patch to their start, not past them. */
+        patchlist(lhs->truelist, rb->truelist);
+        expr *r  = newexpr(boolexpr_e);
+        r->truelist  = rb->truelist;
+        r->falselist = mergelist(lhs->falselist, rb->falselist);
+        return r;
+    }
+
     unsigned test = emit_bool_test(lhs);
 
    /* new:  patch the TRUE edge        */
@@ -1004,6 +1075,16 @@ expr *make_and(expr *lhs, expr *rhs)
 
 expr *make_or(expr *lhs, expr *rhs)
 {
+    if (lhs->type == boolexpr_e) {
+        expr *rb = lower_if_not(rhs);
+        /* RHS quads are already emitted; patch to their start, not past them. */
+        patchlist(lhs->falselist, rb->truelist);
+        expr *r = newexpr(boolexpr_e);
+        r->truelist = mergelist(lhs->truelist, rb->truelist);
+        r->falselist = rb->falselist;
+        return r;
+    }
+
     unsigned test = emit_bool_test(lhs);
 
     /* Patch the FALSE edge of LHS to the start of RHS */

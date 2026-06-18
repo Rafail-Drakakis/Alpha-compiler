@@ -10,6 +10,7 @@
 #include "codegen.h"
 #include "symbol_table.h"
 #include "quads.h"
+#include "vm.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -21,7 +22,7 @@ unsigned vm_stack_top    = 0;
 unsigned vm_stack_topsp  = 0;
 
 #define INSTRUCTION_ARRAY_SIZE 1024 
-#define GLOBAL_BASE  0
+
 #define TOP          vm_stack_top     
 #define TOPSP        vm_stack_topsp  
 
@@ -34,11 +35,81 @@ instruction instructions[INSTRUCTION_ARRAY_SIZE];
 unsigned int currInstruction = 0;
 
 incomplete_jump *ijumps_head = NULL;
+typedef struct unresolved_call {
+    unsigned instrNo;
+    char *func_name;
+    struct unresolved_call *next;
+} unresolved_call;
+
+typedef struct userfunc_patch {
+    char *name;
+    unsigned address;
+    struct userfunc_patch *next;
+} userfunc_patch;
+
+static unresolved_call *unresolved_calls = NULL;
+static userfunc_patch *userfuncs = NULL;
+
+static int func_skip_stack[64];
+static int func_skip_sp = 0;
+
+static void emit_unconditional_jump(void) {
+    instruction skip = { .opcode = op_jne };
+    skip.arg1.type = label_a;
+    skip.arg1.value = 0;
+    skip.arg2.type = label_a;
+    skip.arg2.value = 0;
+    skip.result.type = label_a;
+    skip.result.value = 0;
+    func_skip_stack[func_skip_sp++] = (int)nextinstructionlabel();
+    emit_instruction(skip);
+}
+
+static void register_userfunc(const char *name, unsigned address) {
+    userfunc_patch *n = malloc(sizeof(*n));
+    n->name = strdup(name);
+    n->address = address;
+    n->next = userfuncs;
+    userfuncs = n;
+}
+
+static int lookup_userfunc_address(const char *name, unsigned *address) {
+    for (userfunc_patch *n = userfuncs; n; n = n->next) {
+        if (strcmp(n->name, name) == 0) {
+            *address = n->address;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void add_unresolved_call(unsigned instrNo, const char *func_name) {
+    unresolved_call *n = malloc(sizeof(*n));
+    n->instrNo = instrNo;
+    n->func_name = strdup(func_name);
+    n->next = unresolved_calls;
+    unresolved_calls = n;
+}
+
+static void patch_unresolved_calls(void) {
+    unresolved_call *n = unresolved_calls;
+    while (n) {
+        unsigned addr = 0;
+        if (lookup_userfunc_address(n->func_name, &addr)) {
+            instructions[n->instrNo].arg1.type = userfunc_a;
+            instructions[n->instrNo].arg1.value = (int)addr;
+        }
+        n = n->next;
+    }
+}
 
 void patch_incomplete_jumps(void) {
     incomplete_jump *ij = ijumps_head;
     while (ij) {
-        instructions[ij->instrNo].result.value = quads[ij->iaddress].taddress;
+        if ((unsigned)ij->iaddress >= currQuad)
+            instructions[ij->instrNo].result.value = (int)currInstruction;
+        else
+            instructions[ij->instrNo].result.value = quads[ij->iaddress].taddress;
         ij = ij->next;
     }
 }
@@ -134,15 +205,15 @@ void make_operand(expr *e, vmarg *arg) {
             switch (sym->space) {
                 case programvar:
                     arg->type  = global_a;
-                    arg->value = GLOBAL_BASE + offset;
+                    arg->value = (int)offset;
                     break;
                 case formalarg:
                     arg->type  = formal_a;
-                    arg->value = TOPSP - offset;
+                    arg->value = offset;
                     break;
                 case functionlocal:
                     arg->type  = local_a;
-                    arg->value = TOP + offset + 1;
+                    arg->value = offset;
                     break;
             }
             break;
@@ -155,10 +226,24 @@ void make_operand(expr *e, vmarg *arg) {
             arg->value = 0;
             break;
         case programfunc_e:
+            if (e->sym && e->sym->name) {
+                unsigned addr = 0;
+                if (lookup_userfunc_address(e->sym->name, &addr)) {
+                    arg->type = userfunc_a;
+                    arg->value = (int)addr;
+                } else {
+                    arg->type = label_a;
+                    arg->value = 0;
+                }
+            } else {
+                arg->type = label_a;
+                arg->value = 0;
+            }
+            break;
         case libraryfunc_e: {
           SymbolTableEntry *sym = e->sym;
           arg->type  = global_a;
-          arg->value = GLOBAL_BASE + sym->offset;
+          arg->value = (int)sym->offset;
           break;
         }
         default:
@@ -170,51 +255,52 @@ void make_operand(expr *e, vmarg *arg) {
 void generate_FUNCSTART(quad *q) {
     q->taddress = nextinstructionlabel();
 
-    /* 1) push old TOPSP */
-    instruction t1 = { .opcode = op_pusharg };
-    make_retvaloperand(&t1.arg1);           /* encode old TOPSP */
-    emit_instruction(t1);
+    expr *func = q->arg1;
+    int has_bind = (func && func->sym && func->sym->name);
+    unsigned entry_instr = nextinstructionlabel() + (has_bind ? 1u : 0u) + 1u;
 
-    /* 2) set TOPSP = TOP */
-    instruction t2 = { .opcode = op_assign };
-    make_operand(NULL, &t2.arg1);           /* no-op src */
-    make_retvaloperand(&t2.arg2);            /* dest = old retval slot */
-    emit_instruction(t2);
-
-    unsigned locals = (unsigned)q->arg1->numConst;
-    for (unsigned i = 0; i < locals; ++i) {
-        instruction t = { .opcode = op_nop };
-        emit_instruction(t);  
+    if (has_bind) {
+        instruction bind = { .opcode = op_assign };
+        bind.arg1.type = userfunc_a;
+        bind.arg1.value = (int)entry_instr;
+        reset_operand(&bind.arg2);
+        bind.result.type = global_a;
+        bind.result.value = (int)func->sym->offset;
+        emit_instruction(bind);
+        register_userfunc(func->sym->name, entry_instr);
     }
+
+    emit_unconditional_jump();
+
+    instruction t = { .opcode = op_funcenter };
+    if (q->arg2 && q->arg2->type == constnum_e) {
+        t.arg1.type = number_a;
+        t.arg1.value = add_numconst(q->arg2->numConst);
+    } else if (q->arg1 && q->arg1->type == constnum_e) {
+        t.arg1.type = number_a;
+        t.arg1.value = add_numconst(q->arg1->numConst);
+    } else {
+        t.arg1.type = number_a;
+        t.arg1.value = add_numconst(0);
+    }
+    emit_instruction(t);
 }
 
 void generate_FUNCEND(quad *q) {
     q->taddress = nextinstructionlabel();
+    instruction t = { .opcode = op_funcexit };
+    emit_instruction(t);
 
-    /* 1) restore TOP = TOPSP */
-    instruction t1 = { .opcode = op_assign };
-    make_retvaloperand(&t1.arg1);      /* arg1 = old TOPSP value */
-    reset_operand(&t1.arg2);
-    emit_instruction(t1);
-
-    /* 2) pop old TOPSP (incomplete jump back address) */
-    instruction t2 = { .opcode = op_nop }; 
-    emit_instruction(t2);              /* or op_poptops if defined */
-
-    /* 3) return via incomplete jump */
-    instruction t3 = { .opcode = op_jne }; /* any conditional unused */
-    t3.result.type  = label_a;
-    if (q->label < nextinstructionlabel()) {
-        t3.result.value = quads[q->label].taddress;
-    } else {
-        add_incomplete_jump(nextinstructionlabel(), q->label);
+    if (func_skip_sp > 0) {
+        int skip_instr = func_skip_stack[--func_skip_sp];
+        instructions[skip_instr].result.value = (int)nextinstructionlabel();
     }
-    emit_instruction(t3);
 }
 
 void generate_target_code(void) {
     currInstruction = 0;   /* clear out any old instructions */
-    ijumps_head   = NULL; 
+    ijumps_head   = NULL;
+    func_skip_sp  = 0;
     for (unsigned i = 0; i < currQuad; ++i) {
         quad *q = &quads[i];
         switch (q->op) {
@@ -263,6 +349,8 @@ void generate_target_code(void) {
             generate_CALL(q); break;
           case getretval:
             generate_GETRETVAL(q); break;
+          case ret:
+            generate_RET(q); break;
           /* Functions */
           case funcstart:
             generate_FUNCSTART(q); break;
@@ -273,6 +361,7 @@ void generate_target_code(void) {
         }
     }
     patch_incomplete_jumps();
+    patch_unresolved_calls();
 }
 
 /* Relational and unconditional jumps */
@@ -283,7 +372,8 @@ void generate_relational(opcode_t op, quad *q) {
     make_operand(q->arg2, &t.arg2);
     t.result.type = label_a;
 
-    if (q->label < nextinstructionlabel()) {
+    unsigned qi = (unsigned)(q - quads);
+    if (q->label < qi && quads[q->label].taddress != 0) {
         t.result.value = quads[q->label].taddress;
     } else {
         add_incomplete_jump(nextinstructionlabel(), q->label);
@@ -419,22 +509,26 @@ void generate_CALL(quad *q) {
     q->taddress = nextinstructionlabel();
     instruction t = { .opcode = op_callfunc };
     make_operand(q->arg1, &t.arg1);
+    if (q->arg1 && q->arg1->type == programfunc_e &&
+        q->arg1->sym && t.arg1.type == label_a) {
+        add_unresolved_call(nextinstructionlabel(), q->arg1->sym->name);
+    }
     emit_instruction(t);
 }
 
 void generate_GETRETVAL(quad *q) {
     q->taddress = nextinstructionlabel();
-    instruction t = { .opcode = op_assign };
+    instruction t = { .opcode = op_getretval };
     make_operand(q->result, &t.result);
-    make_retvaloperand(&t.arg1);
+    make_retvaloperand(&t.arg1); /* kept for debugging printouts */
     emit_instruction(t);
 }
 
 void generate_RET(quad *q) {
     q->taddress = nextinstructionlabel();
-    assert(q->result);
+    assert(q->arg1);
     instruction t = { .opcode = op_assign };
-    make_operand(q->result, &t.arg1);
+    make_operand(q->arg1, &t.arg1);
     make_retvaloperand(&t.result);
     reset_operand(&t.arg2);
     emit_instruction(t);
@@ -455,13 +549,13 @@ void reset_operand(vmarg *arg) {
 }
 
 void make_booloperand(vmarg *arg, int boolean) {
-    arg->type = label_a;
+    arg->type = bool_a;
     arg->value = boolean;
 }
 
 void make_retvaloperand(vmarg *arg) {
-    arg->type = label_a;
-    arg->value = -1;
+    arg->type = retval_a;
+    arg->value = 0;
 }
 
 void add_incomplete_jump(int instrNo, int iaddress) {
@@ -477,7 +571,7 @@ const char* opcode_names[] = {
     "ADD", "SUB", "MUL", "DIV", "MOD",
     "NEWTABLE", "TABLEGETELM", "TABLESETELEM", "ASSIGN", "NOP",
     "JEQ", "JNE", "JGT", "JGE", "JLT", "JLE",
-    "PUSHARG", "CALLFUNC" /*We will add more*/
+    "PUSHARG", "CALLFUNC", "GETRET", "UMINUS", "FUNCENTER", "FUNCEXIT"
 };
 
 void print_instructions(FILE* out) {
@@ -526,5 +620,13 @@ void write_binary(const char *filename) {
         fwrite(stringConsts[i], sizeof(char), len, fp);
     }
 
+    // 4) global variable count (for stack placement)
+    fwrite(&programVarOffset, sizeof(programVarOffset), 1, fp);
+
     fclose(fp);
+}
+
+void export_userfuncs_to_vm(void) {
+    for (userfunc_patch *n = userfuncs; n; n = n->next)
+        vm_register_userfunc(n->name, n->address);
 }
